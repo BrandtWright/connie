@@ -49,7 +49,7 @@ Usage:
   $TOOL init       [dir]    Scaffold .devbox/ inside a project directory
   $TOOL run        [dir]    Build (if needed) and start Claude Code
   $TOOL build      [dir]    Build the project container image without starting it
-  $TOOL build-base          Build the connie base image (run once after install)
+  $TOOL build-base          Build (or rebuild) the connie base image
   $TOOL clean      [dir]    Remove the locally built project container image
   $TOOL help                Show this message
   $TOOL version             Show version
@@ -393,15 +393,14 @@ cmd_init() {
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
         printf '\n'
-        _detail "NOTE: Base image not found. Run 'connie build-base' before 'connie run'."
+        _detail "NOTE: Base image not found. It will be built automatically on first 'connie run'."
     fi
 
     cat <<INITEOF
 
 ==> Next steps:
     1. Edit .devbox/.containerrc to describe this project's container needs
-    2. Run 'connie build-base' if you have not already done so
-    3. Run 'connie run' from the project directory
+    2. Run 'connie run' from the project directory
 
     On first run, Claude Code will prompt you to authenticate.
     Credentials are saved to .devbox/.claude.json and reused on

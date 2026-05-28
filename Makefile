@@ -22,8 +22,7 @@ help:
 	@echo "Override PREFIX to install without sudo:"
 	@echo "  make install PREFIX=~/.local"
 	@echo ""
-	@echo "After installing, build the base image once:"
-	@echo "  connie build-base"
+	@echo "Then run 'connie init <dir>' and 'connie run' — base image builds automatically."
 
 # ── Install ───────────────────────────────────────────────────────────────────
 
@@ -41,8 +40,8 @@ install: check
 	$(INSTALL) -m 644 $(CURDIR)/lib/connie/config/defaults.yml          $(LIBDIR)/config/defaults.yml
 	@echo "==> Done."
 	@echo ""
-	@echo "    Next: run 'connie build-base' to build the base Docker image."
-	@echo "    This is required once before running 'connie run'."
+	@echo "    Next: run 'connie init <project-dir>' then 'connie run'."
+	@echo "    The base Docker image is built automatically on first run."
 
 # ── Uninstall ─────────────────────────────────────────────────────────────────
 
