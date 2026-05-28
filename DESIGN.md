@@ -39,19 +39,19 @@ permissiveness.
 ### 2. Per-Project Isolation
 
 Claude Code state — auth tokens, project memory, conversation history — is
-stored in `.devbox/` alongside the project's container config. Each project
+stored in `.connie/` alongside the project's container config. Each project
 gets a completely fresh Claude Code context. No memory or history leaks between
 projects.
 
 This is implemented via volume mounts that point Claude Code's expected home
 directory paths (`.claude/` and `.claude.json`) to per-project locations in
-`.devbox/`, transparent to Claude Code itself.
+`.connie/`, transparent to Claude Code itself.
 
 ### 3. Non-Invasive
 
 `connie` must be attachable to any existing project without modifying it. The
 project's source tree, build system, and version control are untouched. The
-only artifact `connie` places in a project is `.devbox/`, which is gitignored.
+only artifact `connie` places in a project is `.connie/`, which is gitignored.
 
 This principle is modeled on how `git` works: `.git/` is `git`'s entire
 footprint inside a project. The project does not need to know git exists.
@@ -62,7 +62,7 @@ Different configuration belongs at different levels:
 
 - **System config** — policies that apply to all users on a machine
 - **User config** — personal preferences that apply to all projects
-- **Project config** — requirements specific to a project (`.devbox/.containerrc`)
+- **Project config** — requirements specific to a project (`.connie/.containerrc`)
 - **CLI flags** — one-off overrides for a single invocation
 
 `connie` respects this layering and merges all sources with explicit, predictable
@@ -112,9 +112,9 @@ between them.
                      │ reads
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Project directory (untouched except for .devbox/)              │
+│  Project directory (untouched except for .connie/)              │
 │                                                                 │
-│  .devbox/                                                       │
+│  .connie/                                                       │
 │  ├── .claude/             Claude Code state — per-project       │
 │  ├── .claude.json         Claude Code auth — per-project        │
 │  ├── .containerrc         Project config (editable)             │
@@ -149,7 +149,7 @@ defaults.yml              (lowest precedence)
       +
 ~/.config/connie/config.yml
       +
-.devbox/.containerrc
+.connie/.containerrc
       +
 CLI flags                 (highest precedence)
       │
@@ -254,11 +254,11 @@ Exactly three locations on the host filesystem are visible inside the container:
 | Host path | Container path | Access | Purpose |
 | --- | --- | --- | --- |
 | `[project dir]` | `/workspace` | Read/Write | The project being worked on |
-| `[project dir]/.devbox/.claude/` | `~/.claude/` | Read/Write | Claude Code state, memory, and credentials — per-project |
-| `[project dir]/.devbox/.claude.json` | `~/.claude.json` | Read/Write | Claude Code app config — per-project |
+| `[project dir]/.connie/.claude/` | `~/.claude/` | Read/Write | Claude Code state, memory, and credentials — per-project |
+| `[project dir]/.connie/.claude.json` | `~/.claude.json` | Read/Write | Claude Code app config — per-project |
 
 All three mount points live inside the project directory. Nothing else from
-the host is mounted. `.devbox/.claude/` and `.devbox/.claude.json` must be
+the host is mounted. `.connie/.claude/` and `.connie/.claude.json` must be
 pre-created on the host before Docker mounts them — with a read-only
 container filesystem Docker cannot create the mount point at the target path
 if it doesn't exist in the image.
@@ -324,7 +324,7 @@ image if it does not exist. Run `connie build-base` explicitly when:
 
 Claude Code authenticates via `OAuth`. On first `connie run` for a project, it
 prompts the user to log in via browser. Credentials are written to
-`.devbox/.claude.json` and `.devbox/.claude/` inside the project directory.
+`.connie/.claude.json` and `.connie/.claude/` inside the project directory.
 
 On subsequent runs for the same project, the saved credentials are reused
 automatically — no re-authentication needed.
@@ -342,22 +342,22 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 
 **Managed by `connie` (do not edit):**
 
-- `.devbox/docker-compose.yml` — hardened Compose base
-- `.devbox/extend.Dockerfile` — generic build template
-- `.devbox/override.yml` — generated at runtime, ephemeral
+- `.connie/docker-compose.yml` — hardened Compose base
+- `.connie/extend.Dockerfile` — generic build template
+- `.connie/override.yml` — generated at runtime, ephemeral
 
 **Owned by the developer (edit freely):**
 
-- `.devbox/.containerrc` — the project contract
+- `.connie/.containerrc` — the project contract
 
 **Owned by Claude Code (do not edit manually):**
 
-- `.devbox/.claude/` — session state, memory, history
-- `.devbox/.claude.json` — auth tokens and config
+- `.connie/.claude/` — session state, memory, history
+- `.connie/.claude.json` — auth tokens and config
 
 **Never committed:**
 
-- `.devbox/` as a whole — added to the project's `.gitignore`
+- `.connie/` as a whole — added to the project's `.gitignore`
 
 ---
 

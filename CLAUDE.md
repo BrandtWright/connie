@@ -51,12 +51,12 @@ exercise `init` / `build` / `run` / `clean` against a scratch project.
    (uid 1000) + Claude Code installed via the official `install.sh` as that user.
    Not published to any registry.
 3. **Per-project image** (`connie-workspace`) — built by `connie run`/`connie build`
-   from the project's `.devbox/extend.Dockerfile`, which is `FROM connie/base:latest`
+   from the project's `.connie/extend.Dockerfile`, which is `FROM connie/base:latest`
    plus `EXTRA_PACKAGES` (apk) injected as a build arg.
 
 ### What `connie init` writes into a project
 
-Everything connie touches in a target project lives under `.devbox/` (and the
+Everything connie touches in a target project lives under `.connie/` (and the
 directory is gitignored — connie never modifies the project's own source tree):
 
 - `.containerrc` — **developer-owned**, the only file meant to be hand-edited;
@@ -77,11 +77,11 @@ it through these stages rather than editing one in isolation:
 
 1. `_merge_configs` deep-merges YAML (via `yq` reduce) in ascending precedence:
    `lib/connie/config/defaults.yml` → `/etc/connie/config.yml` →
-   `~/.config/connie/config.yml` → project `.devbox/.containerrc`. Produces one
+   `~/.config/connie/config.yml` → project `.connie/.containerrc`. Produces one
    temp file.
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.
-3. `_generate_override` reads the merged config and emits `.devbox/override.yml`:
+3. `_generate_override` reads the merged config and emits `.connie/override.yml`:
    build args (`EXTRA_PACKAGES`, `BUILD_COMMANDS`), `environment` (from `env`),
    `volumes` (the three standard mounts first, then extras), `ports`, resource
    limits, and `command`.

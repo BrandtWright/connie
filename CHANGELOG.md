@@ -73,7 +73,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - `connie build-base` — build the local base image
-- `connie init [dir]` — scaffold `.devbox/` inside a project directory
+- `connie init [dir]` — scaffold `.connie/` inside a project directory
 - `connie run [dir]` — build (if needed) and start Claude Code
 - `connie build [dir]` — build the project container image without starting it
 - `connie clean [dir]` — remove the locally built project container image
@@ -102,8 +102,8 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Per-project Claude Code state
 
-- `.devbox/.claude/` and `.devbox/.claude.json` are per-project, stored in
-  `.devbox/` alongside other container config
+- `.connie/.claude/` and `.connie/.claude.json` are per-project, stored in
+  `.connie/` alongside other container config
 - Claude Code auth and memory are fully isolated between projects
 - `connie init` pre-creates both on the host so Docker has valid mount points
 

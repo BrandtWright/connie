@@ -1,6 +1,6 @@
-# .devbox/docker-compose.yml
+# .connie/docker-compose.yml
 # Managed by connie — do not edit directly.
-# To change container configuration, edit .devbox/.containerrc
+# To change container configuration, edit .connie/.containerrc
 # and re-run 'connie run'.
 
 services:

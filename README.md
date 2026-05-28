@@ -14,16 +14,16 @@ into Claude Code — ready to assist with development tasks.
 ```text
 connie run ~/repos/my-project
         │
-        ├── reads  .devbox/.containerrc        project dependencies + config
+        ├── reads  .connie/.containerrc        project dependencies + config
         ├── builds connie-workspace image      base image + project packages
         ├── mounts ~/repos/my-project       →  /workspace          (read/write)
-        ├── mounts .devbox/.claude/         →  ~/.claude/           (read/write)
-        ├── mounts .devbox/.claude.json     →  ~/.claude.json       (read/write)
+        ├── mounts .connie/.claude/         →  ~/.claude/           (read/write)
+        ├── mounts .connie/.claude.json     →  ~/.claude.json       (read/write)
         └── starts Claude Code              inside the hardened container
 ```
 
 Claude Code state (auth tokens, project memory, conversation history) is stored
-in `.devbox/` alongside the rest of the project's container config. Each project
+in `.connie/` alongside the rest of the project's container config. Each project
 has completely isolated Claude Code state — no memory or history leaks between
 projects.
 
@@ -63,14 +63,14 @@ make uninstall PREFIX=~/.local
 connie init ~/repos/my-project
 
 # 2. Optionally edit the config to add project-specific packages
-$EDITOR ~/repos/my-project/.devbox/.containerrc
+$EDITOR ~/repos/my-project/.connie/.containerrc
 
 # 3. Start Claude Code in the container
 connie run ~/repos/my-project
 ```
 
 If you run `connie` from inside a project directory, the path argument is
-optional — connie walks up the directory tree looking for `.devbox/`:
+optional — connie walks up the directory tree looking for `.connie/`:
 
 ```sh
 cd ~/repos/my-project
@@ -82,7 +82,7 @@ connie builds it automatically before starting the container. This takes a few
 minutes once per machine.
 
 On first run per project, Claude Code will prompt you to authenticate with your
-Anthropic account. Credentials are saved to `.devbox/.claude/.credentials.json`
+Anthropic account. Credentials are saved to `.connie/.claude/.credentials.json`
 and reused on every subsequent `connie run` for that project.
 
 ---
@@ -92,7 +92,7 @@ and reused on every subsequent `connie run` for that project.
 | Command | Description |
 | --- | --- |
 | `connie build-base` | Build (or rebuild) the connie base image |
-| `connie init [dir]` | Scaffold `.devbox/` inside a project |
+| `connie init [dir]` | Scaffold `.connie/` inside a project |
 | `connie run [dir]` | Build (if needed) and start Claude Code |
 | `connie build [dir]` | Build the project container image without starting it |
 | `connie clean [dir]` | Remove the locally built project container image |
@@ -126,7 +126,7 @@ from lowest to highest precedence:
 1. connie compiled-in defaults       (/usr/local/lib/connie/config/defaults.yml)
 2. System-wide config                (/etc/connie/config.yml)
 3. User config                       (~/.config/connie/config.yml)
-4. Project config                    ([project]/.devbox/.containerrc)
+4. Project config                    ([project]/.connie/.containerrc)
 5. CLI flags (--package, --env, --cmd)
 ```
 
@@ -134,7 +134,7 @@ from lowest to highest precedence:
 the container as the lowest-precedence env entries — below even project config.
 They can be overridden via `.containerrc` `env:` or `--env`.
 
-### The Project Config: `.devbox/.containerrc`
+### The Project Config: `.connie/.containerrc`
 
 This is the file you edit to describe a project's container needs. Created by
 `connie init` and never overwritten by subsequent connie operations.
@@ -189,8 +189,8 @@ env:
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
 #   [project dir]        →  /workspace                 (read/write)
-#   .devbox/.claude/     →  ~/.claude/                 (read/write)
-#   .devbox/.claude.json →  ~/.claude.json             (read/write)
+#   .connie/.claude/     →  ~/.claude/                 (read/write)
+#   .connie/.claude.json →  ~/.claude.json             (read/write)
 volumes:
   - /some/other/path:/data:ro
 
@@ -223,16 +223,16 @@ rationale. The enforced constraints are:
 - **`/tmp` as tmpfs** — RAM-backed, ephemeral, vanishes on exit
 - **Auto-updater disabled** — `DISABLE_AUTOUPDATER=1` prevents silent writes
   to the read-only filesystem at startup
-- **Exactly three host mounts** — project directory, `.devbox/.claude/`, and
-  `.devbox/.claude.json` — nothing else from the host is visible
+- **Exactly three host mounts** — project directory, `.connie/.claude/`, and
+  `.connie/.claude.json` — nothing else from the host is visible
 - **Resource limits** — 4GB RAM, 2 CPUs, 512 PIDs (all overridable)
 
 ---
 
-## What Lives in `.devbox/`
+## What Lives in `.connie/`
 
 ```text
-.devbox/
+.connie/
 ├── .claude/             Claude Code credentials, history, and state — per-project
 ├── .claude.json         Claude Code account metadata and app config — per-project
 ├── .containerrc         Your project config (edit this)
@@ -241,7 +241,7 @@ rationale. The enforced constraints are:
 └── override.yml         Generated at runtime (ephemeral, never commit)
 ```
 
-The entire `.devbox/` directory is gitignored — none of this is committed to
+The entire `.connie/` directory is gitignored — none of this is committed to
 your project repository. The project under development never needs to know
 connie exists.
 

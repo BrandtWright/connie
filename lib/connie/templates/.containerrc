@@ -1,8 +1,8 @@
-# .devbox/.containerrc
+# .connie/.containerrc
 # connie project configuration
 #
 # This file describes what this project needs from its container environment.
-# It is the only file in .devbox/ that you should edit.
+# It is the only file in .connie/ that you should edit.
 #
 # connie reads config from multiple sources in this order
 # (lowest to highest precedence):
@@ -61,8 +61,8 @@ env: {}
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
 #   [project root]       → /workspace                      (read/write)
-#   .devbox/.claude/     → /home/claude-user/.claude       (read/write)
-#   .devbox/.claude.json → /home/claude-user/.claude.json  (read/write)
+#   .connie/.claude/     → /home/claude-user/.claude       (read/write)
+#   .connie/.claude.json → /home/claude-user/.claude.json  (read/write)
 #
 # Format: host_path:container_path[:options]
 #

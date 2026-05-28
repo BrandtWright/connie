@@ -1,7 +1,7 @@
-# .devbox/extend.Dockerfile
+# .connie/extend.Dockerfile
 # Managed by connie — do not edit directly.
 # To install packages into the container, add them to
-# .devbox/.containerrc under the 'packages' or 'build_commands' keys.
+# .connie/.containerrc under the 'packages' or 'build_commands' keys.
 #
 # The base image is the locally built connie base image, which includes
 # Alpine Linux, core utilities, git, Node.js, and Claude Code.
