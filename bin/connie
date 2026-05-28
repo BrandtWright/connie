@@ -98,6 +98,8 @@ _find_project_root() {
 _merge_configs() {
     _mc_root="$1"
     _mc_work=$(mktemp)
+    _mc_tmp=""
+    trap 'rm -f "$_mc_work" ${_mc_tmp:+"$_mc_tmp"}' EXIT
 
     printf '{}' > "$_mc_work"
 
@@ -112,11 +114,11 @@ _merge_configs() {
             yq eval-all '. as $item ireduce ({}; . * $item)' \
                 "$_mc_work" "$_mc_cfg" > "$_mc_tmp"
             mv "$_mc_tmp" "$_mc_work"
+            _mc_tmp=""
         fi
     done
 
     cat "$_mc_work"
-    rm -f "$_mc_work"
 }
 
 # ── Override file generation ──────────────────────────────────────────────────
