@@ -104,7 +104,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Config hierarchy
 
-- Compiled-in defaults → system → user → project → shell env → CLI flags
+- Compiled-in defaults → system → user → project → CLI flags
 - `.containerrc` format: `packages`, `env`, `volumes`, `ports`,
   `start_cmd`, `resources`
 - `--package`, `--env`, and `--cmd` CLI flags for per-invocation overrides

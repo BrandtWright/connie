@@ -11,8 +11,7 @@
 #   2. /etc/connie/config.yml       (system-wide, set by admin)
 #   3. ~/.config/connie/config.yml  (your personal preferences)
 #   4. This file                    (project-specific requirements)
-#   5. Shell environment variables
-#   6. CLI flags (--package, --env, --cmd)
+#   5. CLI flags (--package, --env, --cmd)
 #
 # Higher-precedence sources override lower ones.
 
