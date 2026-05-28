@@ -172,16 +172,9 @@ packages:
   - github-cli
 
 # Environment variables injected at container runtime.
-# Safe to commit — do not put secret values here.
 env:
   APP_ENV: development
   LOG_LEVEL: debug
-
-# Secret environment variables.
-# List variable *names* here; values come from your shell environment at
-# runtime and are never stored in this file.
-secrets:
-  - MY_API_KEY
 
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):

@@ -15,6 +15,5 @@ resources:
 
 packages: []
 env: {}
-secrets: []
 volumes: []
 ports: []

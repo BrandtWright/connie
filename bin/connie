@@ -68,8 +68,9 @@ Config is read in this order (lowest to highest precedence):
   CLI flags
 
 Standard mounts (always present, not configurable):
-  [project dir]  →  /workspace     read/write
-  ~/.claude      →  /root/.claude  read/write (Claude Code auth + state)
+  [project dir]        →  /workspace                      read/write
+  .devbox/.claude/     →  /home/claude-user/.claude       read/write
+  .devbox/.claude.json →  /home/claude-user/.claude.json  read/write
 
 EOF
 }
@@ -144,23 +145,8 @@ _generate_override() {
         .env // {} |
         to_entries |
         .[] |
-        "      " + .key + ": \"" + .value + "\""
+        "      " + .key + ": " + (.value | @json)
     ' "$_merged_file")
-
-    # Resolve secrets from shell environment
-    _secret_lines=""
-    _secrets=$(yq '.secrets // [] | .[]' "$_merged_file" 2>/dev/null || true)
-    if [ -n "$_secrets" ]; then
-        printf '%s\n' "$_secrets" | while IFS= read -r _secret; do
-            _val=$(eval "printf '%s' \"\${${_secret}:-}\"")
-            if [ -n "$_val" ]; then
-                printf '      %s: "%s"\n' "$_secret" "$_val"
-            else
-                printf 'warning: secret %s is not set in the environment\n' \
-                    "$_secret" >&2
-            fi
-        done
-    fi
 
     # Build volumes block.
     # - /workspace      : the project directory (always first)
@@ -194,7 +180,6 @@ services:
         EXTRA_PACKAGES: "${_final_packages}"
     environment:
 ${_env_block:-      {}}
-${_secret_lines}
 ${_extra_env:+$_extra_env}
     volumes:
 ${_vol_block}
@@ -250,6 +235,17 @@ _prepare() {
     printf '%s' "$_prep_merged"
 }
 
+# ── Compose project name ─────────────────────────────────────────────────────
+
+# Derive a stable, unique Compose project name from the project root path.
+# Using only 'name: connie' in docker-compose.yml would cause all projects to
+# share the same Compose namespace, making images and containers collide.
+_compose_project_name() {
+    _cpn_slug=$(basename "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
+    _cpn_hash=$(printf '%s' "$1" | cksum | cut -d' ' -f1)
+    printf 'connie-%s-%s' "$_cpn_slug" "$_cpn_hash"
+}
+
 # ── Core: build and run via Compose ──────────────────────────────────────────
 
 # Accepts a pre-merged config file so it can be called multiple times
@@ -274,6 +270,7 @@ _run_compose() {
         "$_override_cmd" > "$_override"
 
     docker compose \
+        -p "$(_compose_project_name "$_project_root")" \
         -f "$_devbox_dir/docker-compose.yml" \
         -f "$_override" \
         "$@"
@@ -330,8 +327,12 @@ cmd_init() {
     # Pre-create per-project Claude Code state on the host.
     # Both must exist before Docker mounts them — with read_only: true the
     # container cannot create them at runtime.
-    mkdir -p "$_devbox_dir/.claude"
-    _detail "created  .devbox/.claude/"
+    if [ ! -d "$_devbox_dir/.claude" ]; then
+        mkdir "$_devbox_dir/.claude"
+        _detail "created  .devbox/.claude/"
+    else
+        _detail "exists   .devbox/.claude/ (skipped)"
+    fi
     if [ ! -f "$_devbox_dir/.claude.json" ] || [ ! -s "$_devbox_dir/.claude.json" ]; then
         printf '{}' > "$_devbox_dir/.claude.json"
         _detail "created  .devbox/.claude.json"
@@ -396,6 +397,7 @@ cmd_clean() {
 
     _info "Removing project container image for $_project_root"
     docker compose \
+        -p "$(_compose_project_name "$_project_root")" \
         -f "$_devbox_dir/docker-compose.yml" \
         down --rmi local 2>/dev/null || true
     _info "Done."
@@ -407,15 +409,13 @@ _update_gitignore() {
     _project_root="$1"
     _gitignore="$_project_root/.gitignore"
 
-    [ -f "$_gitignore" ] || return 0
-
     if grep -qF ".devbox/" "$_gitignore" 2>/dev/null; then
         _detail "exists   .gitignore entry for .devbox/ (skipped)"
-    else
-        printf '\n# connie — Claude Code container tooling\n.devbox/\n' \
-            >> "$_gitignore"
-        _detail "updated  .gitignore (added .devbox/)"
+        return
     fi
+
+    printf '\n# connie — Claude Code container tooling\n.devbox/\n' >> "$_gitignore"
+    _detail "updated  .gitignore (added .devbox/)"
 }
 
 # ── Argument parsing ──────────────────────────────────────────────────────────

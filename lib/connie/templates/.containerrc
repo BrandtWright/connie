@@ -41,21 +41,12 @@ packages: []
 
 env: {}
 
-# ── Secrets ───────────────────────────────────────────────────────────────────
-# Names of environment variables whose *values* should be passed into the
-# container from your shell environment. Values are resolved at runtime
-# and are never stored in this file.
-#
-# secrets:
-#   - MY_API_KEY
-
-secrets: []
-
 # ── Volumes ───────────────────────────────────────────────────────────────────
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
-#   [project root] → /workspace  (read/write)
-#   ~/.claude      → /root/.claude  (read/write, Claude Code auth + state)
+#   [project root]       → /workspace                      (read/write)
+#   .devbox/.claude/     → /home/claude-user/.claude       (read/write)
+#   .devbox/.claude.json → /home/claude-user/.claude.json  (read/write)
 #
 # Format: host_path:container_path[:options]
 #
