@@ -1,0 +1,49 @@
+# .devbox/docker-compose.yml
+# Managed by connie — do not edit directly.
+# To change container configuration, edit .devbox/.containerrc
+# and re-run 'connie run'.
+
+name: connie
+
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: extend.Dockerfile
+
+    # ── Filesystem ────────────────────────────────────────────────────────────
+    # The root filesystem is read-only. No process can modify image layers
+    # at runtime. Writable paths:
+    #   - /workspace                    host volume (the project directory)
+    #   - /home/claude-user/.claude     host volume (Claude Code state + auth)
+    #   - /home/claude-user/.claude.json host volume (Claude Code config file)
+    #   - /tmp                          tmpfs, RAM-backed, ephemeral
+    read_only: true
+
+    tmpfs:
+      # /tmp is writable and executable — Node.js V8 JIT requires exec access
+      - /tmp:rw,nosuid,size=256m
+
+    # ── Standard volume mounts ────────────────────────────────────────────────
+    # ~/.claude.json — Claude Code's main config file
+    # ~/.claude/     — Claude Code's state dir (auth tokens, project history)
+    # Both are pre-created by 'connie run' before Docker mounts them.
+    volumes:
+      - "${HOME}/.claude.json:/home/claude-user/.claude.json"
+      - "${HOME}/.claude:/home/claude-user/.claude"
+
+    # ── Init process ──────────────────────────────────────────────────────────
+    # Tells Docker Compose to inject its own init shim (tini) as PID 1.
+    # This ensures correct signal forwarding and zombie reaping without
+    # requiring tini to be baked into the base image.
+    init: true
+
+    # ── Capabilities ──────────────────────────────────────────────────────────
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # ── Runtime ───────────────────────────────────────────────────────────────
+    stdin_open: true
+    tty: true

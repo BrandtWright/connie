@@ -1,0 +1,89 @@
+# .devbox/.containerrc
+# connie project configuration
+#
+# This file describes what this project needs from its container environment.
+# It is the only file in .devbox/ that you should edit.
+#
+# connie reads config from multiple sources in this order
+# (lowest to highest precedence):
+#
+#   1. connie compiled-in defaults
+#   2. /etc/connie/config.yml       (system-wide, set by admin)
+#   3. ~/.config/connie/config.yml  (your personal preferences)
+#   4. This file                    (project-specific requirements)
+#   5. Shell environment variables
+#   6. CLI flags (--package, --env, --cmd)
+#
+# Higher-precedence sources override lower ones.
+
+# ── Packages ──────────────────────────────────────────────────────────────────
+# Additional packages to install into the container at build time.
+# These are installed via apk (Alpine Package Keeper).
+# The base image already includes: git, curl, bash, coreutils, and Claude Code.
+# Changing this list triggers a rebuild; the result is cached by Docker.
+#
+# packages:
+#   - python3
+#   - py3-pip
+#   - nodejs
+#   - npm
+#   - jq
+
+packages: []
+
+# ── Environment variables ─────────────────────────────────────────────────────
+# Injected into the container at runtime.
+# Safe to commit — do not put secret values here.
+#
+# env:
+#   APP_ENV: development
+#   LOG_LEVEL: debug
+
+env: {}
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# Names of environment variables whose *values* should be passed into the
+# container from your shell environment. Values are resolved at runtime
+# and are never stored in this file.
+#
+# secrets:
+#   - MY_API_KEY
+
+secrets: []
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+# Additional volume mounts beyond the standard mounts.
+# Standard mounts (always present, not configured here):
+#   [project root] → /workspace  (read/write)
+#   ~/.claude      → /root/.claude  (read/write, Claude Code auth + state)
+#
+# Format: host_path:container_path[:options]
+#
+# volumes: []
+
+volumes: []
+
+# ── Ports ─────────────────────────────────────────────────────────────────────
+# Port mappings exposed from the container to your host.
+# Format: "host_port:container_port"
+#
+# ports:
+#   - "8080:8080"
+
+ports: []
+
+# ── Start command ─────────────────────────────────────────────────────────────
+# The command connie drops you into when the container starts.
+# Defaults to 'claude' (Claude Code). Override for debugging with:
+#   connie run --cmd sh
+#
+start_cmd: claude
+
+# ── Resource limits ───────────────────────────────────────────────────────────
+# Defaults are defined in connie's compiled-in defaults.
+# Uncomment and adjust only if this project has unusual resource needs.
+#
+# resources:
+#   memory: 4g      # RAM limit (Docker notation: 512m, 1g, 4g, etc.)
+#   cpus: "2.0"     # CPU limit (decimal string: "0.5", "1.0", "4.0")
+#   max_pids: 512   # Maximum number of processes

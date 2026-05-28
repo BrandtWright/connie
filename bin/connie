@@ -1,0 +1,456 @@
+#!/usr/bin/env sh
+# connie — run Claude Code in a constrained, reproducible container
+# POSIX sh — no bashisms
+set -eu
+
+# ── Version and paths ─────────────────────────────────────────────────────────
+
+VERSION="0.1.0"
+TOOL="connie"
+BASE_IMAGE="connie/base:latest"
+
+# CONNIE_LIB_DIR can be overridden for development:
+#   CONNIE_LIB_DIR=./lib/connie ./bin/connie run ~/repos/project
+LIB_DIR="${CONNIE_LIB_DIR:-/usr/local/lib/connie}"
+TEMPLATES_DIR="$LIB_DIR/templates"
+DEFAULTS_FILE="$LIB_DIR/config/defaults.yml"
+
+SYSTEM_CONFIG="/etc/$TOOL/config.yml"
+USER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/$TOOL/config.yml"
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+
+_die() {
+    printf 'error: %s\n' "$1" >&2
+    exit 1
+}
+
+_info() {
+    printf '==> %s\n' "$1"
+}
+
+_detail() {
+    printf '    %s\n' "$1"
+}
+
+_require() {
+    command -v "$1" >/dev/null 2>&1 || _die "'$1' is required but not installed."
+}
+
+_usage() {
+    cat <<EOF
+$TOOL v$VERSION
+
+Runs Claude Code in a constrained, reproducible container attached to a
+project directory. The container has read/write access only to the project
+workspace and ~/.claude (for Claude Code authentication persistence).
+
+Usage:
+  $TOOL init       [dir]    Scaffold .devbox/ inside a project directory
+  $TOOL run        [dir]    Build (if needed) and start Claude Code
+  $TOOL build      [dir]    Build the project container image without starting it
+  $TOOL build-base          Build the connie base image (run once after install)
+  $TOOL clean      [dir]    Remove the locally built project container image
+  $TOOL help                Show this message
+  $TOOL version             Show version
+
+Options (run, build):
+  --package <pkg>    Install an additional apk package (repeatable)
+  --env KEY=VALUE    Set an additional environment variable (repeatable)
+  --cmd <cmd>        Override the start command (default: claude)
+
+Config is read in this order (lowest to highest precedence):
+  $LIB_DIR/config/defaults.yml
+  $SYSTEM_CONFIG
+  $USER_CONFIG
+  [project]/.devbox/.containerrc
+  Shell environment variables
+  CLI flags
+
+Standard mounts (always present, not configurable):
+  [project dir]  →  /workspace     read/write
+  ~/.claude      →  /root/.claude  read/write (Claude Code auth + state)
+
+EOF
+}
+
+# ── Project root detection ────────────────────────────────────────────────────
+
+_find_project_root() {
+    _dir="${1:-$PWD}"
+    _dir=$(cd "$_dir" 2>/dev/null && pwd) || _die "Directory not found: ${1:-$PWD}"
+
+    _walk="$_dir"
+    while [ "$_walk" != "/" ]; do
+        if [ -d "$_walk/.devbox" ]; then
+            printf '%s' "$_walk"
+            return 0
+        fi
+        _walk=$(dirname "$_walk")
+    done
+
+    printf '%s' "$_dir"
+}
+
+# ── Config merging ────────────────────────────────────────────────────────────
+
+_merge_configs() {
+    _mc_root="$1"
+    _mc_work=$(mktemp)
+
+    printf '{}' > "$_mc_work"
+
+    for _mc_cfg in \
+        "$DEFAULTS_FILE" \
+        "$SYSTEM_CONFIG" \
+        "$USER_CONFIG" \
+        "$_mc_root/.devbox/.containerrc" \
+        "$_mc_root/.containerrc"
+    do
+        if [ -f "$_mc_cfg" ]; then
+            _mc_tmp=$(mktemp)
+            yq eval-all '. as $item ireduce ({}; . * $item)' \
+                "$_mc_work" "$_mc_cfg" > "$_mc_tmp"
+            mv "$_mc_tmp" "$_mc_work"
+        fi
+    done
+
+    cat "$_mc_work"
+    rm -f "$_mc_work"
+}
+
+# ── Override file generation ──────────────────────────────────────────────────
+
+_generate_override() {
+    _project_root="$1"
+    _merged_file="$2"
+    _extra_packages="$3"
+    _extra_env="$4"
+    _override_cmd="$5"
+
+    # Extract values from merged config
+    _packages=$(yq '.packages // [] | join(" ")' "$_merged_file")
+    _start_cmd=$(yq '.start_cmd // "claude"' "$_merged_file")
+    _memory=$(yq '.resources.memory // "4g"' "$_merged_file")
+    _cpus=$(yq '.resources.cpus // "2.0"' "$_merged_file")
+    _max_pids=$(yq '.resources.max_pids // 512' "$_merged_file")
+
+    # Apply CLI overrides
+    _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
+    _final_cmd="${_override_cmd:-$_start_cmd}"
+
+    # Build environment block from config
+    _env_block=$(yq '
+        .env // {} |
+        to_entries |
+        .[] |
+        "      " + .key + ": \"" + .value + "\""
+    ' "$_merged_file")
+
+    # Resolve secrets from shell environment
+    _secret_lines=""
+    _secrets=$(yq '.secrets // [] | .[]' "$_merged_file" 2>/dev/null || true)
+    if [ -n "$_secrets" ]; then
+        printf '%s\n' "$_secrets" | while IFS= read -r _secret; do
+            _val=$(eval "printf '%s' \"\${${_secret}:-}\"")
+            if [ -n "$_val" ]; then
+                printf '      %s: "%s"\n' "$_secret" "$_val"
+            else
+                printf 'warning: secret %s is not set in the environment\n' \
+                    "$_secret" >&2
+            fi
+        done
+    fi
+
+    # Build volumes block.
+    # Project root and ~/.claude are the only host mounts.
+    # ~/.claude is declared in docker-compose.yml; project root is injected here.
+    _vol_block="      - ${_project_root}:/workspace:rw"
+    _extra_vols=$(yq '.volumes // [] | .[]' "$_merged_file" 2>/dev/null || true)
+    if [ -n "$_extra_vols" ]; then
+        _vol_block=$(printf '%s\n%s' "$_vol_block" \
+            "$(printf '%s\n' "$_extra_vols" | sed 's/^/      - /')")
+    fi
+
+    # Build ports block
+    _ports_block=""
+    _ports=$(yq '.ports // [] | .[]' "$_merged_file" 2>/dev/null || true)
+    if [ -n "$_ports" ]; then
+        _ports_block=$(printf '%s\n' "$_ports" | sed 's/^/      - "/' | sed 's/$/"/')
+    fi
+
+    cat <<YAML
+# Generated by connie at $(date -u '+%Y-%m-%dT%H:%M:%SZ') — do not edit.
+# Edit .devbox/.containerrc and re-run 'connie run' to change configuration.
+
+services:
+  workspace:
+    build:
+      args:
+        EXTRA_PACKAGES: "${_final_packages}"
+    environment:
+${_env_block:-      {}}
+${_secret_lines}
+${_extra_env:+$_extra_env}
+    volumes:
+${_vol_block}
+    mem_limit: ${_memory}
+    memswap_limit: ${_memory}
+    cpus: ${_cpus}
+    pids_limit: ${_max_pids}
+    ulimits:
+      nofile:
+        soft: 4096
+        hard: 8192
+    working_dir: /workspace
+    command: ${_final_cmd}
+YAML
+}
+
+# ── Validation and config merge ───────────────────────────────────────────────
+
+# Validate the project, check dependencies, merge config into a temp file.
+# Prints the temp file path. Caller must trap to clean it up.
+_prepare() {
+    _prep_root="$1"
+    _prep_devbox="$_prep_root/.devbox"
+
+    [ -d "$_prep_devbox" ] || \
+        _die "No .devbox/ found in $_prep_root. Run '$TOOL' init first."
+    [ -f "$_prep_devbox/.containerrc" ] || [ -f "$_prep_root/.containerrc" ] || \
+        _die "No .containerrc found. Run '$TOOL' init first."
+
+    _require yq
+    _require docker
+
+    if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+        _die "Base image '$BASE_IMAGE' not found. Run '$TOOL build-base' first."
+    fi
+
+    # Ensure ~/.claude.json exists as a valid JSON file on the host before Docker
+    # mounts it. If it does not exist, Docker will create it as a directory.
+    # If it is empty, Claude Code's JSON parser will fail on startup.
+    mkdir -p "${HOME}/.claude"
+    if [ ! -f "${HOME}/.claude.json" ] || [ ! -s "${HOME}/.claude.json" ]; then
+        printf '{}' > "${HOME}/.claude.json"
+    fi
+
+    _prep_merged=$(mktemp)
+    _merge_configs "$_prep_root" > "$_prep_merged"
+    printf '%s' "$_prep_merged"
+}
+
+# ── Core: build and run via Compose ──────────────────────────────────────────
+
+# Accepts a pre-merged config file so it can be called multiple times
+# (build then run) without re-merging or clobbering the temp file.
+_run_compose() {
+    _project_root="$1"
+    _merged_file="$2"
+    _extra_packages="$3"
+    _extra_env="$4"
+    _override_cmd="$5"
+    shift 5
+
+    _devbox_dir="$_project_root/.devbox"
+
+    # Generate the Compose override
+    _override="$_devbox_dir/override.yml"
+    _generate_override \
+        "$_project_root" \
+        "$_merged_file" \
+        "$_extra_packages" \
+        "$_extra_env" \
+        "$_override_cmd" > "$_override"
+
+    docker compose \
+        -f "$_devbox_dir/docker-compose.yml" \
+        -f "$_override" \
+        "$@"
+}
+
+# ── Subcommands ───────────────────────────────────────────────────────────────
+
+cmd_build_base() {
+    _require docker
+
+    _base_dockerfile="${LIB_DIR}/base.Dockerfile"
+    [ -f "$_base_dockerfile" ] || \
+        _die "base.Dockerfile not found at $_base_dockerfile"
+
+    _info "Building connie base image ($BASE_IMAGE)..."
+    _detail "Alpine 3.20 + bash + curl + git + coreutils + Node.js + Claude Code"
+    _detail "This may take a few minutes on first run."
+
+    docker build \
+        -f "$_base_dockerfile" \
+        -t "$BASE_IMAGE" \
+        "$(dirname "$_base_dockerfile")"
+
+    _info "Base image built: $BASE_IMAGE"
+    _detail "Run 'connie init <project-dir>' to set up a project."
+}
+
+cmd_init() {
+    _target="${1:-$PWD}"
+    _target=$(cd "$_target" 2>/dev/null && pwd) || _die "Directory not found: $_target"
+    _devbox_dir="$_target/.devbox"
+
+    _info "Initializing $TOOL in $_target"
+    mkdir -p "$_devbox_dir"
+
+    # Managed files — skip if already present
+    for _f in docker-compose.yml extend.Dockerfile; do
+        if [ ! -f "$_devbox_dir/$_f" ]; then
+            cp "$TEMPLATES_DIR/$_f" "$_devbox_dir/$_f"
+            _detail "created  .devbox/$_f"
+        else
+            _detail "exists   .devbox/$_f (skipped)"
+        fi
+    done
+
+    # .containerrc is developer-owned — never overwrite it
+    if [ ! -f "$_devbox_dir/.containerrc" ]; then
+        cp "$TEMPLATES_DIR/.containerrc" "$_devbox_dir/.containerrc"
+        _detail "created  .devbox/.containerrc"
+    else
+        _detail "exists   .devbox/.containerrc (skipped)"
+    fi
+
+    _update_gitignore "$_target"
+
+    if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+        printf '\n'
+        _detail "NOTE: Base image not found. Run 'connie build-base' before 'connie run'."
+    fi
+
+    cat <<INITEOF
+
+==> Next steps:
+    1. Edit .devbox/.containerrc to describe this project's container needs
+    2. Run 'connie build-base' if you have not already done so
+    3. Run 'connie run' from the project directory
+
+    On first run, Claude Code will prompt you to authenticate.
+    Credentials are saved to ~/.claude and reused on subsequent runs.
+
+INITEOF
+}
+
+cmd_build() {
+    _project_root=$(_find_project_root "${1:-$PWD}")
+    _info "Building project container for $_project_root"
+    _merged=$(_prepare "$_project_root")
+    trap "rm -f $_merged" EXIT
+    _run_compose "$_project_root" "$_merged" \
+        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" \
+        build workspace
+}
+
+cmd_run() {
+    _project_root=$(_find_project_root "${1:-$PWD}")
+    _info "Starting Claude Code for $_project_root"
+
+    # Merge config once; reuse for both build and run
+    _merged=$(_prepare "$_project_root")
+    trap "rm -f $_merged" EXIT
+
+    _run_compose "$_project_root" "$_merged" \
+        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" \
+        build workspace
+
+    _run_compose "$_project_root" "$_merged" \
+        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" \
+        run --rm workspace
+}
+
+cmd_clean() {
+    _project_root=$(_find_project_root "${1:-$PWD}")
+    _devbox_dir="$_project_root/.devbox"
+
+    [ -f "$_devbox_dir/docker-compose.yml" ] || \
+        _die "No .devbox/docker-compose.yml found in $_project_root."
+
+    _info "Removing project container image for $_project_root"
+    docker compose \
+        -f "$_devbox_dir/docker-compose.yml" \
+        down --rmi local 2>/dev/null || true
+    _info "Done."
+}
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+_update_gitignore() {
+    _project_root="$1"
+    _gitignore="$_project_root/.gitignore"
+
+    [ -f "$_gitignore" ] || return 0
+
+    if grep -qF ".devbox/" "$_gitignore" 2>/dev/null; then
+        _detail "exists   .gitignore entry for .devbox/ (skipped)"
+    else
+        printf '\n# connie — Claude Code container tooling\n.devbox/\n' \
+            >> "$_gitignore"
+        _detail "updated  .gitignore (added .devbox/)"
+    fi
+}
+
+# ── Argument parsing ──────────────────────────────────────────────────────────
+
+_ARG_PACKAGES=""
+_ARG_ENV=""
+_ARG_CMD=""
+_SUBCOMMAND=""
+_TARGET_DIR=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        init|run|build|clean|help|version)
+            _SUBCOMMAND="$1"
+            shift
+            ;;
+        build-base)
+            _SUBCOMMAND="build-base"
+            shift
+            ;;
+        --package)
+            [ $# -ge 2 ] || _die "--package requires an argument"
+            _ARG_PACKAGES="${_ARG_PACKAGES:+$_ARG_PACKAGES }$2"
+            shift 2
+            ;;
+        --env)
+            [ $# -ge 2 ] || _die "--env requires an argument"
+            _ARG_ENV="${_ARG_ENV:+$_ARG_ENV
+}      $2"
+            shift 2
+            ;;
+        --cmd)
+            [ $# -ge 2 ] || _die "--cmd requires an argument"
+            _ARG_CMD="$2"
+            shift 2
+            ;;
+        --version)
+            printf '%s %s\n' "$TOOL" "$VERSION"
+            exit 0
+            ;;
+        -*)
+            _die "Unknown flag: $1. Run '$TOOL help' for usage."
+            ;;
+        *)
+            _TARGET_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+# ── Dispatch ──────────────────────────────────────────────────────────────────
+
+case "${_SUBCOMMAND:-help}" in
+    init)        cmd_init       "${_TARGET_DIR:-}" ;;
+    build)       cmd_build      "${_TARGET_DIR:-}" ;;
+    build-base)  cmd_build_base ;;
+    run)         cmd_run        "${_TARGET_DIR:-}" ;;
+    clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
+    version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
+    help)        _usage ;;
+esac

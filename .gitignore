@@ -1,0 +1,13 @@
+# connie repository .gitignore
+
+# If you use connie to develop connie
+.devbox/
+
+# macOS
+.DS_Store
+
+# Editor artifacts
+.idea/
+.vscode/
+*.swp
+*.swo
