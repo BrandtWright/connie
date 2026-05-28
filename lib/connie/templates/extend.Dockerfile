@@ -13,6 +13,8 @@
 FROM connie/base:latest
 
 ARG EXTRA_PACKAGES
+USER root
 RUN if [ -n "$EXTRA_PACKAGES" ]; then \
         apk add --no-cache $EXTRA_PACKAGES; \
     fi
+USER claude-user
