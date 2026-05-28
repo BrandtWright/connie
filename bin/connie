@@ -43,7 +43,7 @@ $TOOL v$VERSION
 
 Runs Claude Code in a constrained, reproducible container attached to a
 project directory. The container has read/write access only to the project
-workspace and ~/.claude (for Claude Code authentication persistence).
+workspace, ~/.claude, and ~/.claude.json (Claude Code state and auth).
 
 Usage:
   $TOOL init       [dir]    Scaffold .devbox/ inside a project directory

@@ -63,11 +63,13 @@ connie/
 ├── CONTRIBUTING.md                  This file
 ├── CHANGELOG.md                     Version history
 ├── base.Dockerfile                  Convenience copy (canonical: lib/connie/)
+├── entrypoint.sh                    Convenience copy (canonical: lib/connie/)
 ├── bin/
 │   └── connie                       The CLI script
 └── lib/
     └── connie/
         ├── base.Dockerfile          Alpine + core tools + Claude Code
+        ├── entrypoint.sh            Container startup script
         ├── templates/
         │   ├── .containerrc         Default project config template
         │   ├── docker-compose.yml   Hardened Compose base

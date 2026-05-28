@@ -156,9 +156,9 @@ resources:
 
 ```yaml
 # Additional packages to install at build time (via apk).
-# The base image already includes: bash, coreutils, curl, wget, git,
-# ripgrep, fd, jq, tree, file, tar, gzip, unzip, lsof, and Claude Code.
-# Add project-specific tools here.
+# The base image already includes: bash, coreutils, grep, sed, gawk,
+# findutils, git, curl, wget, ripgrep, fd, jq, tree, file, tar, gzip,
+# unzip, lsof, build-base, and Claude Code. Add project-specific tools here.
 packages:
   - python3
   - py3-pip

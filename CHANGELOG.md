@@ -20,6 +20,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `connie clean` now surfaces docker errors instead of silently swallowing
+  them. Previously `2>/dev/null || true` caused a failed clean (e.g. Docker
+  daemon not running) to print "Done." and exit 0 with nothing removed.
+- `command:` value in the generated `override.yml` is now quoted, preventing
+  malformed YAML when `start_cmd` contains spaces or special characters.
 - `_info` and `_detail` helpers now write to stderr instead of stdout.
   Previously, calling either function inside `_prepare` (which is invoked
   via command substitution to capture a temp-file path) would corrupt the
