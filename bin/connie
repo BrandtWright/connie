@@ -26,11 +26,11 @@ _die() {
 }
 
 _info() {
-    printf '==> %s\n' "$1"
+    printf '==> %s\n' "$1" >&2
 }
 
 _detail() {
-    printf '    %s\n' "$1"
+    printf '    %s\n' "$1" >&2
 }
 
 _require() {
