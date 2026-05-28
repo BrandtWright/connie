@@ -172,7 +172,12 @@ packages:
   - github-cli
 
 # Environment variables injected at container runtime.
+# GIT_USER_NAME and GIT_USER_EMAIL are recognised by the container entrypoint
+# and written into the container's git config on startup — without them,
+# git commits made inside the container will fail with "Author identity unknown".
 env:
+  GIT_USER_NAME: Your Name
+  GIT_USER_EMAIL: you@example.com
   APP_ENV: development
   LOG_LEVEL: debug
 
