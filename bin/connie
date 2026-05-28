@@ -261,7 +261,8 @@ _prepare() {
     _require docker
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
-        _die "Base image '$BASE_IMAGE' not found. Run '$TOOL build-base' first."
+        _info "Base image '$BASE_IMAGE' not found — building it now."
+        cmd_build_base
     fi
 
     # Pre-create the per-project Claude Code state on the host.
