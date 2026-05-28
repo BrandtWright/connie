@@ -11,7 +11,7 @@ into Claude Code — ready to assist with development tasks.
 
 ## How It Works
 
-```
+```text
 connie run ~/repos/my-project
         │
         ├── reads  .devbox/.containerrc        project dependencies + config
@@ -82,15 +82,15 @@ connie builds it automatically before starting the container. This takes a few
 minutes once per machine.
 
 On first run per project, Claude Code will prompt you to authenticate with your
-Anthropic account. Credentials are saved to `.devbox/.claude/.credentials.json` and reused
-on every subsequent `connie run` for that project.
+Anthropic account. Credentials are saved to `.devbox/.claude/.credentials.json`
+and reused on every subsequent `connie run` for that project.
 
 ---
 
 ## Commands
 
 | Command | Description |
-|---|---|
+| --- | --- |
 | `connie build-base` | Build (or rebuild) the connie base image |
 | `connie init [dir]` | Scaffold `.devbox/` inside a project |
 | `connie run [dir]` | Build (if needed) and start Claude Code |
@@ -104,7 +104,7 @@ on every subsequent `connie run` for that project.
 These flags apply to `run` and `build`:
 
 | Flag | Description |
-|---|---|
+| --- | --- |
 | `--package <pkg>` | Install an additional apk package (repeatable) |
 | `--env KEY=VALUE` | Set an additional environment variable (repeatable) |
 | `--cmd <cmd>` | Override the start command (default: `claude`) |
@@ -122,7 +122,7 @@ connie run --cmd sh
 connie reads configuration from multiple sources and merges them in this order,
 from lowest to highest precedence:
 
-```
+```text
 1. connie compiled-in defaults       (/usr/local/lib/connie/config/defaults.yml)
 2. System-wide config                (/etc/connie/config.yml)
 3. User config                       (~/.config/connie/config.yml)
@@ -231,7 +231,7 @@ rationale. The enforced constraints are:
 
 ## What Lives in `.devbox/`
 
-```
+```text
 .devbox/
 ├── .claude/             Claude Code credentials, history, and state — per-project
 ├── .claude.json         Claude Code account metadata and app config — per-project

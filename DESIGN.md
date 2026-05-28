@@ -87,7 +87,7 @@ between them.
 
 ## Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  connie repository (installed once per developer machine)       │
 │                                                                 │
@@ -126,7 +126,7 @@ between them.
 
 ### Image Hierarchy
 
-```
+```text
 alpine:3.20  (pulled from Docker Hub)
       │
       │  built by 'connie build-base' (or automatically on first 'connie run')
@@ -142,7 +142,7 @@ connie-workspace  (local image, per project)
 
 ### Config Merge Flow
 
-```
+```text
 defaults.yml              (lowest precedence)
       +
 /etc/connie/config.yml
@@ -207,7 +207,7 @@ With a read-only root, the only writable system path is `/tmp`, mounted as
 startup:
 
 | Variable | Path | Purpose |
-|---|---|---|
+| --- | --- | --- |
 | `XDG_CACHE_HOME` | `/tmp/.cache` | Tool caches |
 | `XDG_CONFIG_HOME` | `/tmp/.config` | Runtime config |
 | `XDG_DATA_HOME` | `/tmp/.local/share` | Application data |
@@ -252,7 +252,7 @@ and falls back to no-color mode for all shell tools.
 Exactly three locations on the host filesystem are visible inside the container:
 
 | Host path | Container path | Access | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `[project dir]` | `/workspace` | Read/Write | The project being worked on |
 | `[project dir]/.devbox/.claude/` | `~/.claude/` | Read/Write | Claude Code state, memory, and credentials — per-project |
 | `[project dir]/.devbox/.claude.json` | `~/.claude.json` | Read/Write | Claude Code app config — per-project |
@@ -266,7 +266,7 @@ if it doesn't exist in the image.
 ### Resource Limits
 
 | Resource | Default |
-|---|---|
+| --- | --- |
 | Memory | 4GB |
 | CPU | 2 cores |
 | PIDs | 512 |
@@ -296,7 +296,7 @@ permission mismatches and ensures Claude Code can locate its own files at runtim
 ### Contents
 
 | Component | Purpose |
-|---|---|
+| --- | --- |
 | `alpine:3.20` | Minimal base |
 | `bash`, `coreutils`, `grep`, `sed`, `gawk`, `findutils` | Shell and core utils |
 | `git` | Source control |
@@ -314,6 +314,7 @@ permission mismatches and ensures Claude Code can locate its own files at runtim
 
 On first use, `connie run` and `connie build` automatically build the base
 image if it does not exist. Run `connie build-base` explicitly when:
+
 - A new version of Claude Code is available
 - You want to update the Alpine base or tooling versions
 
@@ -340,18 +341,22 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 ## File Ownership Model
 
 **Managed by connie (do not edit):**
+
 - `.devbox/docker-compose.yml` — hardened Compose base
 - `.devbox/extend.Dockerfile` — generic build template
 - `.devbox/override.yml` — generated at runtime, ephemeral
 
 **Owned by the developer (edit freely):**
+
 - `.devbox/.containerrc` — the project contract
 
 **Owned by Claude Code (do not edit manually):**
+
 - `.devbox/.claude/` — session state, memory, history
 - `.devbox/.claude.json` — auth tokens and config
 
 **Never committed:**
+
 - `.devbox/` as a whole — added to the project's `.gitignore`
 
 ---

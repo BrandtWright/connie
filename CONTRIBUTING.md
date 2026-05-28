@@ -55,7 +55,7 @@ Specific rules:
 
 ## Project Structure
 
-```
+```text
 connie/
 ├── Makefile                         Install / uninstall / syntax check
 ├── README.md                        User-facing documentation

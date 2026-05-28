@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with
+code in this repository.
 
 ## What connie is
 
@@ -95,13 +96,13 @@ it through these stages rather than editing one in isolation:
 Because the container root filesystem is read-only, `entrypoint.sh` redirects all
 XDG dirs and `GIT_CONFIG_GLOBAL` to the `/tmp` tmpfs at startup, marks `/workspace`
 a git safe directory, and `exec`s the command as PID 1. The base image bakes in
-`DISABLE_AUTOUPDATER=1` — without it Claude Code's updater hangs trying to write to
-the read-only filesystem.
+`DISABLE_AUTOUPDATER=1` — without it Claude Code's updater hangs trying to
+write to the read-only filesystem.
 
 ## Conventions
 
-- Version lives in one place: `VERSION` at the top of `bin/connie`. Bump it and add
-  a `CHANGELOG.md` entry (Keep a Changelog format) per release.
+- Version lives in one place: `VERSION` at the top of `bin/connie`. Bump it
+  and add a `CHANGELOG.md` entry (Keep a Changelog format) per release.
 - Changing a value in `config/defaults.yml` affects every project relying on the
   default — treat it like a public API change.
 - Security-relevant edits to `docker-compose.yml` or `base.Dockerfile` should be
