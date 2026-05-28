@@ -35,13 +35,15 @@ packages: []
 # ── Build commands ────────────────────────────────────────────────────────────
 # Arbitrary shell commands run at image build time, as claude-user.
 # Executed after apk packages are installed, so apk-installed tools are
-# available. Use for package managers that don't map to apk: npm, pip,
-# gem, cargo, go install, etc.
+# available. Use for package managers that don't map to apk.
 # Commands run in sequence and the build fails if any command fails.
 #
+# Note: the base image does not expose a standalone npm. To use npm here,
+# add nodejs and npm to packages: first.
+#
 # build_commands:
-#   - npm install -g markdownlint-cli typescript-language-server
-#   - pip install black ruff
+#   - npm install -g markdownlint-cli   # requires packages: [nodejs, npm]
+#   - pip install black ruff            # requires packages: [python3, py3-pip]
 
 build_commands: []
 

@@ -171,9 +171,11 @@ packages:
 # Runs after apk packages, so apk-installed tools are available.
 # Use for package managers not covered by apk: npm, pip, gem, cargo, etc.
 # Commands run in sequence; the build fails if any command fails.
+# Note: the base image does not expose a standalone npm — add nodejs and
+# npm to packages: first if you need it here.
 build_commands:
-  - npm install -g markdownlint-cli
-  - pip install black ruff
+  - npm install -g markdownlint-cli   # also needs packages: [nodejs, npm]
+  - pip install black ruff            # also needs packages: [python3, py3-pip]
 
 # Environment variables injected at container runtime.
 # connie automatically forwards TERM, COLORTERM, and FORCE_COLOR from the
