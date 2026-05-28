@@ -33,6 +33,9 @@ RUN apk add --no-cache \
     jq \
     tree \
     file \
+    # Terminal capability database — lets forwarded TERM values (xterm-256color,
+    # screen-256color, etc.) resolve so TUI tools render correctly in-container
+    ncurses-terminfo-base \
     # Archive tools
     tar \
     gzip \

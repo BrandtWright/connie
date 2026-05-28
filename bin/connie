@@ -5,7 +5,7 @@ set -eu
 
 # ── Version and paths ─────────────────────────────────────────────────────────
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 TOOL="connie"
 BASE_IMAGE="connie/base:latest"
 
@@ -140,13 +140,62 @@ _generate_override() {
     _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
     _final_cmd="${_override_cmd:-$_start_cmd}"
 
-    # Build environment block from config
-    _env_block=$(yq '
-        .env // {} |
+    # Forward the host's terminal settings so Claude Code renders with the same
+    # color depth inside the container as on the host. Docker's -t flag hardcodes
+    # TERM=xterm and forwards nothing else, which downgrades Claude Code to basic
+    # 16-color output. These are the lowest-precedence env entries: anything set
+    # in config .env or via --env overrides them.
+    #
+    # FORCE_COLOR is included because Node.js/chalk probes the Docker PTY directly
+    # via process.stdout.getColorDepth() — that probe often underestimates color
+    # support inside Docker even when TERM and COLORTERM are correct. FORCE_COLOR
+    # bypasses that probe and is the standard fix for Node.js in containers.
+    _fwd_term="${TERM:-xterm-256color}"
+    case "${COLORTERM:-}" in
+        truecolor|24bit) _fwd_force_color=3 ;;
+        *)
+            case "$_fwd_term" in
+                *256color*|*truecolor*) _fwd_force_color=2 ;;
+                *) _fwd_force_color=1 ;;
+            esac ;;
+    esac
+    if [ -n "${COLORTERM:-}" ]; then
+        _fwd_env_obj=$(FT="$_fwd_term" FC="$COLORTERM" FF="$_fwd_force_color" \
+            yq -n -o=json '{"FORCE_COLOR": strenv(FF), "TERM": strenv(FT), "COLORTERM": strenv(FC)}')
+    else
+        _fwd_env_obj=$(FT="$_fwd_term" FF="$_fwd_force_color" \
+            yq -n -o=json '{"FORCE_COLOR": strenv(FF), "TERM": strenv(FT)}')
+    fi
+
+    # Fold CLI --env pairs into an object (highest precedence). Each pair is a
+    # raw KEY=VALUE line; build the object with yq so values are escaped safely.
+    _cli_env_obj="{}"
+    if [ -n "$_extra_env" ]; then
+        _oldifs=$IFS
+        IFS='
+'
+        for _pair in $_extra_env; do
+            [ -n "$_pair" ] || continue
+            case "$_pair" in
+                *=*) _k=${_pair%%=*}; _v=${_pair#*=} ;;
+                *)   _k=$_pair;       _v="" ;;
+            esac
+            _cli_env_obj=$(BASE="$_cli_env_obj" K="$_k" V="$_v" \
+                yq -n -o=json 'env(BASE) * {strenv(K): strenv(V)}')
+        done
+        IFS=$_oldifs
+    fi
+
+    # Build the environment block: forwarded (low) < config .env < --env (high).
+    _env_block=$(FWD="$_fwd_env_obj" CLI="$_cli_env_obj" yq '
+        (env(FWD) * (.env // {}) * env(CLI)) |
         to_entries |
         .[] |
         "      " + .key + ": " + (.value | @json)
     ' "$_merged_file")
+    # Empty map only if nothing at all — kept out of the heredoc so the literal
+    # braces do not collide with ${...} parameter-expansion syntax.
+    [ -n "$_env_block" ] || _env_block="      {}"
 
     # Build volumes block.
     # - /workspace      : the project directory (always first)
@@ -179,8 +228,7 @@ services:
       args:
         EXTRA_PACKAGES: "${_final_packages}"
     environment:
-${_env_block:-      {}}
-${_extra_env:+$_extra_env}
+${_env_block}
     volumes:
 ${_vol_block}
     mem_limit: ${_memory}
@@ -444,7 +492,7 @@ while [ $# -gt 0 ]; do
         --env)
             [ $# -ge 2 ] || _die "--env requires an argument"
             _ARG_ENV="${_ARG_ENV:+$_ARG_ENV
-}      $2"
+}$2"
             shift 2
             ;;
         --cmd)

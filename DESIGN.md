@@ -221,6 +221,26 @@ Code's auto-updater silently hangs at startup on a read-only filesystem —
 it cannot write the update files and waits indefinitely. Disabling it is
 required for the read-only container model to work.
 
+### Terminal Environment Forwarding
+
+`TERM`, `COLORTERM`, and a derived `FORCE_COLOR` are forwarded from the host
+shell into the container on every `connie run`, at the lowest config
+precedence. They can be overridden via `.containerrc` `env:` or `--env`.
+
+**Why `FORCE_COLOR`**: Node.js applications (including Claude Code) use
+`process.stdout.getColorDepth()` to determine color support. Inside a Docker
+PTY this probe consistently underestimates the host terminal's capabilities —
+it reports basic 16-color support even when `TERM=xterm-256color` and
+`COLORTERM=truecolor` are correctly set. `FORCE_COLOR` bypasses the probe
+entirely and directly asserts the color support level, giving Claude Code
+the same rendering fidelity it has when run directly on the host.
+
+**Why `ncurses-terminfo-base`**: Non-Node.js TUI tools (`less`, `vim`,
+`git log`, etc.) look up terminal capabilities in the terminfo database.
+Alpine Linux ships with no terminfo entries; without `ncurses-terminfo-base`
+a forwarded `TERM=xterm-256color` produces "terminal not found" warnings
+and falls back to no-color mode for all shell tools.
+
 ### Host Mounts
 
 Exactly three locations on the host filesystem are visible inside the container:
@@ -278,6 +298,7 @@ permission mismatches and ensures Claude Code can locate its own files at runtim
 | `tar`, `gzip`, `unzip` | Archive tools |
 | `build-base`, `libgcc`, `libstdc++`, `linux-headers` | Native module support |
 | `lsof` | Process diagnostics |
+| `ncurses-terminfo-base` | Terminal capability database for TUI tools |
 | `claude-user` (uid/gid 1000) | Non-root runtime user |
 | Claude Code | The AI coding assistant |
 | `entrypoint.sh` | Runtime environment setup |

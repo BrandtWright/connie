@@ -11,6 +11,33 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.0]
+
+### Added
+
+- Forward the host's `TERM`, `COLORTERM`, and a derived `FORCE_COLOR` into the
+  container so Claude Code renders with the same color depth in-container as on
+  the host. Previously Docker's `-t` hardcoded `TERM=xterm` with no `COLORTERM`,
+  downgrading Claude Code to basic 16-color output. `FORCE_COLOR` is derived from
+  the host's declared capabilities (`COLORTERM=truecolor` → `3`, `*256color*`
+  term → `2`, otherwise `1`) and bypasses Node.js/chalk's Docker PTY probe, which
+  otherwise underestimates color support regardless of `TERM`/`COLORTERM`.
+  All forwarded values are the lowest-precedence env entries — anything in
+  `.containerrc` `env:` or `--env` overrides them. `TERM` defaults to
+  `xterm-256color` when unset on the host.
+- Base image now installs `ncurses-terminfo-base` so forwarded `TERM` values
+  (e.g. `screen-256color`) resolve against the terminfo database for
+  in-container TUI tools such as `less`.
+
+### Fixed
+
+- `--env KEY=VALUE` now emits valid YAML. It previously appended bare
+  `KEY=VALUE` lines into the `environment:` map, producing an unparseable
+  override whenever any other env var was set. CLI `--env` values now merge as
+  the highest-precedence env source.
+
+---
+
 ## [0.1.0] — Initial release
 
 ### Added

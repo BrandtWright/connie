@@ -172,9 +172,13 @@ packages:
   - github-cli
 
 # Environment variables injected at container runtime.
+# connie automatically forwards TERM, COLORTERM, and FORCE_COLOR from the
+# host shell so Claude Code renders with the same color fidelity inside the
+# container as outside it. Override any of them here if needed.
 env:
   APP_ENV: development
   LOG_LEVEL: debug
+  # FORCE_COLOR: "2"   # override if your terminal only supports 256 colours
 
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
