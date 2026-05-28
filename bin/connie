@@ -338,7 +338,7 @@ cmd_build_base() {
         _die "base.Dockerfile not found at $_base_dockerfile"
 
     _info "Building connie base image ($BASE_IMAGE)..."
-    _detail "Alpine 3.20 + bash + curl + git + coreutils + Node.js + Claude Code"
+    _detail "Alpine 3.20 + bash + curl + git + coreutils + Claude Code (includes Node.js)"
     _detail "This may take a few minutes on first run."
 
     docker build \
