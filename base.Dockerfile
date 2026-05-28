@@ -1,10 +1,7 @@
 # =============================================================================
 # connie base image
 #
-# Adapted from Dockerfile.agent — same structure and user setup, minus SSH
-# and project-specific tooling (Ansible, Python, github-cli). Those can be
-# added per-project via .devbox/.containerrc packages.
-#
+# Alpine 3.20 + core tools + non-root claude-user (uid 1000) + Claude Code.
 # Runs as non-root from the start. All hardening (cap-drop, read-only root,
 # resource limits) is applied at runtime via docker-compose.yml.
 #

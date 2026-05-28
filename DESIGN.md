@@ -129,7 +129,7 @@ between them.
 ```
 alpine:3.20  (pulled from Docker Hub)
       │
-      │  built by 'connie build-base'
+      │  built by 'connie build-base' (or automatically on first 'connie run')
       ▼
 connie/base:latest  (local image)
   Alpine 3.20 + core tools + claude-user (uid 1000) + Claude Code
@@ -305,10 +305,10 @@ permission mismatches and ensures Claude Code can locate its own files at runtim
 
 ### Rebuild Triggers
 
-Run `connie build-base` again when:
+On first use, `connie run` and `connie build` automatically build the base
+image if it does not exist. Run `connie build-base` explicitly when:
 - A new version of Claude Code is available
 - You want to update the Alpine base or tooling versions
-- You are setting up connie on a new machine
 
 ---
 

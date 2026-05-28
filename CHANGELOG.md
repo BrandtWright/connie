@@ -9,6 +9,26 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `connie run` and `connie build` now automatically build the base image
+  (`connie/base:latest`) if it does not exist, rather than dying with an
+  error. A fresh install requires only `connie init` and `connie run` — no
+  separate `connie build-base` step. `connie build-base` remains available
+  to explicitly rebuild the base image (e.g. to pick up a new Claude Code
+  version).
+
+### Fixed
+
+- `_info` and `_detail` helpers now write to stderr instead of stdout.
+  Previously, calling either function inside `_prepare` (which is invoked
+  via command substitution to capture a temp-file path) would corrupt the
+  captured path. stderr is the correct channel for progress messages;
+  `_die` already used it.
+- Port mappings configured in `.containerrc` `ports:` were silently dropped
+  and never forwarded to the container. The `ports` block was computed in
+  `_generate_override` but missing from the YAML output.
+
 ---
 
 ## [0.2.0]

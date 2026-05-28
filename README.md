@@ -47,17 +47,6 @@ make install                        # installs to /usr/local (may need sudo)
 make install PREFIX=~/.local        # install without sudo
 ```
 
-Then build the base Docker image (required once after install):
-
-```sh
-connie build-base
-```
-
-`build-base` pulls Alpine 3.20, creates a non-root user, installs core tools
-and Claude Code via the official installer, and tags the result as
-`connie/base:latest` on your local machine. It only needs to be re-run when
-you want to pick up a new version of Claude Code or the base tools.
-
 To uninstall:
 
 ```sh
@@ -88,6 +77,10 @@ cd ~/repos/my-project
 connie run
 ```
 
+On first run, if the base image (`connie/base:latest`) has not been built yet,
+connie builds it automatically before starting the container. This takes a few
+minutes once per machine.
+
 On first run per project, Claude Code will prompt you to authenticate with your
 Anthropic account. Credentials are saved to `.devbox/.claude/.credentials.json` and reused
 on every subsequent `connie run` for that project.
@@ -98,7 +91,7 @@ on every subsequent `connie run` for that project.
 
 | Command | Description |
 |---|---|
-| `connie build-base` | Build the connie base image (once after install) |
+| `connie build-base` | Build (or rebuild) the connie base image |
 | `connie init [dir]` | Scaffold `.devbox/` inside a project |
 | `connie run [dir]` | Build (if needed) and start Claude Code |
 | `connie build [dir]` | Build the project container image without starting it |

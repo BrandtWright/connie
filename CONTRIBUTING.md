@@ -11,7 +11,13 @@ itself. For bootstrapping, install your working copy locally:
 git clone https://github.com/yourorg/connie
 cd connie
 make install PREFIX=~/.local       # install without sudo
-connie build-base                  # build the base image
+```
+
+The base image is built automatically on first `connie run`. To build it
+explicitly (e.g. to pre-warm the cache before testing):
+
+```sh
+connie build-base
 ```
 
 To test changes without reinstalling, invoke the script directly and override
