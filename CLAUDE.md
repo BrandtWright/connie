@@ -107,3 +107,6 @@ write to the read-only filesystem.
   default — treat it like a public API change.
 - Security-relevant edits to `docker-compose.yml` or `base.Dockerfile` should be
   mirrored in `DESIGN.md`, which documents the rationale for each hardening measure.
+- `TODO.md` at the repo root tracks features and ideas under consideration.
+  Consult it when evaluating new work; update it when items are completed or
+  when new ideas arise during a session.
