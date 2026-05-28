@@ -212,10 +212,12 @@ _generate_override() {
     fi
 
     # Build ports block
-    _ports_block=""
+    _ports_section=""
     _ports=$(yq '.ports // [] | .[]' "$_merged_file" 2>/dev/null || true)
     if [ -n "$_ports" ]; then
         _ports_block=$(printf '%s\n' "$_ports" | sed 's/^/      - "/' | sed 's/$/"/')
+        _ports_section="    ports:
+${_ports_block}"
     fi
 
     cat <<YAML
@@ -231,6 +233,7 @@ services:
 ${_env_block}
     volumes:
 ${_vol_block}
+${_ports_section}
     mem_limit: ${_memory}
     memswap_limit: ${_memory}
     cpus: ${_cpus}
