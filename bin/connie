@@ -105,8 +105,7 @@ _merge_configs() {
         "$DEFAULTS_FILE" \
         "$SYSTEM_CONFIG" \
         "$USER_CONFIG" \
-        "$_mc_root/.devbox/.containerrc" \
-        "$_mc_root/.containerrc"
+        "$_mc_root/.devbox/.containerrc"
     do
         if [ -f "$_mc_cfg" ]; then
             _mc_tmp=$(mktemp)
@@ -257,7 +256,7 @@ _prepare() {
 
     [ -d "$_prep_devbox" ] || \
         _die "No .devbox/ found in $_prep_root. Run '$TOOL' init first."
-    [ -f "$_prep_devbox/.containerrc" ] || [ -f "$_prep_root/.containerrc" ] || \
+    [ -f "$_prep_devbox/.containerrc" ] || \
         _die "No .containerrc found. Run '$TOOL' init first."
 
     _require yq
@@ -347,7 +346,6 @@ cmd_build_base() {
         "$(dirname "$_base_dockerfile")"
 
     _info "Base image built: $BASE_IMAGE"
-    _detail "Run 'connie init <project-dir>' to set up a project."
 }
 
 cmd_init() {
@@ -450,7 +448,7 @@ cmd_clean() {
     docker compose \
         -p "$(_compose_project_name "$_project_root")" \
         -f "$_devbox_dir/docker-compose.yml" \
-        down --rmi local 2>/dev/null || true
+        down --rmi local
     _info "Done."
 }
 
