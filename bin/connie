@@ -64,8 +64,7 @@ Config is read in this order (lowest to highest precedence):
   $SYSTEM_CONFIG
   $USER_CONFIG
   [project]/.devbox/.containerrc
-  Shell environment variables
-  CLI flags
+  CLI flags (--package, --env, --cmd)
 
 Standard mounts (always present, not configurable):
   [project dir]        →  /workspace                      read/write

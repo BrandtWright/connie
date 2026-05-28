@@ -127,9 +127,12 @@ from lowest to highest precedence:
 2. System-wide config                (/etc/connie/config.yml)
 3. User config                       (~/.config/connie/config.yml)
 4. Project config                    ([project]/.devbox/.containerrc)
-5. Shell environment variables
-6. CLI flags (--package, --env, --cmd)
+5. CLI flags (--package, --env, --cmd)
 ```
+
+`TERM` and `COLORTERM` from the host shell are automatically forwarded into
+the container as the lowest-precedence env entries — below even project config.
+They can be overridden via `.containerrc` `env:` or `--env`.
 
 ### The Project Config: `.devbox/.containerrc`
 

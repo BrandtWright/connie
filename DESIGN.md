@@ -151,8 +151,6 @@ defaults.yml              (lowest precedence)
       +
 .devbox/.containerrc
       +
-shell environment
-      +
 CLI flags                 (highest precedence)
       │
       ▼
@@ -162,6 +160,11 @@ CLI flags                 (highest precedence)
       │
       └──► runtime config ──► override.yml ──► docker compose run
 ```
+
+Note: `TERM` and `COLORTERM` from the host shell are forwarded into the
+container as the lowest-precedence env entries — below even `defaults.yml`.
+This is handled separately in `_generate_override`, not through the merge
+pipeline above. See [Terminal Environment Forwarding](#terminal-environment-forwarding).
 
 ---
 
