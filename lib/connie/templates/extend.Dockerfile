@@ -21,7 +21,11 @@ RUN if [ -n "$EXTRA_PACKAGES" ]; then \
         apk add --no-cache $EXTRA_PACKAGES; \
     fi
 
+# Set npm global prefix to a user-writable location already on PATH.
+# Without this, 'npm install -g' fails because the apk-installed npm
+# defaults to a root-owned system prefix that claude-user cannot write to.
 USER claude-user
+ENV NPM_CONFIG_PREFIX=/home/claude-user/.local
 RUN if [ -n "$BUILD_COMMANDS" ]; then \
         sh -c "$BUILD_COMMANDS"; \
     fi
