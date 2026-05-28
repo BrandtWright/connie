@@ -1,6 +1,6 @@
-# connie — Design Document
+# `connie` — Design Document
 
-This document describes the architecture of connie, the reasoning behind its
+This document describes the architecture of `connie`, the reasoning behind its
 design decisions, and the tradeoffs that were considered. It is intended for
 contributors and for anyone who wants to understand why the tool works the way
 it does.
@@ -15,7 +15,7 @@ files can it read? What can it modify? What processes can it spawn? For
 day-to-day use these questions may not matter, but for deliberate, auditable
 use against production codebases they matter a great deal.
 
-connie answers these questions by running Claude Code inside a container with
+`connie` answers these questions by running Claude Code inside a container with
 an explicit, minimal set of permissions. The developer defines what the
 container can touch. Everything else is denied by default.
 
@@ -49,11 +49,11 @@ directory paths (`.claude/` and `.claude.json`) to per-project locations in
 
 ### 3. Non-Invasive
 
-connie must be attachable to any existing project without modifying it. The
+`connie` must be attachable to any existing project without modifying it. The
 project's source tree, build system, and version control are untouched. The
-only artifact connie places in a project is `.devbox/`, which is gitignored.
+only artifact `connie` places in a project is `.devbox/`, which is gitignored.
 
-This principle is modeled on how `git` works: `.git/` is git's entire
+This principle is modeled on how `git` works: `.git/` is `git`'s entire
 footprint inside a project. The project does not need to know git exists.
 
 ### 4. Config at the Right Layer
@@ -65,7 +65,7 @@ Different configuration belongs at different levels:
 - **Project config** — requirements specific to a project (`.devbox/.containerrc`)
 - **CLI flags** — one-off overrides for a single invocation
 
-connie respects this layering and merges all sources with explicit, predictable
+`connie` respects this layering and merges all sources with explicit, predictable
 precedence. Higher layers override lower ones; the safe defaults are always
 the fallback.
 
@@ -79,8 +79,8 @@ fundamentally different:
   mechanism — you pay the cost once per change
 - Runtime config changes take effect immediately with no rebuild
 
-connie keeps these concerns separate. The Dockerfile handles image construction;
-the Compose override handles runtime configuration; build args are the handshake
+`connie` keeps these concerns separate. The Dockerfile handles image construction;
+the Compose override handles runtime configuration; build `args` are the handshake
 between them.
 
 ---
@@ -172,10 +172,10 @@ pipeline above. See [Terminal Environment Forwarding](#terminal-environment-forw
 
 ### Non-Root User
 
-Claude Code runs as `claude-user` (uid 1000, gid 1000), not root. This is the
-most important single hardening measure: a compromised process has no ability
-to affect the host system even if it escapes the container, because it has no
-root privileges to begin with.
+Claude Code runs as `claude-user` (`uid 1000`, `gid 1000`), not root. This is
+the most important single hardening measure: a compromised process has no
+ability to affect the host system even if it escapes the container, because it
+has no root privileges to begin with.
 
 The user is created in the base image and Claude Code is installed as that user
 via the official install script, which places the binary in
@@ -186,7 +186,7 @@ via the official install script, which places the binary in
 The container image is immutable at runtime. No process can modify binaries,
 install software, or alter configuration in the image layers. Any path that
 legitimately needs to be writable is explicitly provided via volume mount or
-tmpfs.
+`tmpfs`.
 
 ### All Capabilities Dropped
 
@@ -198,12 +198,12 @@ operations. Combined with the non-root user, this provides defense in depth.
 
 Prevents any process from gaining capabilities via `setuid` binaries or similar
 escalation paths, even if such binaries exist in the image. The base image also
-removes all suid/sgid bits at build time as an additional measure.
+removes all `suid`/`sgid` bits at build time as an additional measure.
 
-### tmpfs for Writable System Paths
+### `tmpfs` for Writable System Paths
 
 With a read-only root, the only writable system path is `/tmp`, mounted as
-`tmpfs`. The entrypoint script redirects all XDG user directories there at
+`tmpfs`. The entrypoint script redirects all `XDG` user directories there at
 startup:
 
 | Variable | Path | Purpose |
@@ -233,19 +233,19 @@ against the latest installer. See [Rebuild Triggers](#rebuild-triggers).
 shell into the container on every `connie run`, at the lowest config
 precedence. They can be overridden via `.containerrc` `env:` or `--env`.
 
-**Why `FORCE_COLOR`**: Node.js applications (including Claude Code) use
+**Why `FORCE_COLOR`**: `Node.js` applications (including Claude Code) use
 `process.stdout.getColorDepth()` to determine color support. Inside a Docker
-PTY this probe consistently underestimates the host terminal's capabilities —
+`PTY` this probe consistently underestimates the host terminal's capabilities —
 it reports basic 16-color support even when `TERM=xterm-256color` and
 `COLORTERM=truecolor` are correctly set. `FORCE_COLOR` bypasses the probe
-entirely and directly asserts the color support level, giving Claude Code
-the same rendering fidelity it has when run directly on the host.
+entirely and directly asserts the color support level, giving Claude Code the
+same rendering fidelity it has when run directly on the host.
 
-**Why `ncurses-terminfo-base`**: Non-Node.js TUI tools (`less`, `vim`,
-`git log`, etc.) look up terminal capabilities in the terminfo database.
-Alpine Linux ships with no terminfo entries; without `ncurses-terminfo-base`
-a forwarded `TERM=xterm-256color` produces "terminal not found" warnings
-and falls back to no-color mode for all shell tools.
+**Why `ncurses-terminfo-base`**: Non-`Node.js` TUI tools (`less`, `vim`, `git
+log`, etc.) look up terminal capabilities in the `terminfo` database. Alpine
+Linux ships with no `terminfo` entries; without `ncurses-terminfo-base` a
+forwarded `TERM=xterm-256color` produces "terminal not found" warnings and
+falls back to no-color mode for all shell tools.
 
 ### Host Mounts
 
@@ -322,14 +322,14 @@ image if it does not exist. Run `connie build-base` explicitly when:
 
 ## Authentication
 
-Claude Code authenticates via OAuth. On first `connie run` for a project, it
+Claude Code authenticates via `OAuth`. On first `connie run` for a project, it
 prompts the user to log in via browser. Credentials are written to
 `.devbox/.claude.json` and `.devbox/.claude/` inside the project directory.
 
 On subsequent runs for the same project, the saved credentials are reused
 automatically — no re-authentication needed.
 
-Each project authenticates independently. Running connie against a new project
+Each project authenticates independently. Running `connie` against a new project
 requires a one-time authentication for that project. This is intentional: it
 ensures each project's Claude Code session is fully isolated, including the
 auth context.
@@ -340,7 +340,7 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 
 ## File Ownership Model
 
-**Managed by connie (do not edit):**
+**Managed by `connie` (do not edit):**
 
 - `.devbox/docker-compose.yml` — hardened Compose base
 - `.devbox/extend.Dockerfile` — generic build template
