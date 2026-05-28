@@ -33,11 +33,8 @@ exercise `init` / `build` / `run` / `clean` against a scratch project.
   backticks, `.` not `source`, `_`-prefixed names instead of `local`, and
   space/newline-separated strings instead of arrays. `make check` enforces parse
   validity but not bashism-freedom — review manually.
-- **`base.Dockerfile` and `entrypoint.sh` exist in two places.** The canonical
-  copies live in `lib/connie/` (that is what `Makefile` installs and what
-  `connie build-base` uses as its build context). The root-level `base.Dockerfile`
-  and `entrypoint.sh` are convenience copies — keep them byte-identical when you
-  edit either one.
+- **`base.Dockerfile` and `entrypoint.sh` live in `lib/connie/`.** That is what
+  `Makefile` installs and what `connie build-base` uses as its build context.
 
 ## Architecture
 

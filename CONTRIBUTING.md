@@ -62,8 +62,6 @@ connie/
 ├── DESIGN.md                        Architecture and design decisions
 ├── CONTRIBUTING.md                  This file
 ├── CHANGELOG.md                     Version history
-├── base.Dockerfile                  Convenience copy (canonical: lib/connie/)
-├── entrypoint.sh                    Convenience copy (canonical: lib/connie/)
 ├── bin/
 │   └── connie                       The CLI script
 └── lib/
