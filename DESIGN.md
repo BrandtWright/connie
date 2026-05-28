@@ -224,6 +224,9 @@ Code's auto-updater silently hangs at startup on a read-only filesystem —
 it cannot write the update files and waits indefinitely. Disabling it is
 required for the read-only container model to work.
 
+To update Claude Code, run `connie build-base` to rebuild the base image
+against the latest installer. See [Rebuild Triggers](#rebuild-triggers).
+
 ### Terminal Environment Forwarding
 
 `TERM`, `COLORTERM`, and a derived `FORCE_COLOR` are forwarded from the host
@@ -251,13 +254,14 @@ Exactly three locations on the host filesystem are visible inside the container:
 | Host path | Container path | Access | Purpose |
 |---|---|---|---|
 | `[project dir]` | `/workspace` | Read/Write | The project being worked on |
-| `.devbox/.claude/` | `~/.claude/` | Read/Write | Claude Code state, per-project |
-| `.devbox/.claude.json` | `~/.claude.json` | Read/Write | Claude Code auth, per-project |
+| `[project dir]/.devbox/.claude/` | `~/.claude/` | Read/Write | Claude Code state, memory, and credentials — per-project |
+| `[project dir]/.devbox/.claude.json` | `~/.claude.json` | Read/Write | Claude Code app config — per-project |
 
-Nothing else from the host is mounted. `.devbox/.claude/` and
-`.devbox/.claude.json` must be pre-created on the host before Docker mounts
-them — with a read-only container filesystem Docker cannot create the mount
-point at the target path if it doesn't exist in the image.
+All three mount points live inside the project directory. Nothing else from
+the host is mounted. `.devbox/.claude/` and `.devbox/.claude.json` must be
+pre-created on the host before Docker mounts them — with a read-only
+container filesystem Docker cannot create the mount point at the target path
+if it doesn't exist in the image.
 
 ### Resource Limits
 
