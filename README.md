@@ -89,7 +89,7 @@ connie run
 ```
 
 On first run per project, Claude Code will prompt you to authenticate with your
-Anthropic account. Credentials are saved to `.devbox/.claude.json` and reused
+Anthropic account. Credentials are saved to `.devbox/.claude/.credentials.json` and reused
 on every subsequent `connie run` for that project.
 
 ---
@@ -223,8 +223,8 @@ rationale. The enforced constraints are:
 
 ```
 .devbox/
-├── .claude/             Claude Code state (memory, history) — per-project
-├── .claude.json         Claude Code auth tokens — per-project
+├── .claude/             Claude Code credentials, history, and state — per-project
+├── .claude.json         Claude Code account metadata and app config — per-project
 ├── .containerrc         Your project config (edit this)
 ├── docker-compose.yml   Hardened container base (managed by connie)
 ├── extend.Dockerfile    Per-project build template (managed by connie)
