@@ -32,6 +32,19 @@
 
 packages: []
 
+# ── Build commands ────────────────────────────────────────────────────────────
+# Arbitrary shell commands run at image build time, as claude-user.
+# Executed after apk packages are installed, so apk-installed tools are
+# available. Use for package managers that don't map to apk: npm, pip,
+# gem, cargo, go install, etc.
+# Commands run in sequence and the build fails if any command fails.
+#
+# build_commands:
+#   - npm install -g markdownlint-cli typescript-language-server
+#   - pip install black ruff
+
+build_commands: []
+
 # ── Environment variables ─────────────────────────────────────────────────────
 # Injected into the container at runtime.
 # Safe to commit — do not put secret values here.

@@ -14,6 +14,7 @@ resources:
   max_pids: 512
 
 packages: []
+build_commands: []
 env: {}
 volumes: []
 ports: []

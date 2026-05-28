@@ -131,6 +131,7 @@ _generate_override() {
 
     # Extract values from merged config
     _packages=$(yq '.packages // [] | join(" ")' "$_merged_file")
+    _build_cmds=$(yq '.build_commands // [] | join(" && ")' "$_merged_file")
     _start_cmd=$(yq '.start_cmd // "claude"' "$_merged_file")
     _memory=$(yq '.resources.memory // "4g"' "$_merged_file")
     _cpus=$(yq '.resources.cpus // "2.0"' "$_merged_file")
@@ -139,6 +140,9 @@ _generate_override() {
     # Apply CLI overrides
     _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
     _final_cmd="${_override_cmd:-$_start_cmd}"
+
+    # Produce a YAML-safe value for BUILD_COMMANDS (yq quotes if needed)
+    _build_cmds_yaml=$(CMD="$_build_cmds" yq -n 'strenv(CMD)')
 
     # Forward the host's terminal settings so Claude Code renders with the same
     # color depth inside the container as on the host. Docker's -t flag hardcodes
@@ -229,6 +233,7 @@ services:
     build:
       args:
         EXTRA_PACKAGES: "${_final_packages}"
+        BUILD_COMMANDS: ${_build_cmds_yaml}
     environment:
 ${_env_block}
     volumes:

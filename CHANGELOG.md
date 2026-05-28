@@ -11,6 +11,11 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `build_commands:` config key — a list of arbitrary shell commands run at
+  image build time as `claude-user`, after apk packages are installed. Enables
+  npm, pip, gem, cargo, and other package managers not covered by the `packages:`
+  apk mechanism. Commands are joined with `&&` and fail fast. Example:
+  `build_commands: [npm install -g markdownlint-cli]`.
 - `connie run` and `connie build` now automatically build the base image
   (`connie/base:latest`) if it does not exist, rather than dying with an
   error. A fresh install requires only `connie init` and `connie run` — no

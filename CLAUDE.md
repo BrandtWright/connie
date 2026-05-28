@@ -81,7 +81,7 @@ it through these stages rather than editing one in isolation:
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.
 3. `_generate_override` reads the merged config and emits `.devbox/override.yml`:
-   build args (`EXTRA_PACKAGES`), `environment` (from `env`),
+   build args (`EXTRA_PACKAGES`, `BUILD_COMMANDS`), `environment` (from `env`),
    `volumes` (the three standard mounts first, then extras), `ports`, resource
    limits, and `command`.
 4. `_run_compose` runs `docker compose -f docker-compose.yml -f override.yml ...`.

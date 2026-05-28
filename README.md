@@ -167,6 +167,14 @@ packages:
   - py3-pip
   - github-cli
 
+# Arbitrary shell commands run at image build time, as claude-user.
+# Runs after apk packages, so apk-installed tools are available.
+# Use for package managers not covered by apk: npm, pip, gem, cargo, etc.
+# Commands run in sequence; the build fails if any command fails.
+build_commands:
+  - npm install -g markdownlint-cli
+  - pip install black ruff
+
 # Environment variables injected at container runtime.
 # connie automatically forwards TERM, COLORTERM, and FORCE_COLOR from the
 # host shell so Claude Code renders with the same color fidelity inside the
