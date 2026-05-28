@@ -47,8 +47,9 @@ exercise `init` / `build` / `run` / `clean` against a scratch project.
    `lib/connie/**` to `$PREFIX/lib/connie` (templates, `base.Dockerfile`,
    `entrypoint.sh`, `config/defaults.yml`). `LIB_DIR` in the script defaults to
    `/usr/local/lib/connie`, overridable via `CONNIE_LIB_DIR`.
-2. **Base image** (`connie/base:latest`) — built once by `connie build-base` from
-   `lib/connie/base.Dockerfile`: Alpine 3.20 + core tools + non-root `claude-user`
+2. **Base image** (`connie/base:latest`) — built from `lib/connie/base.Dockerfile`
+   by `connie build-base`, or automatically on first `connie run`/`connie build`
+   if not already present: Alpine 3.20 + core tools + non-root `claude-user`
    (uid 1000) + Claude Code installed via the official `install.sh` as that user.
    Not published to any registry.
 3. **Per-project image** (`connie-workspace`) — built by `connie run`/`connie build`
@@ -83,7 +84,7 @@ it through these stages rather than editing one in isolation:
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.
 3. `_generate_override` reads the merged config and emits `.devbox/override.yml`:
-   build args (`EXTRA_PACKAGES`), `environment` (from `env` + resolved `secrets`),
+   build args (`EXTRA_PACKAGES`), `environment` (from `env`),
    `volumes` (the three standard mounts first, then extras), `ports`, resource
    limits, and `command`.
 4. `_run_compose` runs `docker compose -f docker-compose.yml -f override.yml ...`.
@@ -91,9 +92,6 @@ it through these stages rather than editing one in isolation:
    (`read_only`, `cap_drop: ALL`, `no-new-privileges`, `/tmp` tmpfs, `init: true`);
    `override.yml` carries everything derived from config. `connie run` calls
    `_run_compose` twice — `build workspace` then `run --rm workspace`.
-
-`secrets` lists variable *names*; values are pulled from the invoking shell at
-override-generation time and never written to `.containerrc`.
 
 ### Runtime environment (entrypoint.sh)
 

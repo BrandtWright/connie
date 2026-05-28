@@ -243,7 +243,7 @@ ${_ports_section}
         soft: 4096
         hard: 8192
     working_dir: /workspace
-    command: ${_final_cmd}
+    command: "${_final_cmd}"
 YAML
 }
 
@@ -395,11 +395,11 @@ cmd_init() {
     _update_gitignore "$_target"
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
-        printf '\n'
+        printf '\n' >&2
         _detail "NOTE: Base image not found. It will be built automatically on first 'connie run'."
     fi
 
-    cat <<INITEOF
+    cat >&2 <<INITEOF
 
 ==> Next steps:
     1. Edit .devbox/.containerrc to describe this project's container needs

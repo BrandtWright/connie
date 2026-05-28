@@ -19,7 +19,9 @@
 # ── Packages ──────────────────────────────────────────────────────────────────
 # Additional packages to install into the container at build time.
 # These are installed via apk (Alpine Package Keeper).
-# The base image already includes: git, curl, bash, coreutils, and Claude Code.
+# The base image already includes: bash, coreutils, grep, sed, gawk, findutils,
+# git, curl, wget, ripgrep, fd, jq, tree, file, tar, gzip, unzip, lsof,
+# build-base, and Claude Code. Add project-specific tools here.
 # Changing this list triggers a rebuild; the result is cached by Docker.
 #
 # packages:
