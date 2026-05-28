@@ -163,9 +163,13 @@ _generate_override() {
     fi
 
     # Build volumes block.
-    # Project root and ~/.claude are the only host mounts.
-    # ~/.claude is declared in docker-compose.yml; project root is injected here.
-    _vol_block="      - ${_project_root}:/workspace:rw"
+    # - /workspace      : the project directory (always first)
+    # - .devbox/.claude : per-project Claude Code state and auth
+    # - .devbox/.claude.json : per-project Claude Code config
+    # Additional mounts from .containerrc follow.
+    _vol_block="      - ${_project_root}:/workspace:rw
+      - ${_project_root}/.devbox/.claude:/home/claude-user/.claude
+      - ${_project_root}/.devbox/.claude.json:/home/claude-user/.claude.json"
     _extra_vols=$(yq '.volumes // [] | .[]' "$_merged_file" 2>/dev/null || true)
     if [ -n "$_extra_vols" ]; then
         _vol_block=$(printf '%s\n%s' "$_vol_block" \
@@ -227,12 +231,18 @@ _prepare() {
         _die "Base image '$BASE_IMAGE' not found. Run '$TOOL build-base' first."
     fi
 
-    # Ensure ~/.claude.json exists as a valid JSON file on the host before Docker
-    # mounts it. If it does not exist, Docker will create it as a directory.
-    # If it is empty, Claude Code's JSON parser will fail on startup.
-    mkdir -p "${HOME}/.claude"
-    if [ ! -f "${HOME}/.claude.json" ] || [ ! -s "${HOME}/.claude.json" ]; then
-        printf '{}' > "${HOME}/.claude.json"
+    # Pre-create the per-project Claude Code state on the host.
+    #
+    # .claude/ MUST exist as a directory before Docker mounts it. With
+    # read_only: true the container filesystem is immutable, so Claude Code
+    # cannot create this directory itself at runtime. The volume mount makes
+    # it writable, but only once Docker has something to attach to.
+    #
+    # .claude.json MUST exist as a file. If absent Docker creates it as a
+    # directory, which breaks Claude Code's JSON config parsing.
+    mkdir -p "$_prep_devbox/.claude"
+    if [ ! -f "$_prep_devbox/.claude.json" ] || [ ! -s "$_prep_devbox/.claude.json" ]; then
+        printf '{}' > "$_prep_devbox/.claude.json"
     fi
 
     _prep_merged=$(mktemp)
@@ -317,6 +327,18 @@ cmd_init() {
         _detail "exists   .devbox/.containerrc (skipped)"
     fi
 
+    # Pre-create per-project Claude Code state on the host.
+    # Both must exist before Docker mounts them — with read_only: true the
+    # container cannot create them at runtime.
+    mkdir -p "$_devbox_dir/.claude"
+    _detail "created  .devbox/.claude/"
+    if [ ! -f "$_devbox_dir/.claude.json" ] || [ ! -s "$_devbox_dir/.claude.json" ]; then
+        printf '{}' > "$_devbox_dir/.claude.json"
+        _detail "created  .devbox/.claude.json"
+    else
+        _detail "exists   .devbox/.claude.json (skipped)"
+    fi
+
     _update_gitignore "$_target"
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
@@ -332,7 +354,8 @@ cmd_init() {
     3. Run 'connie run' from the project directory
 
     On first run, Claude Code will prompt you to authenticate.
-    Credentials are saved to ~/.claude and reused on subsequent runs.
+    Credentials are saved to .devbox/.claude.json and reused on
+    subsequent runs for this project.
 
 INITEOF
 }
