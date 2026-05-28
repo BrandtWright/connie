@@ -4,9 +4,8 @@ A CLI tool that runs [Claude Code](https://docs.anthropic.com/en/docs/claude-cod
 in a constrained, reproducible container attached to a project directory.
 
 Point `connie` at any project and it builds a hardened container with Claude
-Code and your project's dependencies pre-installed, mounts the project as a
-workspace, and drops you straight into Claude Code — ready to assist with
-development tasks.
+Code pre-installed, mounts the project as a workspace, and drops you straight
+into Claude Code — ready to assist with development tasks.
 
 ---
 
@@ -15,16 +14,18 @@ development tasks.
 ```
 connie run ~/repos/my-project
         │
-        ├── reads .devbox/.containerrc   (project dependencies + config)
-        ├── builds a container image     (base image + project packages)
-        ├── mounts ~/repos/my-project    → /workspace  (read/write)
-        ├── mounts ~/.claude             → /root/.claude  (auth persistence)
-        └── starts Claude Code           inside the hardened container
+        ├── reads  .devbox/.containerrc        project dependencies + config
+        ├── builds connie-workspace image      base image + project packages
+        ├── mounts ~/repos/my-project       →  /workspace          (read/write)
+        ├── mounts .devbox/.claude/         →  ~/.claude/           (read/write)
+        ├── mounts .devbox/.claude.json     →  ~/.claude.json       (read/write)
+        └── starts Claude Code              inside the hardened container
 ```
 
-The container has read/write access to exactly two locations on your host
-machine: the project directory and `~/.claude` (so Claude Code stays
-authenticated between sessions). Everything else is locked down.
+Claude Code state (auth tokens, project memory, conversation history) is stored
+in `.devbox/` alongside the rest of the project's container config. Each project
+has completely isolated Claude Code state — no memory or history leaks between
+projects.
 
 ---
 
@@ -52,9 +53,10 @@ Then build the base Docker image (required once after install):
 connie build-base
 ```
 
-`build-base` pulls Alpine 3.20, installs core tools and Claude Code, and tags
-the result as `connie/base:latest` on your local machine. It only needs to be
-re-run when you want to pick up a new version of Claude Code or the base tools.
+`build-base` pulls Alpine 3.20, creates a non-root user, installs core tools
+and Claude Code via the official installer, and tags the result as
+`connie/base:latest` on your local machine. It only needs to be re-run when
+you want to pick up a new version of Claude Code or the base tools.
 
 To uninstall:
 
@@ -86,9 +88,9 @@ cd ~/repos/my-project
 connie run
 ```
 
-On first run, Claude Code will open a browser window and prompt you to
-authenticate with your Anthropic account. Credentials are saved to `~/.claude`
-on your host machine and reused on every subsequent `connie run`.
+On first run per project, Claude Code will prompt you to authenticate with your
+Anthropic account. Credentials are saved to `.devbox/.claude.json` and reused
+on every subsequent `connie run` for that project.
 
 ---
 
@@ -146,15 +148,12 @@ See [`.containerrc` reference](#containerrc-reference) below.
 ### User Config
 
 Create `~/.config/connie/config.yml` to set preferences that apply to all
-projects. Useful for a preferred shell, default resource limits, or any other
-setting you want across every project you work on.
+projects:
 
 ```yaml
 # ~/.config/connie/config.yml
-start_cmd: claude --verbose     # pass flags to Claude Code globally
-
 resources:
-  memory: 8g      # you have a lot of RAM
+  memory: 8g
   cpus: "4.0"
 ```
 
@@ -164,11 +163,13 @@ resources:
 
 ```yaml
 # Additional packages to install at build time (via apk).
-# The base image already includes: bash, curl, git, coreutils, and Claude Code.
+# The base image already includes: bash, coreutils, curl, wget, git,
+# ripgrep, fd, jq, tree, file, tar, gzip, unzip, lsof, and Claude Code.
+# Add project-specific tools here.
 packages:
   - python3
   - py3-pip
-  - jq
+  - github-cli
 
 # Environment variables injected at container runtime.
 # Safe to commit — do not put secret values here.
@@ -184,8 +185,9 @@ secrets:
 
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
-#   [project dir]  →  /workspace     (read/write)
-#   ~/.claude      →  /root/.claude  (read/write)
+#   [project dir]        →  /workspace                 (read/write)
+#   .devbox/.claude/     →  ~/.claude/                 (read/write)
+#   .devbox/.claude.json →  ~/.claude.json             (read/write)
 volumes:
   - /some/other/path:/data:ro
 
@@ -194,10 +196,10 @@ ports:
   - "8080:8080"
 
 # Command to run on container start.
-# Default is 'claude'. Use 'sh' or 'bash' to get a shell for debugging.
+# Default is 'claude'. Use 'sh' to get a shell for debugging.
 start_cmd: claude
 
-# Resource limit overrides.
+# Resource limit overrides (defaults shown).
 # resources:
 #   memory: 4g
 #   cpus: "2.0"
@@ -211,21 +213,34 @@ start_cmd: claude
 Containers are hardened by default. See [DESIGN.md](DESIGN.md) for full
 rationale. The enforced constraints are:
 
-- **Read-only root filesystem** — no process can modify image layers
-- **All Linux capabilities dropped** — even root has no special powers
+- **Non-root user** — Claude Code runs as `claude-user` (uid 1000), not root
+- **Read-only root filesystem** — no process can modify image layers at runtime
+- **All Linux capabilities dropped** — no privileged operations possible
 - **`no-new-privileges`** — no privilege escalation via setuid or similar
-- **tmpfs for writable system paths** — `/tmp` and `~/.local/state` are
-  RAM-backed, ephemeral, and non-executable
-- **Exactly two host mounts** — project directory and `~/.claude` only
+- **`/tmp` as tmpfs** — RAM-backed, ephemeral, vanishes on exit
+- **Auto-updater disabled** — `DISABLE_AUTOUPDATER=1` prevents silent writes
+  to the read-only filesystem at startup
+- **Exactly three host mounts** — project directory, `.devbox/.claude/`, and
+  `.devbox/.claude.json` — nothing else from the host is visible
 - **Resource limits** — 4GB RAM, 2 CPUs, 512 PIDs (all overridable)
 
 ---
 
-## Adding connie to a Project
+## What Lives in `.devbox/`
 
-The project being developed never needs to know about connie. The only
-recommended change to a project is adding `.devbox/` to its `.gitignore`,
-which `connie init` offers to do automatically.
+```
+.devbox/
+├── .claude/             Claude Code state (memory, history) — per-project
+├── .claude.json         Claude Code auth tokens — per-project
+├── .containerrc         Your project config (edit this)
+├── docker-compose.yml   Hardened container base (managed by connie)
+├── extend.Dockerfile    Per-project build template (managed by connie)
+└── override.yml         Generated at runtime (ephemeral, never commit)
+```
+
+The entire `.devbox/` directory is gitignored — none of this is committed to
+your project repository. The project under development never needs to know
+connie exists.
 
 ---
 

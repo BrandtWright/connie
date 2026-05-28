@@ -21,8 +21,7 @@ container can touch. Everything else is denied by default.
 
 The secondary goal is reproducibility. A container built from the same
 `.containerrc` on any machine produces the same environment — the same tools,
-the same configuration, the same constraints. This makes Claude Code sessions
-predictable and auditable.
+the same configuration, the same constraints.
 
 ---
 
@@ -33,19 +32,20 @@ predictable and auditable.
 The container is locked down at creation. Any capability not explicitly
 required is absent. The developer opts *in* to capabilities, not out of them.
 
-This is the opposite of Docker's defaults, which grant a broad capability set
-and leave hardening as an exercise. For a tool that runs an AI agent against
-your codebase, explicit constraint is more appropriate than implicit permissiveness.
+This is the opposite of Docker's defaults. For a tool that runs an AI agent
+against your codebase, explicit constraint is more appropriate than implicit
+permissiveness.
 
-### 2. Explicit Host Access
+### 2. Per-Project Isolation
 
-The container has read/write access to exactly two locations on the host:
+Claude Code state — auth tokens, project memory, conversation history — is
+stored in `.devbox/` alongside the project's container config. Each project
+gets a completely fresh Claude Code context. No memory or history leaks between
+projects.
 
-- The project directory (`/workspace`) — what Claude Code is here to work on
-- `~/.claude` — Claude Code's auth credentials and state, persisted across sessions
-
-Nothing else on the host filesystem is visible to the container. No home
-directory, no SSH keys, no git config, no other projects.
+This is implemented via volume mounts that point Claude Code's expected home
+directory paths (`.claude/` and `.claude.json`) to per-project locations in
+`.devbox/`, transparent to Claude Code itself.
 
 ### 3. Non-Invasive
 
@@ -54,8 +54,7 @@ project's source tree, build system, and version control are untouched. The
 only artifact connie places in a project is `.devbox/`, which is gitignored.
 
 This principle is modeled on how `git` works: `.git/` is git's entire
-footprint inside a project. The project does not need to know git exists to be
-managed by it.
+footprint inside a project. The project does not need to know git exists.
 
 ### 4. Config at the Right Layer
 
@@ -94,6 +93,7 @@ between them.
 │                                                                 │
 │  bin/connie                   CLI entry point                   │
 │  lib/connie/base.Dockerfile   Alpine + core tools + Claude Code │
+│  lib/connie/entrypoint.sh     Container startup script          │
 │  lib/connie/templates/        Per-project Dockerfile + Compose  │
 │  lib/connie/config/           Compiled-in defaults              │
 │  Makefile                     Install / uninstall               │
@@ -104,12 +104,10 @@ between them.
 │  Developer machine                                              │
 │                                                                 │
 │  /usr/local/bin/connie        The CLI                           │
-│  /usr/local/lib/connie/       Templates, base.Dockerfile,       │
-│                               compiled-in defaults              │
+│  /usr/local/lib/connie/       Templates, Dockerfiles, defaults  │
 │  connie/base:latest           Locally built base image          │
 │  /etc/connie/config.yml       System-wide config (optional)     │
 │  ~/.config/connie/config.yml  User config (optional)            │
-│  ~/.claude/                   Claude Code auth + state          │
 └────────────────────┬────────────────────────────────────────────┘
                      │ reads
                      ▼
@@ -117,10 +115,12 @@ between them.
 │  Project directory (untouched except for .devbox/)              │
 │                                                                 │
 │  .devbox/                                                       │
-│  ├── .containerrc             Project config (editable)         │
-│  ├── docker-compose.yml       Hardened base (managed by connie) │
-│  ├── extend.Dockerfile        Build template (managed by connie)│
-│  └── override.yml             Generated at runtime (ephemeral)  │
+│  ├── .claude/             Claude Code state — per-project       │
+│  ├── .claude.json         Claude Code auth — per-project        │
+│  ├── .containerrc         Project config (editable)             │
+│  ├── docker-compose.yml   Hardened base (managed by connie)     │
+│  ├── extend.Dockerfile    Build template (managed by connie)    │
+│  └── override.yml         Generated at runtime (ephemeral)      │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -132,17 +132,13 @@ alpine:3.20  (pulled from Docker Hub)
       │  built by 'connie build-base'
       ▼
 connie/base:latest  (local image)
-  Alpine 3.20 + bash + curl + git + coreutils + Node.js + Claude Code
+  Alpine 3.20 + core tools + claude-user (uid 1000) + Claude Code
       │
       │  built by 'connie run' / 'connie build'
       ▼
-connie/workspace:<project>  (local image, per project)
+connie-workspace  (local image, per project)
   base image + project-specific packages from .containerrc
 ```
-
-The base image is built once and reused across all projects. Project images
-are built per-project and cached — rebuilds only occur when the project's
-package list changes.
 
 ### Config Merge Flow
 
@@ -171,58 +167,84 @@ CLI flags                 (highest precedence)
 
 ## The Container Security Model
 
-### Constraints and Their Rationale
+### Non-Root User
 
-**Read-only root filesystem (`read_only: true`)**
+Claude Code runs as `claude-user` (uid 1000, gid 1000), not root. This is the
+most important single hardening measure: a compromised process has no ability
+to affect the host system even if it escapes the container, because it has no
+root privileges to begin with.
+
+The user is created in the base image and Claude Code is installed as that user
+via the official install script, which places the binary in
+`/home/claude-user/.local/bin/`.
+
+### Read-Only Root Filesystem
 
 The container image is immutable at runtime. No process can modify binaries,
 install software, or alter configuration in the image layers. Any path that
-legitimately needs to be writable is explicitly listed.
+legitimately needs to be writable is explicitly provided via volume mount or
+tmpfs.
 
-**All capabilities dropped (`cap_drop: [ALL]`)**
+### All Capabilities Dropped
 
 Linux divides root's privileges into discrete capabilities. Dropping all of
-them means that even a process running as root inside the container cannot
-perform privileged operations — no raw network access, no filesystem
-ownership changes, no kernel module loading.
+them means that even a process running as root could not perform privileged
+operations. Combined with the non-root user, this provides defense in depth.
 
-**`no-new-privileges`**
+### `no-new-privileges`
 
-Prevents any process from gaining capabilities via `setuid` binaries or
-similar escalation paths, even if such binaries exist in the image.
+Prevents any process from gaining capabilities via `setuid` binaries or similar
+escalation paths, even if such binaries exist in the image. The base image also
+removes all suid/sgid bits at build time as an additional measure.
 
-**tmpfs for writable system paths**
+### tmpfs for Writable System Paths
 
-With a read-only root, writable system paths are mounted as tmpfs:
+With a read-only root, the only writable system path is `/tmp`, mounted as
+`tmpfs`. The entrypoint script redirects all XDG user directories there at
+startup:
 
-| Path | Size | Purpose |
+| Variable | Path | Purpose |
 |---|---|---|
-| `/tmp` | 256MB | General temporary files |
-| `/root/.local/state` | 64MB | Runtime state for CLI tools |
+| `XDG_CACHE_HOME` | `/tmp/.cache` | Tool caches |
+| `XDG_CONFIG_HOME` | `/tmp/.config` | Runtime config |
+| `XDG_DATA_HOME` | `/tmp/.local/share` | Application data |
+| `XDG_STATE_HOME` | `/tmp/.local/state` | Runtime state |
+| `XDG_RUNTIME_DIR` | `/tmp/runtime` | Sockets and PIDs |
+| `GIT_CONFIG_GLOBAL` | `/tmp/.gitconfig` | Git global config |
 
-Both are mounted `noexec` — binaries cannot be executed from them. Both are
-RAM-backed and vanish on container exit.
+All of these are RAM-backed and vanish on container exit.
 
-**Exactly two host mounts**
+### Auto-Updater Disabled
 
-| Mount | Access | Purpose |
-|---|---|---|
-| `[project dir]` → `/workspace` | Read/Write | The project being worked on |
-| `~/.claude` → `/root/.claude` | Read/Write | Claude Code auth + state persistence |
+`DISABLE_AUTOUPDATER=1` is baked into the base image. Without this, Claude
+Code's auto-updater silently hangs at startup on a read-only filesystem —
+it cannot write the update files and waits indefinitely. Disabling it is
+required for the read-only container model to work.
 
-Nothing else from the host is mounted. Claude Code can read and modify project
-files, and its authentication state persists across sessions, but it cannot
-reach anything else on the host filesystem.
+### Host Mounts
 
-**Resource limits**
+Exactly three locations on the host filesystem are visible inside the container:
 
-| Resource | Default Limit |
+| Host path | Container path | Access | Purpose |
+|---|---|---|---|
+| `[project dir]` | `/workspace` | Read/Write | The project being worked on |
+| `.devbox/.claude/` | `~/.claude/` | Read/Write | Claude Code state, per-project |
+| `.devbox/.claude.json` | `~/.claude.json` | Read/Write | Claude Code auth, per-project |
+
+Nothing else from the host is mounted. `.devbox/.claude/` and
+`.devbox/.claude.json` must be pre-created on the host before Docker mounts
+them — with a read-only container filesystem Docker cannot create the mount
+point at the target path if it doesn't exist in the image.
+
+### Resource Limits
+
+| Resource | Default |
 |---|---|
 | Memory | 4GB |
 | CPU | 2 cores |
 | PIDs | 512 |
-| File descriptors (soft) | 1024 |
-| File descriptors (hard) | 65536 |
+| File descriptors (soft) | 4096 |
+| File descriptors (hard) | 8192 |
 
 All limits are overridable per-project in `.containerrc` under `resources`.
 
@@ -231,37 +253,57 @@ All limits are overridable per-project in `.containerrc` under `resources`.
 ## The Base Image
 
 The base image (`connie/base:latest`) is built locally by `connie build-base`
-from `lib/connie/base.Dockerfile`. It is not published to any registry —
-it lives on the developer's machine only.
+from `lib/connie/base.Dockerfile`. It is not published to any registry.
 
-Contents:
+### Build Process
+
+Claude Code is installed by running the official install script
+(`https://claude.ai/install.sh`) *as the `claude-user` user*. This mirrors
+the recommended installation method and ensures the binary and supporting files
+land in `/home/claude-user/.local/bin/` with correct ownership — which is where
+Claude Code expects to manage itself.
+
+Installing as the correct user, rather than as root via `npm install -g`, avoids
+permission mismatches and ensures Claude Code can locate its own files at runtime.
+
+### Contents
 
 | Component | Purpose |
 |---|---|
-| `alpine:3.20` | Minimal base (~5MB) |
-| `bash` | Shell (Claude Code and many tools expect bash) |
-| `curl` | HTTP client |
+| `alpine:3.20` | Minimal base |
+| `bash`, `coreutils`, `grep`, `sed`, `gawk`, `findutils` | Shell and core utils |
 | `git` | Source control |
-| `coreutils` | GNU core utilities (consistent cross-platform behaviour) |
-| `ca-certificates` | TLS root certificates for HTTPS |
-| `nodejs` + `npm` | Claude Code runtime |
-| `@anthropic-ai/claude-code` | The AI coding assistant |
+| `curl`, `wget` | HTTP clients |
+| `ripgrep`, `fd`, `jq`, `tree`, `file` | Search and file tools |
+| `tar`, `gzip`, `unzip` | Archive tools |
+| `build-base`, `libgcc`, `libstdc++`, `linux-headers` | Native module support |
+| `lsof` | Process diagnostics |
+| `claude-user` (uid/gid 1000) | Non-root runtime user |
+| Claude Code | The AI coding assistant |
+| `entrypoint.sh` | Runtime environment setup |
 
-The base image is rebuilt by running `connie build-base` again. This is
-necessary when:
+### Rebuild Triggers
 
-- A new version of Claude Code is released and you want to upgrade
-- You want to update the Alpine base or Node.js version
-- You are moving connie to a new machine
+Run `connie build-base` again when:
+- A new version of Claude Code is available
+- You want to update the Alpine base or tooling versions
+- You are setting up connie on a new machine
 
 ---
 
 ## Authentication
 
-Claude Code authenticates via OAuth. On first run it opens a browser window,
-the user logs in with their Anthropic account, and credentials are cached
-locally. connie mounts `~/.claude` from the host into `/root/.claude` in the
-container so these credentials persist across container sessions.
+Claude Code authenticates via OAuth. On first `connie run` for a project, it
+prompts the user to log in via browser. Credentials are written to
+`.devbox/.claude.json` and `.devbox/.claude/` inside the project directory.
+
+On subsequent runs for the same project, the saved credentials are reused
+automatically — no re-authentication needed.
+
+Each project authenticates independently. Running connie against a new project
+requires a one-time authentication for that project. This is intentional: it
+ensures each project's Claude Code session is fully isolated, including the
+auth context.
 
 No API keys are required. Authentication uses the user's Anthropic subscription.
 
@@ -277,9 +319,12 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 **Owned by the developer (edit freely):**
 - `.devbox/.containerrc` — the project contract
 
+**Owned by Claude Code (do not edit manually):**
+- `.devbox/.claude/` — session state, memory, history
+- `.devbox/.claude.json` — auth tokens and config
+
 **Never committed:**
 - `.devbox/` as a whole — added to the project's `.gitignore`
-- `.devbox/override.yml` — generated fresh on every `connie run`
 
 ---
 
@@ -289,12 +334,11 @@ Explicitly out of scope for the initial implementation but accounted for in
 the architecture:
 
 - **SSH agent forwarding** — a future `ssh` config key in `.containerrc`
-- **Multiple containers per project** — `.containerrc` uses a `services`
-  structure ready to support multi-container stacks
+- **Multiple containers per project** — `.containerrc` structure supports
+  a `services` key for multi-container stacks
 - **Registry publishing** — for teams that want to share the base image
-  rather than building it locally
-- **`connie init --update`** — refresh tool-managed files from updated
-  templates without overwriting `.containerrc`
-- **Capability grants** — a `capabilities` key in `.containerrc` for
-  projects that need specific Linux capabilities re-granted
+- **`connie init --update`** — refresh tool-managed files from updated templates
+  without overwriting `.containerrc`
+- **Capability grants** — a `capabilities` key for projects that need specific
+  Linux capabilities re-granted
 - **Shell completions** — `connie completion bash|zsh|fish`
