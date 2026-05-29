@@ -36,6 +36,15 @@ single built base rather than each developer building it locally.
 
 ---
 
+### `--verbose` Flag
+
+Add a `--verbose` flag to `run` and `build` that narrates the config merge
+process to stderr — which config files were found and loaded, which packages
+are being installed, what command will be run. Distinct from `connie config`,
+which shows the generated artifact; `--verbose` describes the process.
+
+---
+
 ## Quality / Internals
 
 ### Automated Test Suite

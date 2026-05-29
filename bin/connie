@@ -51,10 +51,11 @@ Usage:
   $TOOL build      [dir]    Build the project container image without starting it
   $TOOL build-base          Build (or rebuild) the connie base image
   $TOOL clean      [dir]    Remove the locally built project container image
+  $TOOL config     [dir]    Print the effective Compose override and exit
   $TOOL help                Show this message
   $TOOL version             Show version
 
-Options (run, build):
+Options (run, build, config):
   --package <pkg>    Install an additional apk package (repeatable)
   --env KEY=VALUE    Set an additional environment variable (repeatable)
   --cmd <cmd>        Override the start command (default: claude)
@@ -448,6 +449,24 @@ cmd_clean() {
     _info "Done."
 }
 
+cmd_config() {
+    _project_root=$(_find_project_root "${1:-$PWD}")
+    _connie_dir="$_project_root/.connie"
+
+    [ -d "$_connie_dir" ] || \
+        _die "No .connie/ found in $_project_root. Run '$TOOL init' first."
+    [ -f "$_connie_dir/.containerrc" ] || \
+        _die "No .containerrc found. Run '$TOOL init' first."
+
+    _require yq
+
+    _merged=$(mktemp)
+    trap "rm -f $_merged" EXIT
+    _merge_configs "$_project_root" > "$_merged"
+    _generate_override "$_project_root" "$_merged" \
+        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
+}
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 _update_gitignore() {
@@ -473,7 +492,7 @@ _TARGET_DIR=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        init|run|build|clean|help|version)
+        init|run|build|clean|config|help|version)
             _SUBCOMMAND="$1"
             shift
             ;;
@@ -519,6 +538,7 @@ case "${_SUBCOMMAND:-help}" in
     build-base)  cmd_build_base ;;
     run)         cmd_run        "${_TARGET_DIR:-}" ;;
     clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
+    config)      cmd_config     "${_TARGET_DIR:-}" ;;
     version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
     help)        _usage ;;
 esac

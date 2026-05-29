@@ -96,12 +96,13 @@ and reused on every subsequent `connie run` for that project.
 | `connie run [dir]` | Build (if needed) and start Claude Code |
 | `connie build [dir]` | Build the project container image without starting it |
 | `connie clean [dir]` | Remove the locally built project container image |
+| `connie config [dir]` | Print the effective Compose override and exit |
 | `connie help` | Show usage |
 | `connie version` | Show version |
 
 ### Flags
 
-These flags apply to `run` and `build`:
+These flags apply to `run`, `build`, and `config`:
 
 | Flag | Description |
 | --- | --- |
