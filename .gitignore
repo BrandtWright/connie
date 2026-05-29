@@ -1,8 +1,5 @@
 # connie repository .gitignore
 
-# If you use connie to develop connie
-.connie/
-
 # macOS
 .DS_Store
 
