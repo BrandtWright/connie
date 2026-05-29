@@ -310,7 +310,7 @@ _generate_override() {
 
     # Build the environment block: forwarded (low) < config .env < --env (high).
     _env_block=$(FWD="$_fwd_env_obj" CLI="$_cli_env_obj" yq '
-        (env(FWD) * (.env // {}) * env(CLI)) |
+        (env(FWD) * .env * env(CLI)) |
         to_entries |
         .[] |
         "      " + .key + ": " + (.value | @json)
