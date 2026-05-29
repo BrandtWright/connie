@@ -13,19 +13,19 @@ Forward the host's `SSH_AUTH_SOCK` into the container so Claude Code can
 perform authenticated git operations (clone, push, fetch) without embedding
 credentials in the image.
 
-Planned approach: a `ssh:` config key in `.containerrc` that opts in to the
+Planned approach: a `ssh:` config key in `config.yml` that opts in to the
 mount. The socket path is taken from `$SSH_AUTH_SOCK` on the host.
 
 ### `connie init --update`
 
-Refresh `.containerrc` from the current installed template, merging in any
+Refresh `config.yml` from the current installed template, merging in any
 new keys with their defaults while preserving the user's existing values.
 
 Useful after a `connie` upgrade that adds new config options.
 
 ### Multiple Containers Per Project
 
-Allow `.containerrc` to define a `services:` key describing a multi-container
+Allow `config.yml` to define a `services:` key describing a multi-container
 stack (e.g. app + database). The current config structure was designed to
 accommodate this without breaking changes.
 

@@ -1,4 +1,4 @@
-# .connie/.containerrc
+# .connie/config.yml
 # connie project configuration
 #
 # This file describes what this project needs from its container environment.
@@ -8,10 +8,11 @@
 # (lowest to highest precedence):
 #
 #   1. connie compiled-in defaults
-#   2. /etc/connie/config.yml       (system-wide, set by admin)
+#   2. /etc/xdg/connie/config.yml   (system-wide, set by admin)
 #   3. ~/.config/connie/config.yml  (your personal preferences)
 #   4. This file                    (project-specific requirements)
-#   5. CLI flags (--package, --env, --cmd)
+#   5. CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS (env vars)
+#   6. CLI flags (--package, --env, --cmd)
 #
 # Higher-precedence sources override lower ones.
 

@@ -14,7 +14,7 @@ into Claude Code — ready to assist with development tasks.
 ```text
 connie run ~/repos/my-project
         │
-        ├── reads  .connie/.containerrc        project dependencies + config
+        ├── reads  .connie/config.yml        project dependencies + config
         ├── builds connie-workspace image      base image + project packages
         ├── mounts ~/repos/my-project       →  /workspace          (read/write)
         ├── mounts .connie/.claude/         →  ~/.claude/           (read/write)
@@ -63,7 +63,7 @@ make uninstall PREFIX=~/.local
 connie init ~/repos/my-project
 
 # 2. Optionally edit the config to add project-specific packages
-$EDITOR ~/repos/my-project/.connie/.containerrc
+$EDITOR ~/repos/my-project/.connie/config.yml
 
 # 3. Start Claude Code in the container
 connie run ~/repos/my-project
@@ -125,22 +125,23 @@ from lowest to highest precedence:
 
 ```text
 1. connie compiled-in defaults       (/usr/local/lib/connie/config/defaults.yml)
-2. System-wide config                (/etc/connie/config.yml)
+2. System-wide config                (/etc/xdg/connie/config.yml)
 3. User config                       (~/.config/connie/config.yml)
-4. Project config                    ([project]/.connie/.containerrc)
-5. CLI flags (--package, --env, --cmd)
+4. Project config                    ([project]/.connie/config.yml)
+5. Environment variables             (CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS)
+6. CLI flags (--package, --env, --cmd)
 ```
 
 `TERM` and `COLORTERM` from the host shell are automatically forwarded into
 the container as the lowest-precedence env entries — below even project config.
-They can be overridden via `.containerrc` `env:` or `--env`.
+They can be overridden via `config.yml` `env:` or `--env`.
 
-### The Project Config: `.connie/.containerrc`
+### The Project Config: `.connie/config.yml`
 
 This is the file you edit to describe a project's container needs. Created by
 `connie init` and never overwritten by subsequent connie operations.
 
-See [`.containerrc` reference](#containerrc-reference) below.
+See [`config.yml` reference](#configyml-reference) below.
 
 ### User Config
 
@@ -156,7 +157,7 @@ resources:
 
 ---
 
-## `.containerrc` Reference
+## `config.yml` Reference
 
 ```yaml
 # Additional packages to install at build time (via apk).
@@ -236,7 +237,7 @@ rationale. The enforced constraints are:
 .connie/
 ├── .claude/         Claude Code credentials, history, and state — per-project
 ├── .claude.json     Claude Code account metadata and app config — per-project
-└── .containerrc     Your project config (edit this)
+└── config.yml       Your project config (edit this)
 ```
 
 The entire `.connie/` directory is gitignored — none of this is committed to
@@ -281,14 +282,14 @@ accepting `EXTRA_PACKAGES` and `BUILD_COMMANDS` as build args. These are
 injected at build time from the merged config — the image is rebuilt only when
 they change; otherwise Docker's layer cache makes the build instant.
 
-### Config: `config/defaults.yml` + `templates/.containerrc`
+### Config: `config/defaults.yml` + `templates/config.yml`
 
 `defaults.yml` is the lowest-precedence layer in connie's config merge. It is
 read on every `connie run`, `connie build`, and `connie config` and is never
 copied anywhere.
 
-`templates/.containerrc` is the only file here that gets copied to a project.
-`connie init` copies it to `.connie/.containerrc` once, and connie never
+`templates/config.yml` is the only file here that gets copied to a project.
+`connie init` copies it to `.connie/config.yml` once, and connie never
 touches it again. It is the developer-owned file that describes the project's
 container needs.
 

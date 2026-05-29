@@ -59,7 +59,7 @@ exercise `init` / `build` / `run` / `clean` against a scratch project.
 Everything connie touches in a target project lives under `.connie/` (and the
 directory is gitignored — connie never modifies the project's own source tree):
 
-- `.containerrc` — **developer-owned**, the only file meant to be hand-edited;
+- `config.yml` — **developer-owned**, the only file meant to be hand-edited;
   never overwritten by re-running `init`.
 - `.claude/` (dir) and `.claude.json` (file) — **Claude-Code-owned** per-project
   state and auth. Pre-created on the host because the read-only container
@@ -73,8 +73,8 @@ directory is gitignored — connie never modifies the project's own source tree)
 it through these stages rather than editing one in isolation:
 
 1. `_merge_configs` deep-merges YAML (via `yq` reduce) in ascending precedence:
-   `lib/connie/config/defaults.yml` → `/etc/connie/config.yml` →
-   `~/.config/connie/config.yml` → project `.connie/.containerrc`. Produces one
+   `lib/connie/config/defaults.yml` → `/etc/xdg/connie/config.yml` →
+   `~/.config/connie/config.yml` → project `.connie/config.yml`. Produces one
    temp file.
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.

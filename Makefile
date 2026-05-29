@@ -36,7 +36,7 @@ install: check
 	$(INSTALL) -m 755 $(CURDIR)/lib/connie/entrypoint.sh                $(LIBDIR)/entrypoint.sh
 	$(INSTALL) -m 644 $(CURDIR)/lib/connie/docker-compose.yml           $(LIBDIR)/docker-compose.yml
 	$(INSTALL) -m 644 $(CURDIR)/lib/connie/extend.Dockerfile            $(LIBDIR)/extend.Dockerfile
-	$(INSTALL) -m 644 $(CURDIR)/lib/connie/templates/.containerrc       $(LIBDIR)/templates/.containerrc
+	$(INSTALL) -m 644 $(CURDIR)/lib/connie/templates/config.yml         $(LIBDIR)/templates/config.yml
 	$(INSTALL) -m 644 $(CURDIR)/lib/connie/config/defaults.yml          $(LIBDIR)/config/defaults.yml
 	@echo "==> Done."
 	@echo ""

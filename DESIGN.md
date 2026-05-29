@@ -20,8 +20,8 @@ an explicit, minimal set of permissions. The developer defines what the
 container can touch. Everything else is denied by default.
 
 The secondary goal is reproducibility. A container built from the same
-`.containerrc` on any machine produces the same environment — the same tools,
-the same configuration, the same constraints.
+`.connie/config.yml` on any machine produces the same environment — the same
+tools, the same configuration, the same constraints.
 
 ---
 
@@ -62,7 +62,7 @@ Different configuration belongs at different levels:
 
 - **System config** — policies that apply to all users on a machine
 - **User config** — personal preferences that apply to all projects
-- **Project config** — requirements specific to a project (`.connie/.containerrc`)
+- **Project config** — requirements specific to a project (`.connie/config.yml`)
 - **CLI flags** — one-off overrides for a single invocation
 
 `connie` respects this layering and merges all sources with explicit, predictable
@@ -106,7 +106,7 @@ between them.
 │  /usr/local/bin/connie        The CLI                           │
 │  /usr/local/lib/connie/       Templates, Dockerfiles, defaults  │
 │  connie/base:latest           Locally built base image          │
-│  /etc/connie/config.yml       System-wide config (optional)     │
+│  /etc/xdg/connie/config.yml   System-wide config (optional)     │
 │  ~/.config/connie/config.yml  User config (optional)            │
 └────────────────────┬────────────────────────────────────────────┘
                      │ reads
@@ -117,7 +117,7 @@ between them.
 │  .connie/                                                       │
 │  ├── .claude/             Claude Code state — per-project       │
 │  ├── .claude.json         Claude Code auth — per-project        │
-│  └── .containerrc         Project config (editable)             │
+│  └── config.yml           Project config (editable)             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -134,21 +134,23 @@ connie/base:latest  (local image)
       │  built by 'connie run' / 'connie build'
       ▼
 connie-workspace  (local image, per project)
-  base image + project-specific packages from .containerrc
+  base image + project-specific packages from config.yml
 ```
 
 ### Config Merge Flow
 
 ```text
-defaults.yml              (lowest precedence)
+defaults.yml                       (lowest precedence)
       +
-/etc/connie/config.yml
+/etc/xdg/connie/config.yml
       +
 ~/.config/connie/config.yml
       +
-.connie/.containerrc
+.connie/config.yml
       +
-CLI flags                 (highest precedence)
+CONNIE_CMD / CONNIE_MEMORY / CONNIE_CPUS / CONNIE_MAX_PIDS
+      +
+CLI flags                          (highest precedence)
       │
       ▼
   merged config
@@ -228,7 +230,7 @@ against the latest installer. See [Rebuild Triggers](#rebuild-triggers).
 
 `TERM`, `COLORTERM`, and a derived `FORCE_COLOR` are forwarded from the host
 shell into the container on every `connie run`, at the lowest config
-precedence. They can be overridden via `.containerrc` `env:` or `--env`.
+precedence. They can be overridden via `config.yml` `env:` or `--env`.
 
 **Why `FORCE_COLOR`**: `Node.js` applications (including Claude Code) use
 `process.stdout.getColorDepth()` to determine color support. Inside a Docker
@@ -270,7 +272,7 @@ if it doesn't exist in the image.
 | File descriptors (soft) | 4096 |
 | File descriptors (hard) | 8192 |
 
-All limits are overridable per-project in `.containerrc` under `resources`.
+All limits are overridable per-project in `config.yml` under `resources`.
 
 ---
 
@@ -345,7 +347,7 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 
 **Owned by the developer (edit freely):**
 
-- `.connie/.containerrc` — the project contract
+- `.connie/config.yml` — the project contract
 
 **Owned by Claude Code (do not edit manually):**
 
@@ -363,12 +365,12 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 Explicitly out of scope for the initial implementation but accounted for in
 the architecture:
 
-- **SSH agent forwarding** — a future `ssh` config key in `.containerrc`
-- **Multiple containers per project** — `.containerrc` structure supports
+- **SSH agent forwarding** — a future `ssh` config key in `config.yml`
+- **Multiple containers per project** — `config.yml` structure supports
   a `services` key for multi-container stacks
 - **Registry publishing** — for teams that want to share the base image
 - **`connie init --update`** — refresh tool-managed files from updated templates
-  without overwriting `.containerrc`
+  without overwriting `config.yml`
 - **Capability grants** — a `capabilities` key for projects that need specific
   Linux capabilities re-granted
 - **Shell completions** — `connie completion bash|zsh|fish`

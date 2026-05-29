@@ -71,7 +71,7 @@ connie/
         ├── docker-compose.yml       Hardened Compose base (shared, not per-project)
         ├── extend.Dockerfile        Build template (shared, not per-project)
         ├── templates/
-        │   └── .containerrc         Default project config template
+        │   └── config.yml         Default project config template
         └── config/
             └── defaults.yml         Compiled-in defaults
 ```
@@ -108,9 +108,9 @@ projects immediately after reinstalling (no `connie init` re-run needed).
 When making security-relevant changes to `docker-compose.yml`, update
 `DESIGN.md` to reflect the new security posture.
 
-### Changes to `.containerrc` template
+### Changes to `config.yml` template
 
-`lib/connie/templates/.containerrc` is copied into new projects by `connie init`.
+`lib/connie/templates/config.yml` is copied into new projects by `connie init`.
 Changing it does not affect already-initialised projects — only new
 `connie init` runs pick up the change.
 
@@ -128,7 +128,7 @@ connie uses [Semantic Versioning](https://semver.org/):
 
 - **Patch** — bug fixes, no behaviour changes
 - **Minor** — new features, backward compatible
-- **Major** — breaking changes to `.containerrc` format or CLI interface
+- **Major** — breaking changes to `config.yml` format or CLI interface
 
 The version is defined in one place: the `VERSION` variable at the top of
 `bin/connie`. Update it and add an entry to `CHANGELOG.md` with each release.

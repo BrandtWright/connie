@@ -35,7 +35,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   via command substitution to capture a temp-file path) would corrupt the
   captured path. stderr is the correct channel for progress messages;
   `_die` already used it.
-- Port mappings configured in `.containerrc` `ports:` were silently dropped
+- Port mappings configured in `config.yml` `ports:` were silently dropped
   and never forwarded to the container. The `ports` block was computed in
   `_generate_override` but missing from the YAML output.
 
@@ -53,7 +53,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   term → `2`, otherwise `1`) and bypasses Node.js/chalk's Docker PTY probe, which
   otherwise underestimates color support regardless of `TERM`/`COLORTERM`.
   All forwarded values are the lowest-precedence env entries — anything in
-  `.containerrc` `env:` or `--env` overrides them. `TERM` defaults to
+  `config.yml` `env:` or `--env` overrides them. `TERM` defaults to
   `xterm-256color` when unset on the host.
 - Base image now installs `ncurses-terminfo-base` so forwarded `TERM` values
   (e.g. `screen-256color`) resolve against the terminfo database for
@@ -110,7 +110,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Config hierarchy
 
 - Compiled-in defaults → system → user → project → CLI flags
-- `.containerrc` format: `packages`, `env`, `volumes`, `ports`,
+- `config.yml` format: `packages`, `env`, `volumes`, `ports`,
   `start_cmd`, `resources`
 - `--package`, `--env`, and `--cmd` CLI flags for per-invocation overrides
 
