@@ -208,8 +208,6 @@ _migrate_project() {
 _merge_configs() {
     _mc_root="$1"
     _mc_work=$(mktemp)
-    _mc_tmp=""
-    trap 'rm -f "$_mc_work" ${_mc_tmp:+"$_mc_tmp"}' EXIT
 
     printf '{}' > "$_mc_work"
 
@@ -219,16 +217,16 @@ _merge_configs() {
         "$USER_CONFIG" \
         "$(_project_config "$_mc_root")"
     do
-        if [ -f "$_mc_cfg" ]; then
-            _mc_tmp=$(mktemp)
-            yq eval-all '. as $item ireduce ({}; . * $item)' \
-                "$_mc_work" "$_mc_cfg" > "$_mc_tmp"
-            mv "$_mc_tmp" "$_mc_work"
-            _mc_tmp=""
-        fi
+        [ -f "$_mc_cfg" ] || continue
+        _mc_tmp=$(mktemp)
+        yq eval-all '. as $item ireduce ({}; . * $item)' \
+            "$_mc_work" "$_mc_cfg" > "$_mc_tmp" \
+            || { rm -f "$_mc_work" "$_mc_tmp"; return 1; }
+        mv "$_mc_tmp" "$_mc_work"
     done
 
     cat "$_mc_work"
+    rm -f "$_mc_work"
 }
 
 # ── Override file generation ──────────────────────────────────────────────────
@@ -371,10 +369,12 @@ YAML
 
 # ── Validation and config merge ───────────────────────────────────────────────
 
-# Validate the project, auto-migrate if needed, merge config into a temp file.
-# Prints the temp file path. Caller must trap to clean it up.
+# Validate the project, auto-migrate if needed, write merged config to _out.
+# The caller creates the output temp file, owns it, and is responsible for
+# cleanup — _prepare never creates temp files of its own.
 _prepare() {
     _prep_root="$1"
+    _prep_out="$2"
 
     _require_yq
     _require docker
@@ -408,9 +408,7 @@ _prepare() {
         printf '{}' > "$_prep_state/.claude.json"
     fi
 
-    _prep_merged=$(mktemp)
-    _merge_configs "$_prep_root" > "$_prep_merged"
-    printf '%s' "$_prep_merged"
+    _merge_configs "$_prep_root" > "$_prep_out"
 }
 
 # ── Compose project name ─────────────────────────────────────────────────────
@@ -519,9 +517,10 @@ INITEOF
 cmd_build() {
     _project_root=$(_find_project_root "${1:-$PWD}")
     _info "Building project container for $_project_root"
-    _merged=$(_prepare "$_project_root")
+    _merged=$(mktemp)
     _override=$(mktemp)
     trap "rm -f $_merged $_override" EXIT
+    _prepare "$_project_root" "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
     _run_compose "$_project_root" "$_override" build workspace
@@ -530,13 +529,12 @@ cmd_build() {
 cmd_run() {
     _project_root=$(_find_project_root "${1:-$PWD}")
     _info "Starting Claude Code for $_project_root"
-
-    _merged=$(_prepare "$_project_root")
+    _merged=$(mktemp)
     _override=$(mktemp)
     trap "rm -f $_merged $_override" EXIT
+    _prepare "$_project_root" "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
-
     _run_compose "$_project_root" "$_override" build workspace
     _run_compose "$_project_root" "$_override" run --rm workspace
 }
@@ -574,7 +572,7 @@ cmd_config() {
 
     _merged=$(mktemp)
     trap "rm -f $_merged" EXIT
-    ( _merge_configs "$_project_root" ) > "$_merged"
+    _merge_configs "$_project_root" > "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
 }
