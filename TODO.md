@@ -18,10 +18,10 @@ mount. The socket path is taken from `$SSH_AUTH_SOCK` on the host.
 
 ### `connie init --update`
 
-Refresh the tool-managed files (`docker-compose.yml`, `extend.Dockerfile`)
-from the current installed templates without overwriting `.containerrc`.
+Refresh `.containerrc` from the current installed template, merging in any
+new keys with their defaults while preserving the user's existing values.
 
-Useful after a `connie` upgrade that ships improved templates.
+Useful after a `connie` upgrade that adds new config options.
 
 ### Multiple Containers Per Project
 

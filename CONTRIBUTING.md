@@ -68,10 +68,10 @@ connie/
     └── connie/
         ├── base.Dockerfile          Alpine + core tools + Claude Code
         ├── entrypoint.sh            Container startup script
+        ├── docker-compose.yml       Hardened Compose base (shared, not per-project)
+        ├── extend.Dockerfile        Build template (shared, not per-project)
         ├── templates/
-        │   ├── .containerrc         Default project config template
-        │   ├── docker-compose.yml   Hardened Compose base
-        │   └── extend.Dockerfile    Per-project build template
+        │   └── .containerrc         Default project config template
         └── config/
             └── defaults.yml         Compiled-in defaults
 ```
@@ -99,14 +99,20 @@ affect all projects on the next `connie build-base`. When making changes:
 - Update `DESIGN.md` if the contents of the base image change
 - Test with `connie build-base && connie run <some-project>`
 
-### Changes to templates
+### Changes to `docker-compose.yml` or `extend.Dockerfile`
 
-Templates in `lib/connie/templates/` are copied into projects by `connie init`.
-Changing them does not affect already-initialised projects — only new
-`connie init` runs pick up template changes.
+These files live in `lib/connie/` and are read directly from `$LIB_DIR` at
+runtime — they are not copied into projects. Changes take effect for all
+projects immediately after reinstalling (no `connie init` re-run needed).
 
 When making security-relevant changes to `docker-compose.yml`, update
 `DESIGN.md` to reflect the new security posture.
+
+### Changes to `.containerrc` template
+
+`lib/connie/templates/.containerrc` is copied into new projects by `connie init`.
+Changing it does not affect already-initialised projects — only new
+`connie init` runs pick up the change.
 
 ### Changes to `defaults.yml`
 

@@ -1,5 +1,5 @@
-# .connie/extend.Dockerfile
-# Managed by connie — do not edit directly.
+# lib/connie/extend.Dockerfile
+# Per-project build template — shared across all projects, not per-project.
 # To install packages into the container, add them to
 # .connie/.containerrc under the 'packages' or 'build_commands' keys.
 #

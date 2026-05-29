@@ -51,7 +51,7 @@ exercise `init` / `build` / `run` / `clean` against a scratch project.
    (uid 1000) + Claude Code installed via the official `install.sh` as that user.
    Not published to any registry.
 3. **Per-project image** (`connie-workspace`) — built by `connie run`/`connie build`
-   from the project's `.connie/extend.Dockerfile`, which is `FROM connie/base:latest`
+   from `$LIB_DIR/extend.Dockerfile`, which is `FROM connie/base:latest`
    plus `EXTRA_PACKAGES` (apk) injected as a build arg.
 
 ### What `connie init` writes into a project
@@ -61,9 +61,6 @@ directory is gitignored — connie never modifies the project's own source tree)
 
 - `.containerrc` — **developer-owned**, the only file meant to be hand-edited;
   never overwritten by re-running `init`.
-- `docker-compose.yml`, `extend.Dockerfile` — **connie-managed** templates, copied
-  from `lib/connie/templates/`. Editing the templates only affects *future*
-  `init` runs, not already-initialised projects.
 - `.claude/` (dir) and `.claude.json` (file) — **Claude-Code-owned** per-project
   state and auth. Pre-created on the host because the read-only container
   filesystem cannot create the bind-mount targets itself (and Docker would
@@ -85,7 +82,7 @@ it through these stages rather than editing one in isolation:
    build args (`EXTRA_PACKAGES`, `BUILD_COMMANDS`), `environment` (from `env`),
    `volumes` (the three standard mounts first, then extras), `ports`, resource
    limits, and `command`.
-4. `_run_compose` runs `docker compose -f docker-compose.yml -f override.yml ...`.
+4. `_run_compose` runs `docker compose -f $LIB_DIR/docker-compose.yml -f .connie/override.yml ...`.
    The static `docker-compose.yml` carries the immutable security posture
    (`read_only`, `cap_drop: ALL`, `no-new-privileges`, `/tmp` tmpfs, `init: true`);
    `override.yml` carries everything derived from config. `connie run` calls

@@ -233,12 +233,10 @@ rationale. The enforced constraints are:
 
 ```text
 .connie/
-├── .claude/             Claude Code credentials, history, and state — per-project
-├── .claude.json         Claude Code account metadata and app config — per-project
-├── .containerrc         Your project config (edit this)
-├── docker-compose.yml   Hardened container base (managed by connie)
-├── extend.Dockerfile    Per-project build template (managed by connie)
-└── override.yml         Generated at runtime (ephemeral, never commit)
+├── .claude/         Claude Code credentials, history, and state — per-project
+├── .claude.json     Claude Code account metadata and app config — per-project
+├── .containerrc     Your project config (edit this)
+└── override.yml     Generated at runtime (ephemeral, never commit)
 ```
 
 The entire `.connie/` directory is gitignored — none of this is committed to
