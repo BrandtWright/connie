@@ -71,7 +71,8 @@ connie run ~/repos/my-project
 ```
 
 If you run `connie` from inside a project directory, the path argument is
-optional — connie walks up the directory tree looking for `.connie/`:
+optional — connie walks up the directory tree looking for a registered project
+root and uses it automatically:
 
 ```sh
 cd ~/repos/my-project

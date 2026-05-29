@@ -1,8 +1,8 @@
-# .connie/config.yml
+# ~/.config/connie/projects/<slug>/config.yml
 # connie project configuration
 #
 # This file describes what this project needs from its container environment.
-# It is the only file in .connie/ that you should edit.
+# It is the only connie file you should ever need to edit.
 #
 # connie reads config from multiple sources in this order
 # (lowest to highest precedence):

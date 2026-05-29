@@ -42,6 +42,14 @@ _require() {
     command -v "$1" >/dev/null 2>&1 || _die "'$1' is required but not installed."
 }
 
+_require_yq() {
+    _require yq
+    # eval-all is a yq v4 (mikefarah) command; earlier versions and the Python
+    # yq fork do not have it and will produce cryptic errors throughout.
+    yq eval-all 'null' /dev/null >/dev/null 2>&1 || \
+        _die "'yq' v4 (github.com/mikefarah/yq) is required but the installed 'yq' does not support 'eval-all'. See: https://github.com/mikefarah/yq#install"
+}
+
 _usage() {
     cat <<EOF
 $TOOL v$VERSION
@@ -370,7 +378,7 @@ _prepare() {
 
     # Auto-migrate from old .connie/ layout if the new config doesn't exist yet
     if [ ! -f "$(_project_config "$_prep_root")" ] && [ -d "$_prep_root/.connie" ]; then
-        _require yq
+        _require_yq
         _migrate_project "$_prep_root"
     fi
 
@@ -378,7 +386,7 @@ _prepare() {
     [ -f "$_prep_config" ] || \
         _die "No project config found for $_prep_root. Run '$TOOL init' first."
 
-    _require yq
+    _require_yq
     _require docker
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
@@ -454,7 +462,7 @@ cmd_init() {
     _target="${1:-$PWD}"
     _target=$(cd "$_target" 2>/dev/null && pwd) || _die "Directory not found: $_target"
 
-    _require yq
+    _require_yq
 
     _init_slug=$(_project_slug "$_target")
     _init_cfg_dir="$CONFIG_DIR/projects/$_init_slug"
@@ -551,7 +559,7 @@ cmd_clean() {
 cmd_config() {
     _project_root=$(_find_project_root "${1:-$PWD}")
 
-    _require yq
+    _require_yq
 
     _cfg=$(_project_config "$_project_root")
     [ -f "$_cfg" ] || \
@@ -563,8 +571,11 @@ cmd_config() {
     printf '\n' >&2
 
     _merged=$(mktemp)
-    trap "rm -f $_merged" EXIT
     _merge_configs "$_project_root" > "$_merged"
+    # Set trap after _merge_configs returns: _merge_configs installs its own
+    # EXIT trap for $_mc_work, which would overwrite an earlier trap and leak
+    # $_merged. Combining both paths here ensures both files are cleaned up.
+    trap "rm -f $_merged $_mc_work" EXIT
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
 }
@@ -611,6 +622,7 @@ while [ $# -gt 0 ]; do
             _die "Unknown flag: $1. Run '$TOOL help' for usage."
             ;;
         *)
+            [ -z "$_TARGET_DIR" ] || _die "Unexpected argument: $1. Run '$TOOL help' for usage."
             _TARGET_DIR="$1"
             shift
             ;;

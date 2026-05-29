@@ -11,6 +11,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Zero project footprint** — `connie` no longer writes anything to the
+  project directory. All state (config, Claude Code auth, session history)
+  now lives in standard XDG directories on the developer's machine:
+  - `~/.config/connie/projects/<slug>/config.yml` — developer-owned project config
+  - `~/.local/state/connie/<slug>/` — Claude Code state and auth
+  - `~/.local/share/connie/projects.yml` — project registry (path → slug)
+  No `.gitignore` entry needed; the project does not need to know connie exists.
+- `connie config [dir]` subcommand — prints the config file path, state
+  directory path, and the effective Compose override for a project. Useful
+  for diagnosing what `connie run` will do.
+- Auto-migration from old `.connie/` project-directory layout to XDG directories.
+  Triggered automatically on the first `connie run`/`connie build` for a project
+  that still has a `.connie/` directory. Moves `config.yml`, `.claude/`, and
+  `.claude.json`; removes `.connie/` if empty afterward.
 - `build_commands:` config key — a list of arbitrary shell commands run at
   image build time as `claude-user`, after apk packages are installed. Enables
   npm, pip, gem, cargo, and other package managers not covered by the `packages:`
@@ -117,6 +131,5 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Other
 
 - Auto-detection of project root by walking up the directory tree
-- Optional `.gitignore` update on `connie init`
 - POSIX-compliant shell script — works with sh, bash, dash, zsh
 - `CONNIE_LIB_DIR` environment variable for local development without reinstalling
