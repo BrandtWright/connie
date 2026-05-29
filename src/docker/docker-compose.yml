@@ -1,4 +1,4 @@
-# lib/connie/docker-compose.yml
+# src/docker/docker-compose.yml
 # Hardened Compose base — shared across all projects, not per-project.
 # To change container configuration, edit the project config at
 # ~/.config/connie/projects/<slug>/config.yml and re-run 'connie run'.

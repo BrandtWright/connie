@@ -91,11 +91,13 @@ between them.
 ┌─────────────────────────────────────────────────────────────────┐
 │  connie repository (installed once per developer machine)       │
 │                                                                 │
-│  bin/connie                   CLI entry point                   │
-│  lib/connie/base.Dockerfile   Alpine + core tools + Claude Code │
-│  lib/connie/entrypoint.sh     Container startup script          │
-│  lib/connie/templates/        config.yml template               │
-│  lib/connie/config/           Compiled-in defaults              │
+│  src/connie                   CLI entry point                   │
+│  src/docker/base.Dockerfile   Alpine + core tools + Claude Code │
+│  src/docker/entrypoint.sh     Container startup script          │
+│  src/docker/docker-compose.yml Hardened Compose base            │
+│  src/docker/extend.Dockerfile Per-project build template        │
+│  src/config/defaults.yml      Compiled-in defaults              │
+│  src/config/project.yml       Project config template           │
 │  Makefile                     Install / uninstall               │
 └────────────────────┬────────────────────────────────────────────┘
                      │ installed to /usr/local/bin/connie
@@ -103,11 +105,12 @@ between them.
 ┌─────────────────────────────────────────────────────────────────┐
 │  Developer machine                                              │
 │                                                                 │
-│  /usr/local/bin/connie        The CLI                           │
-│  /usr/local/lib/connie/       Templates, Dockerfiles, defaults  │
-│  connie/base:latest           Locally built base image          │
-│  /etc/xdg/connie/config.yml   System-wide config (optional)     │
-│  ~/.config/connie/config.yml  User config (optional)            │
+│  /usr/local/bin/connie              The CLI                     │
+│  /usr/local/lib/connie/docker/      Dockerfiles, entrypoint     │
+│  /usr/local/lib/connie/config/      defaults.yml, project.yml   │
+│  connie/base:latest                 Locally built base image    │
+│  /etc/xdg/connie/config.yml         System-wide config (opt.)   │
+│  ~/.config/connie/config.yml        User config (optional)      │
 └────────────────────┬────────────────────────────────────────────┘
                      │ reads
                      ▼
@@ -288,7 +291,7 @@ All limits are overridable per-project in `config.yml` under `resources`.
 ## The Base Image
 
 The base image (`connie/base:latest`) is built locally by `connie build-base`
-from `lib/connie/base.Dockerfile`. It is not published to any registry.
+from `src/docker/base.Dockerfile`. It is not published to any registry.
 
 ### Build Process
 

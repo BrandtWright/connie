@@ -289,27 +289,27 @@ machine and reused across all projects.
 
 ### Per-project image + compose: `docker-compose.yml` + `extend.Dockerfile`
 
-Read directly from `$LIBDIR` on every `connie run`, `connie build`,
+Read directly from `$LIBDIR/docker/` on every `connie run`, `connie build`,
 `connie clean`, and `connie config`. Neither file is copied to a project.
 
 `docker-compose.yml` defines the hardened security posture that applies to
 every project: read-only root filesystem, all Linux capabilities dropped,
 `no-new-privileges`, `/tmp` as a tmpfs, and `init: true`. It references
-`extend.Dockerfile` via `context: .`, so Docker uses `$LIBDIR` as the build
-context.
+`extend.Dockerfile` via `context: .`, so Docker uses `$LIBDIR/docker/` as the
+build context.
 
 `extend.Dockerfile` builds the per-project image on top of `connie/base:latest`,
 accepting `EXTRA_PACKAGES` and `BUILD_COMMANDS` as build args. These are
 injected at build time from the merged config — the image is rebuilt only when
 they change; otherwise Docker's layer cache makes the build instant.
 
-### Config: `config/defaults.yml` + `templates/config.yml`
+### Config: `config/defaults.yml` + `config/project.yml`
 
 `defaults.yml` is the lowest-precedence layer in connie's config merge. It is
 read on every `connie run`, `connie build`, and `connie config` and is never
 copied anywhere.
 
-`templates/config.yml` is copied once by `connie init` to
+`project.yml` is copied once by `connie init` to
 `~/.config/connie/projects/<slug>/config.yml` and never overwritten. It is the
 developer-owned file that describes the project's container needs.
 

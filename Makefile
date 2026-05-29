@@ -29,15 +29,15 @@ help:
 install: check
 	@echo "==> Installing connie to $(PREFIX)"
 	$(INSTALL) -d $(BINDIR)
-	$(INSTALL) -d $(LIBDIR)/templates
+	$(INSTALL) -d $(LIBDIR)/docker
 	$(INSTALL) -d $(LIBDIR)/config
-	$(INSTALL) -m 755 $(CURDIR)/bin/connie                              $(BINDIR)/connie
-	$(INSTALL) -m 644 $(CURDIR)/lib/connie/base.Dockerfile              $(LIBDIR)/base.Dockerfile
-	$(INSTALL) -m 755 $(CURDIR)/lib/connie/entrypoint.sh                $(LIBDIR)/entrypoint.sh
-	$(INSTALL) -m 644 $(CURDIR)/lib/connie/docker-compose.yml           $(LIBDIR)/docker-compose.yml
-	$(INSTALL) -m 644 $(CURDIR)/lib/connie/extend.Dockerfile            $(LIBDIR)/extend.Dockerfile
-	$(INSTALL) -m 644 $(CURDIR)/lib/connie/templates/config.yml         $(LIBDIR)/templates/config.yml
-	$(INSTALL) -m 644 $(CURDIR)/lib/connie/config/defaults.yml          $(LIBDIR)/config/defaults.yml
+	$(INSTALL) -m 755 $(CURDIR)/src/connie                              $(BINDIR)/connie
+	$(INSTALL) -m 644 $(CURDIR)/src/docker/base.Dockerfile              $(LIBDIR)/docker/base.Dockerfile
+	$(INSTALL) -m 755 $(CURDIR)/src/docker/entrypoint.sh                $(LIBDIR)/docker/entrypoint.sh
+	$(INSTALL) -m 644 $(CURDIR)/src/docker/docker-compose.yml           $(LIBDIR)/docker/docker-compose.yml
+	$(INSTALL) -m 644 $(CURDIR)/src/docker/extend.Dockerfile            $(LIBDIR)/docker/extend.Dockerfile
+	$(INSTALL) -m 644 $(CURDIR)/src/config/defaults.yml                 $(LIBDIR)/config/defaults.yml
+	$(INSTALL) -m 644 $(CURDIR)/src/config/project.yml                  $(LIBDIR)/config/project.yml
 	@echo "==> Done."
 	@echo ""
 	@echo "    Next: run 'connie init <project-dir>' then 'connie run'."
@@ -54,5 +54,5 @@ uninstall:
 # ── Development helpers ───────────────────────────────────────────────────────
 
 check:
-	@echo "==> Checking bin/connie syntax"
-	@sh -n $(CURDIR)/bin/connie && echo "    OK"
+	@echo "==> Checking src/connie syntax"
+	@sh -n $(CURDIR)/src/connie && echo "    OK"

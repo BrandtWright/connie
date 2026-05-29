@@ -10,9 +10,9 @@ TOOL="connie"
 BASE_IMAGE="connie/base:latest"
 
 # CONNIE_LIB_DIR can be overridden for development:
-#   CONNIE_LIB_DIR=./lib/connie ./bin/connie run ~/repos/project
+#   CONNIE_LIB_DIR=./src ./src/connie run ~/repos/project
 LIB_DIR="${CONNIE_LIB_DIR:-/usr/local/lib/connie}"
-TEMPLATES_DIR="$LIB_DIR/templates"
+PROJECT_TEMPLATE="$LIB_DIR/config/project.yml"
 DEFAULTS_FILE="$LIB_DIR/config/defaults.yml"
 
 _xdg_config_dirs="${XDG_CONFIG_DIRS:-/etc/xdg}"
@@ -174,7 +174,7 @@ _migrate_project() {
         mv "$_mp_old/config.yml" "$_mp_cfg_dir/config.yml"
         _detail "moved   config.yml   →  $CONFIG_DIR/projects/$_mp_slug/"
     elif [ ! -f "$_mp_cfg_dir/config.yml" ]; then
-        cp "$TEMPLATES_DIR/config.yml" "$_mp_cfg_dir/config.yml"
+        cp "$PROJECT_TEMPLATE" "$_mp_cfg_dir/config.yml"
         _detail "created config.yml   →  $CONFIG_DIR/projects/$_mp_slug/"
     fi
 
@@ -432,7 +432,7 @@ _run_compose() {
 
     docker compose \
         -p "$(_compose_project_name "$_project_root")" \
-        -f "$LIB_DIR/docker-compose.yml" \
+        -f "$LIB_DIR/docker/docker-compose.yml" \
         -f "$_override_file" \
         "$@"
 }
@@ -442,7 +442,7 @@ _run_compose() {
 cmd_build_base() {
     _require docker
 
-    _base_dockerfile="${LIB_DIR}/base.Dockerfile"
+    _base_dockerfile="$LIB_DIR/docker/base.Dockerfile"
     [ -f "$_base_dockerfile" ] || \
         _die "base.Dockerfile not found at $_base_dockerfile"
 
@@ -474,7 +474,7 @@ cmd_init() {
 
     # config.yml is developer-owned — never overwrite it
     if [ ! -f "$_init_cfg_dir/config.yml" ]; then
-        cp "$TEMPLATES_DIR/config.yml" "$_init_cfg_dir/config.yml"
+        cp "$PROJECT_TEMPLATE" "$_init_cfg_dir/config.yml"
         _detail "created  $CONFIG_DIR/projects/$_init_slug/config.yml"
     else
         _detail "exists   $CONFIG_DIR/projects/$_init_slug/config.yml (skipped)"
@@ -554,7 +554,7 @@ cmd_clean() {
     _info "Removing project container image for $_project_root"
     docker compose \
         -p "$(_compose_project_name "$_project_root")" \
-        -f "$LIB_DIR/docker-compose.yml" \
+        -f "$LIB_DIR/docker/docker-compose.yml" \
         down --rmi local
     _info "Done."
 }
