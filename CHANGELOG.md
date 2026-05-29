@@ -9,6 +9,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- `config/defaults.yml` is now load-bearing: all config keys are guaranteed
+  to be present in the merged config after it is loaded, so the `// fallback`
+  values that were duplicated in the script's yq expressions have been removed.
+  `_merge_configs` now checks for the file at startup and exits with a clear
+  error if it is missing rather than silently producing null values.
+
 ### Added
 
 - **Zero project footprint** — `connie` no longer writes anything to the

@@ -207,6 +207,8 @@ _migrate_project() {
 
 _merge_configs() {
     _mc_root="$1"
+    [ -f "$DEFAULTS_FILE" ] || \
+        _die "defaults.yml not found at $DEFAULTS_FILE — try reinstalling connie."
     _mc_work=$(mktemp)
 
     printf '{}' > "$_mc_work"
@@ -238,13 +240,14 @@ _generate_override() {
     _extra_env="$4"
     _override_cmd="$5"
 
-    # Extract values from merged config
-    _packages=$(yq '.packages // [] | join(" ")' "$_merged_file")
-    _build_cmds=$(yq '.build_commands // [] | join(" && ")' "$_merged_file")
-    _start_cmd=$(yq '.start_cmd // "claude"' "$_merged_file")
-    _memory=$(yq '.resources.memory // "4g"' "$_merged_file")
-    _cpus=$(yq '.resources.cpus // "2.0"' "$_merged_file")
-    _max_pids=$(yq '.resources.max_pids // 512' "$_merged_file")
+    # Extract values from merged config.
+    # No // fallbacks needed — defaults.yml guarantees all keys are present.
+    _packages=$(yq '.packages | join(" ")' "$_merged_file")
+    _build_cmds=$(yq '.build_commands | join(" && ")' "$_merged_file")
+    _start_cmd=$(yq '.start_cmd' "$_merged_file")
+    _memory=$(yq '.resources.memory' "$_merged_file")
+    _cpus=$(yq '.resources.cpus' "$_merged_file")
+    _max_pids=$(yq '.resources.max_pids' "$_merged_file")
 
     # Apply CONNIE_* env var overrides (above project config, below CLI flags)
     _start_cmd="${CONNIE_CMD:-$_start_cmd}"
@@ -324,7 +327,7 @@ _generate_override() {
     _vol_block="      - ${_project_root}:/workspace:rw
       - ${_state}/.claude:/home/claude-user/.claude
       - ${_state}/.claude.json:/home/claude-user/.claude.json"
-    _extra_vols=$(yq '.volumes // [] | .[]' "$_merged_file" 2>/dev/null || true)
+    _extra_vols=$(yq '.volumes | .[]' "$_merged_file" 2>/dev/null || true)
     if [ -n "$_extra_vols" ]; then
         _vol_block=$(printf '%s\n%s' "$_vol_block" \
             "$(printf '%s\n' "$_extra_vols" | sed 's/^/      - /')")
@@ -332,7 +335,7 @@ _generate_override() {
 
     # Build ports block
     _ports_section=""
-    _ports=$(yq '.ports // [] | .[]' "$_merged_file" 2>/dev/null || true)
+    _ports=$(yq '.ports | .[]' "$_merged_file" 2>/dev/null || true)
     if [ -n "$_ports" ]; then
         _ports_block=$(printf '%s\n' "$_ports" | sed 's/^/      - "/' | sed 's/$/"/')
         _ports_section="    ports:
