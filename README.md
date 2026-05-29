@@ -236,8 +236,7 @@ rationale. The enforced constraints are:
 .connie/
 ├── .claude/         Claude Code credentials, history, and state — per-project
 ├── .claude.json     Claude Code account metadata and app config — per-project
-├── .containerrc     Your project config (edit this)
-└── override.yml     Generated at runtime (ephemeral, never commit)
+└── .containerrc     Your project config (edit this)
 ```
 
 The entire `.connie/` directory is gitignored — none of this is committed to

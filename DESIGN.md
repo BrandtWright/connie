@@ -117,8 +117,7 @@ between them.
 │  .connie/                                                       │
 │  ├── .claude/             Claude Code state — per-project       │
 │  ├── .claude.json         Claude Code auth — per-project        │
-│  ├── .containerrc         Project config (editable)             │
-│  └── override.yml         Generated at runtime (ephemeral)      │
+│  └── .containerrc         Project config (editable)             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -342,7 +341,7 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 
 - `$LIB_DIR/docker-compose.yml` — hardened Compose base, shared across all projects
 - `$LIB_DIR/extend.Dockerfile` — generic build template, shared across all projects
-- `.connie/override.yml` — generated at runtime, ephemeral
+- Compose override — written to a temp file at runtime, deleted when connie exits
 
 **Owned by the developer (edit freely):**
 

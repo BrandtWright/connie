@@ -65,7 +65,7 @@ directory is gitignored — connie never modifies the project's own source tree)
   state and auth. Pre-created on the host because the read-only container
   filesystem cannot create the bind-mount targets itself (and Docker would
   otherwise auto-create `.claude.json` as a *directory*, breaking config parsing).
-- `override.yml` — generated fresh on every run, ephemeral, never committed.
+- No generated files — `override.yml` is written to a temp file and deleted when connie exits.
 
 ### Config merge → override.yml → compose (the core flow)
 
@@ -78,14 +78,14 @@ it through these stages rather than editing one in isolation:
    temp file.
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.
-3. `_generate_override` reads the merged config and emits `.connie/override.yml`:
+3. `_generate_override` reads the merged config and writes a temp file:
    build args (`EXTRA_PACKAGES`, `BUILD_COMMANDS`), `environment` (from `env`),
    `volumes` (the three standard mounts first, then extras), `ports`, resource
    limits, and `command`.
-4. `_run_compose` runs `docker compose -f $LIB_DIR/docker-compose.yml -f .connie/override.yml ...`.
+4. `_run_compose` runs `docker compose -f $LIB_DIR/docker-compose.yml -f <tmpfile> ...`.
    The static `docker-compose.yml` carries the immutable security posture
    (`read_only`, `cap_drop: ALL`, `no-new-privileges`, `/tmp` tmpfs, `init: true`);
-   `override.yml` carries everything derived from config. `connie run` calls
+   the override carries everything derived from config. `connie run` calls
    `_run_compose` twice — `build workspace` then `run --rm workspace`.
 
 ### Runtime environment (entrypoint.sh)
