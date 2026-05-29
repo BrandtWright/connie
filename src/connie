@@ -99,12 +99,22 @@ EOF
 
 # ── Project slug and XDG paths ────────────────────────────────────────────────
 
+# One-entry cache for _project_slug — a single invocation operates on one path.
+_SLUG_CACHE_PATH=""
+_SLUG_CACHE_VALUE=""
+
 # Derive a stable, unique slug from a project root path: basename-hash.
 # The trailing-newline from basename is stripped before joining with the hash.
 _project_slug() {
+    [ "$1" = "$_SLUG_CACHE_PATH" ] && [ -n "$_SLUG_CACHE_VALUE" ] && {
+        printf '%s' "$_SLUG_CACHE_VALUE"
+        return
+    }
     _ps_base=$(basename "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-*$//')
     _ps_hash=$(printf '%s' "$1" | cksum | cut -d' ' -f1)
-    printf '%s-%s' "$_ps_base" "$_ps_hash"
+    _SLUG_CACHE_VALUE=$(printf '%s-%s' "$_ps_base" "$_ps_hash")
+    _SLUG_CACHE_PATH="$1"
+    printf '%s' "$_SLUG_CACHE_VALUE"
 }
 
 _project_config() {
@@ -233,6 +243,95 @@ _merge_configs() {
 
 # ── Override file generation ──────────────────────────────────────────────────
 
+# Build a JSON object of terminal-forwarding env vars (lowest-precedence env
+# entries). FORCE_COLOR is included because Node.js/chalk probes the Docker PTY
+# via process.stdout.getColorDepth() — that probe underestimates color support
+# inside Docker even when TERM/COLORTERM are correct. FORCE_COLOR bypasses it.
+# Docker's -t hardcodes TERM=xterm with no COLORTERM, so both must be forwarded.
+_build_fwd_env_obj() {
+    _bfe_term="${TERM:-xterm-256color}"
+    case "${COLORTERM:-}" in
+        truecolor|24bit) _bfe_force_color=3 ;;
+        *)
+            case "$_bfe_term" in
+                *256color*|*truecolor*) _bfe_force_color=2 ;;
+                *) _bfe_force_color=1 ;;
+            esac ;;
+    esac
+    if [ -n "${COLORTERM:-}" ]; then
+        FT="$_bfe_term" FC="$COLORTERM" FF="$_bfe_force_color" \
+            yq -n -o=json '{"FORCE_COLOR": strenv(FF), "TERM": strenv(FT), "COLORTERM": strenv(FC)}'
+    else
+        FT="$_bfe_term" FF="$_bfe_force_color" \
+            yq -n -o=json '{"FORCE_COLOR": strenv(FF), "TERM": strenv(FT)}'
+    fi
+}
+
+# Fold newline-delimited KEY=VALUE pairs (from --env flags) into a JSON object.
+# Values are encoded via yq so special characters are escaped safely.
+_build_cli_env_obj() {
+    _bce_obj="{}"
+    [ -n "$1" ] || { printf '%s' "$_bce_obj"; return; }
+    _oldifs=$IFS
+    # $1 is newline-delimited — see --env accumulation in argument parsing.
+    IFS='
+'
+    for _pair in $1; do
+        [ -n "$_pair" ] || continue
+        case "$_pair" in
+            *=*) _k=${_pair%%=*}; _v=${_pair#*=} ;;
+            *)   _k=$_pair;       _v="" ;;
+        esac
+        _bce_obj=$(BASE="$_bce_obj" K="$_k" V="$_v" \
+            yq -n -o=json 'env(BASE) * {strenv(K): strenv(V)}')
+    done
+    IFS=$_oldifs
+    printf '%s' "$_bce_obj"
+}
+
+# Build the YAML environment block by merging three sources in ascending
+# precedence: terminal forwarding (low) < config .env < --env flags (high).
+# Outputs indented YAML key-value lines, or '{}' if the merged map is empty.
+_build_env_block() {
+    # $1 = extra_env (newline-delimited KEY=VALUE from --env flags)
+    # $2 = merged_file
+    _bee_fwd=$(_build_fwd_env_obj)
+    _bee_cli=$(_build_cli_env_obj "$1")
+    _bee_block=$(FWD="$_bee_fwd" CLI="$_bee_cli" yq '
+        (env(FWD) * .env * env(CLI)) |
+        to_entries |
+        .[] |
+        "      " + .key + ": " + (.value | @json)
+    ' "$2")
+    # Empty map kept out of the heredoc — literal braces collide with ${...}.
+    [ -n "$_bee_block" ] || _bee_block="      {}"
+    printf '%s' "$_bee_block"
+}
+
+# Build the YAML volumes block: standard mounts first, then extras from config.
+_build_vol_block() {
+    # $1 = project_root, $2 = merged_file
+    _bvb_state=$(_project_state_dir "$1")
+    _bvb_block="      - ${1}:/workspace:rw
+      - ${_bvb_state}/.claude:/home/claude-user/.claude
+      - ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
+    _bvb_extra=$(yq '.volumes | .[]' "$2" 2>/dev/null || true)
+    if [ -n "$_bvb_extra" ]; then
+        _bvb_block=$(printf '%s\n%s' "$_bvb_block" \
+            "$(printf '%s\n' "$_bvb_extra" | sed 's/^/      - /')")
+    fi
+    printf '%s' "$_bvb_block"
+}
+
+# Build the YAML ports section. Outputs nothing if no ports are configured.
+_build_ports_section() {
+    # $1 = merged_file
+    _bps_ports=$(yq '.ports | .[]' "$1" 2>/dev/null || true)
+    [ -n "$_bps_ports" ] || return 0
+    _bps_block=$(printf '%s\n' "$_bps_ports" | sed 's/^/      - "/' | sed 's/$/"/')
+    printf '    ports:\n%s' "$_bps_block"
+}
+
 _generate_override() {
     _project_root="$1"
     _merged_file="$2"
@@ -262,85 +361,9 @@ _generate_override() {
     # Produce a YAML-safe value for BUILD_COMMANDS (yq quotes if needed)
     _build_cmds_yaml=$(CMD="$_build_cmds" yq -n 'strenv(CMD)')
 
-    # Forward the host's terminal settings so Claude Code renders with the same
-    # color depth inside the container as on the host. Docker's -t flag hardcodes
-    # TERM=xterm and forwards nothing else, which downgrades Claude Code to basic
-    # 16-color output. These are the lowest-precedence env entries: anything set
-    # in config .env or via --env overrides them.
-    #
-    # FORCE_COLOR is included because Node.js/chalk probes the Docker PTY directly
-    # via process.stdout.getColorDepth() — that probe often underestimates color
-    # support inside Docker even when TERM and COLORTERM are correct. FORCE_COLOR
-    # bypasses that probe and is the standard fix for Node.js in containers.
-    _fwd_term="${TERM:-xterm-256color}"
-    case "${COLORTERM:-}" in
-        truecolor|24bit) _fwd_force_color=3 ;;
-        *)
-            case "$_fwd_term" in
-                *256color*|*truecolor*) _fwd_force_color=2 ;;
-                *) _fwd_force_color=1 ;;
-            esac ;;
-    esac
-    if [ -n "${COLORTERM:-}" ]; then
-        _fwd_env_obj=$(FT="$_fwd_term" FC="$COLORTERM" FF="$_fwd_force_color" \
-            yq -n -o=json '{"FORCE_COLOR": strenv(FF), "TERM": strenv(FT), "COLORTERM": strenv(FC)}')
-    else
-        _fwd_env_obj=$(FT="$_fwd_term" FF="$_fwd_force_color" \
-            yq -n -o=json '{"FORCE_COLOR": strenv(FF), "TERM": strenv(FT)}')
-    fi
-
-    # Fold CLI --env pairs into an object (highest precedence). Each pair is a
-    # raw KEY=VALUE line; build the object with yq so values are escaped safely.
-    _cli_env_obj="{}"
-    if [ -n "$_extra_env" ]; then
-        _oldifs=$IFS
-        IFS='
-'
-        for _pair in $_extra_env; do
-            [ -n "$_pair" ] || continue
-            case "$_pair" in
-                *=*) _k=${_pair%%=*}; _v=${_pair#*=} ;;
-                *)   _k=$_pair;       _v="" ;;
-            esac
-            _cli_env_obj=$(BASE="$_cli_env_obj" K="$_k" V="$_v" \
-                yq -n -o=json 'env(BASE) * {strenv(K): strenv(V)}')
-        done
-        IFS=$_oldifs
-    fi
-
-    # Build the environment block: forwarded (low) < config .env < --env (high).
-    _env_block=$(FWD="$_fwd_env_obj" CLI="$_cli_env_obj" yq '
-        (env(FWD) * .env * env(CLI)) |
-        to_entries |
-        .[] |
-        "      " + .key + ": " + (.value | @json)
-    ' "$_merged_file")
-    # Empty map only if nothing at all — kept out of the heredoc so the literal
-    # braces do not collide with ${...} parameter-expansion syntax.
-    [ -n "$_env_block" ] || _env_block="      {}"
-
-    # Build volumes block.
-    # - /workspace : the project directory (always first)
-    # - state/.claude, state/.claude.json : per-project Claude Code state
-    # Additional mounts from project config.yml follow.
-    _state=$(_project_state_dir "$_project_root")
-    _vol_block="      - ${_project_root}:/workspace:rw
-      - ${_state}/.claude:/home/claude-user/.claude
-      - ${_state}/.claude.json:/home/claude-user/.claude.json"
-    _extra_vols=$(yq '.volumes | .[]' "$_merged_file" 2>/dev/null || true)
-    if [ -n "$_extra_vols" ]; then
-        _vol_block=$(printf '%s\n%s' "$_vol_block" \
-            "$(printf '%s\n' "$_extra_vols" | sed 's/^/      - /')")
-    fi
-
-    # Build ports block
-    _ports_section=""
-    _ports=$(yq '.ports | .[]' "$_merged_file" 2>/dev/null || true)
-    if [ -n "$_ports" ]; then
-        _ports_block=$(printf '%s\n' "$_ports" | sed 's/^/      - "/' | sed 's/$/"/')
-        _ports_section="    ports:
-${_ports_block}"
-    fi
+    _env_block=$(_build_env_block "$_extra_env" "$_merged_file")
+    _vol_block=$(_build_vol_block "$_project_root" "$_merged_file")
+    _ports_section=$(_build_ports_section "$_merged_file")
 
     cat <<YAML
 # Generated by connie — do not edit.
@@ -605,6 +628,8 @@ while [ $# -gt 0 ]; do
             ;;
         --env)
             [ $# -ge 2 ] || _die "--env requires an argument"
+            # Newline-delimited so IFS-splitting in _build_cli_env_obj handles
+            # values that contain spaces. The literal newline is intentional.
             _ARG_ENV="${_ARG_ENV:+$_ARG_ENV
 }$2"
             shift 2
