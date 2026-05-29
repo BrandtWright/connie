@@ -376,18 +376,17 @@ YAML
 _prepare() {
     _prep_root="$1"
 
+    _require_yq
+    _require docker
+
     # Auto-migrate from old .connie/ layout if the new config doesn't exist yet
     if [ ! -f "$(_project_config "$_prep_root")" ] && [ -d "$_prep_root/.connie" ]; then
-        _require_yq
         _migrate_project "$_prep_root"
     fi
 
     _prep_config=$(_project_config "$_prep_root")
     [ -f "$_prep_config" ] || \
         _die "No project config found for $_prep_root. Run '$TOOL init' first."
-
-    _require_yq
-    _require docker
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
         _info "Base image '$BASE_IMAGE' not found — building it now."
@@ -545,6 +544,9 @@ cmd_run() {
 cmd_clean() {
     _project_root=$(_find_project_root "${1:-$PWD}")
 
+    _require_yq
+    _require docker
+
     [ -f "$(_project_config "$_project_root")" ] || \
         _die "No project config found for $_project_root. Run '$TOOL init' first."
 
@@ -571,11 +573,8 @@ cmd_config() {
     printf '\n' >&2
 
     _merged=$(mktemp)
-    _merge_configs "$_project_root" > "$_merged"
-    # Set trap after _merge_configs returns: _merge_configs installs its own
-    # EXIT trap for $_mc_work, which would overwrite an earlier trap and leak
-    # $_merged. Combining both paths here ensures both files are cleaned up.
-    trap "rm -f $_merged $_mc_work" EXIT
+    trap "rm -f $_merged" EXIT
+    ( _merge_configs "$_project_root" ) > "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
 }
