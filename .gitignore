@@ -1,5 +1,8 @@
 # connie repository .gitignore
 
+# Claude Code local settings (personal overrides, not for sharing)
+.claude/settings.local.json
+
 # macOS
 .DS_Store
 
