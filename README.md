@@ -221,7 +221,7 @@ start_cmd: claude
 
 ## Security Model
 
-Containers are hardened by default. See [DESIGN.md](DESIGN.md) for full
+Containers are hardened by default. See [DESIGN.md](docs/DESIGN.md) for full
 rationale. The enforced constraints are:
 
 - **Non-root user** — Claude Code runs as `claude-user` (uid 1000), not root
@@ -312,6 +312,13 @@ copied anywhere.
 `project.yml` is copied once by `connie init` to
 `~/.config/connie/projects/<slug>/config.yml` and never overwritten. It is the
 developer-owned file that describes the project's container needs.
+
+---
+
+## Further Reading
+
+- [DESIGN.md](docs/DESIGN.md) — architecture, security model, and design rationale
+- [CHANGELOG.md](docs/CHANGELOG.md) — version history
 
 ---
 

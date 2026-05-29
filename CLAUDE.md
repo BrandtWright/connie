@@ -107,11 +107,11 @@ write to the read-only filesystem.
 ## Conventions
 
 - Version lives in one place: `VERSION` at the top of `src/connie`. Bump it
-  and add a `CHANGELOG.md` entry (Keep a Changelog format) per release.
+  and add a `docs/CHANGELOG.md` entry (Keep a Changelog format) per release.
 - Changing a value in `src/config/defaults.yml` affects every project relying on the
   default — treat it like a public API change.
 - Security-relevant edits to `src/docker/docker-compose.yml` or `src/docker/base.Dockerfile`
-  should be mirrored in `DESIGN.md`, which documents the rationale for each hardening measure.
-- `TODO.md` at the repo root tracks features and ideas under consideration.
+  should be mirrored in `docs/DESIGN.md`, which documents the rationale for each hardening measure.
+- `docs/TODO.md` tracks features and ideas under consideration.
   Consult it when evaluating new work; update it when items are completed or
   when new ideas arise during a session.
