@@ -245,6 +245,55 @@ connie exists.
 
 ---
 
+## Installed Files
+
+`make install` copies connie's support files to `$LIBDIR` (default:
+`/usr/local/lib/connie`). Here is what each file does and when it is used.
+
+### Base image: `base.Dockerfile` + `entrypoint.sh`
+
+Used together by `connie build-base` (and automatically on the first
+`connie run` or `connie build` if the base image is absent).
+
+`base.Dockerfile` drives `docker build` to produce the `connie/base:latest`
+local image — Alpine Linux with core tools and Claude Code pre-installed.
+`entrypoint.sh` is part of the same build context and gets baked into that
+image as the container entrypoint: it sets up writable XDG directories in
+`/tmp`, marks `/workspace` as a git safe directory, and `exec`s the requested
+command as PID 1.
+
+Neither file is ever copied to a project. The base image is built once per
+machine and reused across all projects.
+
+### Per-project image + compose: `docker-compose.yml` + `extend.Dockerfile`
+
+Read directly from `$LIBDIR` on every `connie run`, `connie build`,
+`connie clean`, and `connie config`. Neither file is copied to a project.
+
+`docker-compose.yml` defines the hardened security posture that applies to
+every project: read-only root filesystem, all Linux capabilities dropped,
+`no-new-privileges`, `/tmp` as a tmpfs, and `init: true`. It references
+`extend.Dockerfile` via `context: .`, so Docker uses `$LIBDIR` as the build
+context.
+
+`extend.Dockerfile` builds the per-project image on top of `connie/base:latest`,
+accepting `EXTRA_PACKAGES` and `BUILD_COMMANDS` as build args. These are
+injected at build time from the merged config — the image is rebuilt only when
+they change; otherwise Docker's layer cache makes the build instant.
+
+### Config: `config/defaults.yml` + `templates/.containerrc`
+
+`defaults.yml` is the lowest-precedence layer in connie's config merge. It is
+read on every `connie run`, `connie build`, and `connie config` and is never
+copied anywhere.
+
+`templates/.containerrc` is the only file here that gets copied to a project.
+`connie init` copies it to `.connie/.containerrc` once, and connie never
+touches it again. It is the developer-owned file that describes the project's
+container needs.
+
+---
+
 ## License
 
 MIT
