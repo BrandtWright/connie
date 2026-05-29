@@ -17,7 +17,11 @@ DEFAULTS_FILE="$LIB_DIR/config/defaults.yml"
 
 _xdg_config_dirs="${XDG_CONFIG_DIRS:-/etc/xdg}"
 SYSTEM_CONFIG="${_xdg_config_dirs%%:*}/$TOOL/config.yml"
-USER_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/$TOOL/config.yml"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$TOOL"
+USER_CONFIG="$CONFIG_DIR/config.yml"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$TOOL"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$TOOL"
+PROJECTS_FILE="$DATA_DIR/projects.yml"
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -44,15 +48,16 @@ $TOOL v$VERSION
 
 Runs Claude Code in a constrained, reproducible container attached to a
 project directory. The container has read/write access only to the project
-workspace, ~/.claude, and ~/.claude.json (Claude Code state and auth).
+workspace and per-project Claude Code state. Nothing is written to the
+project directory itself.
 
 Usage:
-  $TOOL init       [dir]    Scaffold .connie/ inside a project directory
+  $TOOL init       [dir]    Initialize connie for a project directory
   $TOOL run        [dir]    Build (if needed) and start Claude Code
   $TOOL build      [dir]    Build the project container image without starting it
   $TOOL build-base          Build (or rebuild) the connie base image
   $TOOL clean      [dir]    Remove the locally built project container image
-  $TOOL config     [dir]    Print the effective Compose override and exit
+  $TOOL config     [dir]    Show project paths and effective Compose override
   $TOOL help                Show this message
   $TOOL version             Show version
 
@@ -65,7 +70,7 @@ Config is read in this order (lowest to highest precedence):
   $LIB_DIR/config/defaults.yml
   $SYSTEM_CONFIG
   $USER_CONFIG
-  [project]/.connie/config.yml
+  $CONFIG_DIR/projects/<slug>/config.yml
   CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS
   CLI flags (--package, --env, --cmd)
 
@@ -77,11 +82,39 @@ Environment variables:
   CONNIE_MAX_PIDS   Override the container PID limit
 
 Standard mounts (always present, not configurable):
-  [project dir]        →  /workspace                      read/write
-  .connie/.claude/     →  /home/claude-user/.claude       read/write
-  .connie/.claude.json →  /home/claude-user/.claude.json  read/write
+  [project dir]                    →  /workspace                      read/write
+  $STATE_DIR/<slug>/.claude        →  /home/claude-user/.claude       read/write
+  $STATE_DIR/<slug>/.claude.json   →  /home/claude-user/.claude.json  read/write
 
 EOF
+}
+
+# ── Project slug and XDG paths ────────────────────────────────────────────────
+
+# Derive a stable, unique slug from a project root path: basename-hash.
+# The trailing-newline from basename is stripped before joining with the hash.
+_project_slug() {
+    _ps_base=$(basename "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-*$//')
+    _ps_hash=$(printf '%s' "$1" | cksum | cut -d' ' -f1)
+    printf '%s-%s' "$_ps_base" "$_ps_hash"
+}
+
+_project_config() {
+    printf '%s/projects/%s/config.yml' "$CONFIG_DIR" "$(_project_slug "$1")"
+}
+
+_project_state_dir() {
+    printf '%s/%s' "$STATE_DIR" "$(_project_slug "$1")"
+}
+
+# ── Project registry ──────────────────────────────────────────────────────────
+
+_register_project() {
+    _rp_root="$1"
+    _rp_slug="$2"
+    mkdir -p "$DATA_DIR"
+    [ -f "$PROJECTS_FILE" ] || printf '{}' > "$PROJECTS_FILE"
+    ROOT="$_rp_root" SLUG="$_rp_slug" yq -i '.[env(ROOT)] = env(SLUG)' "$PROJECTS_FILE"
 }
 
 # ── Project root detection ────────────────────────────────────────────────────
@@ -90,6 +123,20 @@ _find_project_root() {
     _dir="${1:-$PWD}"
     _dir=$(cd "$_dir" 2>/dev/null && pwd) || _die "Directory not found: ${1:-$PWD}"
 
+    # Check registry: walk up looking for a registered project path
+    if [ -f "$PROJECTS_FILE" ]; then
+        _walk="$_dir"
+        while [ "$_walk" != "/" ]; do
+            _hit=$(ROOT="$_walk" yq '.[env(ROOT)] // ""' "$PROJECTS_FILE" 2>/dev/null || true)
+            if [ -n "$_hit" ] && [ "$_hit" != "null" ]; then
+                printf '%s' "$_walk"
+                return 0
+            fi
+            _walk=$(dirname "$_walk")
+        done
+    fi
+
+    # Fall back to old-style .connie/ directory (triggers auto-migration in _prepare)
     _walk="$_dir"
     while [ "$_walk" != "/" ]; do
         if [ -d "$_walk/.connie" ]; then
@@ -100,6 +147,52 @@ _find_project_root() {
     done
 
     printf '%s' "$_dir"
+}
+
+# ── Migration from old .connie/ layout ───────────────────────────────────────
+
+_migrate_project() {
+    _mp_root="$1"
+    _mp_slug=$(_project_slug "$_mp_root")
+    _mp_cfg_dir="$CONFIG_DIR/projects/$_mp_slug"
+    _mp_state_dir="$STATE_DIR/$_mp_slug"
+    _mp_old="$_mp_root/.connie"
+
+    _info "Migrating $TOOL state for $_mp_root to XDG directories"
+
+    mkdir -p "$_mp_cfg_dir" "$_mp_state_dir"
+
+    if [ -f "$_mp_old/config.yml" ]; then
+        mv "$_mp_old/config.yml" "$_mp_cfg_dir/config.yml"
+        _detail "moved   config.yml   →  $CONFIG_DIR/projects/$_mp_slug/"
+    elif [ ! -f "$_mp_cfg_dir/config.yml" ]; then
+        cp "$TEMPLATES_DIR/config.yml" "$_mp_cfg_dir/config.yml"
+        _detail "created config.yml   →  $CONFIG_DIR/projects/$_mp_slug/"
+    fi
+
+    if [ -d "$_mp_old/.claude" ]; then
+        mv "$_mp_old/.claude" "$_mp_state_dir/.claude"
+        _detail "moved   .claude/     →  $STATE_DIR/$_mp_slug/"
+    else
+        mkdir -p "$_mp_state_dir/.claude"
+    fi
+
+    if [ -f "$_mp_old/.claude.json" ]; then
+        mv "$_mp_old/.claude.json" "$_mp_state_dir/.claude.json"
+        _detail "moved   .claude.json →  $STATE_DIR/$_mp_slug/"
+    else
+        printf '{}' > "$_mp_state_dir/.claude.json"
+    fi
+
+    rm -f "$_mp_old/override.yml"
+    if rmdir "$_mp_old" 2>/dev/null; then
+        _detail "removed .connie/ from project directory"
+    else
+        _detail "note: .connie/ not empty — not removed (check for unexpected files)"
+    fi
+
+    _register_project "$_mp_root" "$_mp_slug"
+    _info "Migration complete."
 }
 
 # ── Config merging ────────────────────────────────────────────────────────────
@@ -116,7 +209,7 @@ _merge_configs() {
         "$DEFAULTS_FILE" \
         "$SYSTEM_CONFIG" \
         "$USER_CONFIG" \
-        "$_mc_root/.connie/config.yml"
+        "$(_project_config "$_mc_root")"
     do
         if [ -f "$_mc_cfg" ]; then
             _mc_tmp=$(mktemp)
@@ -218,13 +311,13 @@ _generate_override() {
     [ -n "$_env_block" ] || _env_block="      {}"
 
     # Build volumes block.
-    # - /workspace      : the project directory (always first)
-    # - .connie/.claude : per-project Claude Code state and auth
-    # - .connie/.claude.json : per-project Claude Code config
-    # Additional mounts from config.yml follow.
+    # - /workspace : the project directory (always first)
+    # - state/.claude, state/.claude.json : per-project Claude Code state
+    # Additional mounts from project config.yml follow.
+    _state=$(_project_state_dir "$_project_root")
     _vol_block="      - ${_project_root}:/workspace:rw
-      - ${_project_root}/.connie/.claude:/home/claude-user/.claude
-      - ${_project_root}/.connie/.claude.json:/home/claude-user/.claude.json"
+      - ${_state}/.claude:/home/claude-user/.claude
+      - ${_state}/.claude.json:/home/claude-user/.claude.json"
     _extra_vols=$(yq '.volumes // [] | .[]' "$_merged_file" 2>/dev/null || true)
     if [ -n "$_extra_vols" ]; then
         _vol_block=$(printf '%s\n%s' "$_vol_block" \
@@ -242,7 +335,7 @@ ${_ports_block}"
 
     cat <<YAML
 # Generated by connie — do not edit.
-# Edit .connie/config.yml and re-run 'connie run' to change configuration.
+# Run 'connie config' to see your project config path and current settings.
 
 services:
   workspace:
@@ -270,16 +363,20 @@ YAML
 
 # ── Validation and config merge ───────────────────────────────────────────────
 
-# Validate the project, check dependencies, merge config into a temp file.
+# Validate the project, auto-migrate if needed, merge config into a temp file.
 # Prints the temp file path. Caller must trap to clean it up.
 _prepare() {
     _prep_root="$1"
-    _prep_connie="$_prep_root/.connie"
 
-    [ -d "$_prep_connie" ] || \
-        _die "No .connie/ found in $_prep_root. Run '$TOOL' init first."
-    [ -f "$_prep_connie/config.yml" ] || \
-        _die "No .connie/config.yml found. Run '$TOOL init' first."
+    # Auto-migrate from old .connie/ layout if the new config doesn't exist yet
+    if [ ! -f "$(_project_config "$_prep_root")" ] && [ -d "$_prep_root/.connie" ]; then
+        _require yq
+        _migrate_project "$_prep_root"
+    fi
+
+    _prep_config=$(_project_config "$_prep_root")
+    [ -f "$_prep_config" ] || \
+        _die "No project config found for $_prep_root. Run '$TOOL init' first."
 
     _require yq
     _require docker
@@ -298,9 +395,10 @@ _prepare() {
     #
     # .claude.json MUST exist as a file. If absent Docker creates it as a
     # directory, which breaks Claude Code's JSON config parsing.
-    mkdir -p "$_prep_connie/.claude"
-    if [ ! -f "$_prep_connie/.claude.json" ] || [ ! -s "$_prep_connie/.claude.json" ]; then
-        printf '{}' > "$_prep_connie/.claude.json"
+    _prep_state=$(_project_state_dir "$_prep_root")
+    mkdir -p "$_prep_state/.claude"
+    if [ ! -f "$_prep_state/.claude.json" ] || [ ! -s "$_prep_state/.claude.json" ]; then
+        printf '{}' > "$_prep_state/.claude.json"
     fi
 
     _prep_merged=$(mktemp)
@@ -314,9 +412,7 @@ _prepare() {
 # Using only 'name: connie' in docker-compose.yml would cause all projects to
 # share the same Compose namespace, making images and containers collide.
 _compose_project_name() {
-    _cpn_slug=$(basename "$1" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')
-    _cpn_hash=$(printf '%s' "$1" | cksum | cut -d' ' -f1)
-    printf 'connie-%s-%s' "$_cpn_slug" "$_cpn_hash"
+    printf 'connie-%s' "$(_project_slug "$1")"
 }
 
 # ── Core: build and run via Compose ──────────────────────────────────────────
@@ -357,36 +453,43 @@ cmd_build_base() {
 cmd_init() {
     _target="${1:-$PWD}"
     _target=$(cd "$_target" 2>/dev/null && pwd) || _die "Directory not found: $_target"
-    _connie_dir="$_target/.connie"
 
-    _info "Initializing $TOOL in $_target"
-    mkdir -p "$_connie_dir"
+    _require yq
+
+    _init_slug=$(_project_slug "$_target")
+    _init_cfg_dir="$CONFIG_DIR/projects/$_init_slug"
+    _init_state_dir="$STATE_DIR/$_init_slug"
+
+    _info "Initializing $TOOL for $_target"
+
+    mkdir -p "$_init_cfg_dir" "$_init_state_dir"
 
     # config.yml is developer-owned — never overwrite it
-    if [ ! -f "$_connie_dir/config.yml" ]; then
-        cp "$TEMPLATES_DIR/config.yml" "$_connie_dir/config.yml"
-        _detail "created  .connie/config.yml"
+    if [ ! -f "$_init_cfg_dir/config.yml" ]; then
+        cp "$TEMPLATES_DIR/config.yml" "$_init_cfg_dir/config.yml"
+        _detail "created  $CONFIG_DIR/projects/$_init_slug/config.yml"
     else
-        _detail "exists   .connie/config.yml (skipped)"
+        _detail "exists   $CONFIG_DIR/projects/$_init_slug/config.yml (skipped)"
     fi
 
     # Pre-create per-project Claude Code state on the host.
     # Both must exist before Docker mounts them — with read_only: true the
     # container cannot create them at runtime.
-    if [ ! -d "$_connie_dir/.claude" ]; then
-        mkdir "$_connie_dir/.claude"
-        _detail "created  .connie/.claude/"
+    if [ ! -d "$_init_state_dir/.claude" ]; then
+        mkdir "$_init_state_dir/.claude"
+        _detail "created  $STATE_DIR/$_init_slug/.claude/"
     else
-        _detail "exists   .connie/.claude/ (skipped)"
+        _detail "exists   $STATE_DIR/$_init_slug/.claude/ (skipped)"
     fi
-    if [ ! -f "$_connie_dir/.claude.json" ] || [ ! -s "$_connie_dir/.claude.json" ]; then
-        printf '{}' > "$_connie_dir/.claude.json"
-        _detail "created  .connie/.claude.json"
+    if [ ! -f "$_init_state_dir/.claude.json" ] || [ ! -s "$_init_state_dir/.claude.json" ]; then
+        printf '{}' > "$_init_state_dir/.claude.json"
+        _detail "created  $STATE_DIR/$_init_slug/.claude.json"
     else
-        _detail "exists   .connie/.claude.json (skipped)"
+        _detail "exists   $STATE_DIR/$_init_slug/.claude.json (skipped)"
     fi
 
-    _update_gitignore "$_target"
+    _register_project "$_target" "$_init_slug"
+    _detail "registered $_target in $PROJECTS_FILE"
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
         printf '\n' >&2
@@ -396,12 +499,12 @@ cmd_init() {
     cat >&2 <<INITEOF
 
 ==> Next steps:
-    1. Edit .connie/config.yml to describe this project's container needs
+    1. Edit $CONFIG_DIR/projects/$_init_slug/config.yml
     2. Run 'connie run' from the project directory
 
     On first run, Claude Code will prompt you to authenticate.
-    Credentials are saved to .connie/.claude.json and reused on
-    subsequent runs for this project.
+    Credentials are stored in $STATE_DIR/$_init_slug/
+    and reused on subsequent runs for this project.
 
 INITEOF
 }
@@ -433,10 +536,9 @@ cmd_run() {
 
 cmd_clean() {
     _project_root=$(_find_project_root "${1:-$PWD}")
-    _connie_dir="$_project_root/.connie"
 
-    [ -f "$_connie_dir/config.yml" ] || \
-        _die "No .connie/config.yml found in $_project_root. Run '$TOOL init' first."
+    [ -f "$(_project_config "$_project_root")" ] || \
+        _die "No project config found for $_project_root. Run '$TOOL init' first."
 
     _info "Removing project container image for $_project_root"
     docker compose \
@@ -448,35 +550,23 @@ cmd_clean() {
 
 cmd_config() {
     _project_root=$(_find_project_root "${1:-$PWD}")
-    _connie_dir="$_project_root/.connie"
-
-    [ -d "$_connie_dir" ] || \
-        _die "No .connie/ found in $_project_root. Run '$TOOL init' first."
-    [ -f "$_connie_dir/config.yml" ] || \
-        _die "No .connie/config.yml found. Run '$TOOL init' first."
 
     _require yq
+
+    _cfg=$(_project_config "$_project_root")
+    [ -f "$_cfg" ] || \
+        _die "No project config found for $_project_root. Run '$TOOL init' first."
+
+    _info "Project:  $_project_root"
+    _info "Config:   $_cfg"
+    _info "State:    $(_project_state_dir "$_project_root")"
+    printf '\n' >&2
 
     _merged=$(mktemp)
     trap "rm -f $_merged" EXIT
     _merge_configs "$_project_root" > "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
-}
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-_update_gitignore() {
-    _project_root="$1"
-    _gitignore="$_project_root/.gitignore"
-
-    if grep -qF ".connie/" "$_gitignore" 2>/dev/null; then
-        _detail "exists   .gitignore entry for .connie/ (skipped)"
-        return
-    fi
-
-    printf '\n# connie — Claude Code container tooling\n.connie/\n' >> "$_gitignore"
-    _detail "updated  .gitignore (added .connie/)"
 }
 
 # ── Argument parsing ──────────────────────────────────────────────────────────

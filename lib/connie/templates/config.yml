@@ -61,9 +61,9 @@ env: {}
 # ── Volumes ───────────────────────────────────────────────────────────────────
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
-#   [project root]       → /workspace                      (read/write)
-#   .connie/.claude/     → /home/claude-user/.claude       (read/write)
-#   .connie/.claude.json → /home/claude-user/.claude.json  (read/write)
+#   [project root]                            → /workspace           (read/write)
+#   ~/.local/state/connie/<slug>/.claude/     → ~/.claude/           (read/write)
+#   ~/.local/state/connie/<slug>/.claude.json → ~/.claude.json       (read/write)
 #
 # Format: host_path:container_path[:options]
 #

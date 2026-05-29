@@ -110,9 +110,10 @@ When making security-relevant changes to `docker-compose.yml`, update
 
 ### Changes to `config.yml` template
 
-`lib/connie/templates/config.yml` is copied into new projects by `connie init`.
-Changing it does not affect already-initialised projects — only new
-`connie init` runs pick up the change.
+`lib/connie/templates/config.yml` is copied to
+`~/.config/connie/projects/<slug>/config.yml` by `connie init`. Changing the
+template does not affect already-initialised projects — only new `connie init`
+runs pick up the change.
 
 ### Changes to `defaults.yml`
 

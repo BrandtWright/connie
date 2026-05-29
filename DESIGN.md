@@ -39,22 +39,22 @@ permissiveness.
 ### 2. Per-Project Isolation
 
 Claude Code state — auth tokens, project memory, conversation history — is
-stored in `.connie/` alongside the project's container config. Each project
-gets a completely fresh Claude Code context. No memory or history leaks between
+stored per-project in `$XDG_STATE_HOME/connie/<slug>/`. Each project gets a
+completely fresh Claude Code context. No memory or history leaks between
 projects.
 
 This is implemented via volume mounts that point Claude Code's expected home
 directory paths (`.claude/` and `.claude.json`) to per-project locations in
-`.connie/`, transparent to Claude Code itself.
+the XDG state directory, transparent to Claude Code itself.
 
 ### 3. Non-Invasive
 
 `connie` must be attachable to any existing project without modifying it. The
-project's source tree, build system, and version control are untouched. The
-only artifact `connie` places in a project is `.connie/`, which is gitignored.
+project's source tree, build system, version control, and `.gitignore` are
+entirely untouched. Nothing is written to the project directory.
 
-This principle is modeled on how `git` works: `.git/` is `git`'s entire
-footprint inside a project. The project does not need to know git exists.
+This is stricter than the `git` analogy — `git` at least writes `.git/`.
+`connie` leaves zero footprint in the project.
 
 ### 4. Config at the Right Layer
 
@@ -62,7 +62,7 @@ Different configuration belongs at different levels:
 
 - **System config** — policies that apply to all users on a machine
 - **User config** — personal preferences that apply to all projects
-- **Project config** — requirements specific to a project (`.connie/config.yml`)
+- **Project config** — requirements specific to a project (`~/.config/connie/projects/<slug>/config.yml`)
 - **CLI flags** — one-off overrides for a single invocation
 
 `connie` respects this layering and merges all sources with explicit, predictable
@@ -94,7 +94,7 @@ between them.
 │  bin/connie                   CLI entry point                   │
 │  lib/connie/base.Dockerfile   Alpine + core tools + Claude Code │
 │  lib/connie/entrypoint.sh     Container startup script          │
-│  lib/connie/templates/        Per-project Dockerfile + Compose  │
+│  lib/connie/templates/        config.yml template               │
 │  lib/connie/config/           Compiled-in defaults              │
 │  Makefile                     Install / uninstall               │
 └────────────────────┬────────────────────────────────────────────┘
@@ -112,12 +112,22 @@ between them.
                      │ reads
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  Project directory (untouched except for .connie/)              │
+│  Project directory (completely untouched)                       │
+│  (any existing project, unmodified)                             │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│  XDG directories (on developer machine)                         │
 │                                                                 │
-│  .connie/                                                       │
-│  ├── .claude/             Claude Code state — per-project       │
-│  ├── .claude.json         Claude Code auth — per-project        │
+│  ~/.config/connie/projects/<slug>/                              │
 │  └── config.yml           Project config (editable)             │
+│                                                                 │
+│  ~/.local/state/connie/<slug>/                                  │
+│  ├── .claude/             Claude Code state — per-project       │
+│  └── .claude.json         Claude Code auth — per-project        │
+│                                                                 │
+│  ~/.local/share/connie/                                         │
+│  └── projects.yml         Project registry (path → slug)        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -140,17 +150,17 @@ connie-workspace  (local image, per project)
 ### Config Merge Flow
 
 ```text
-defaults.yml                       (lowest precedence)
+defaults.yml                                  (lowest precedence)
       +
 /etc/xdg/connie/config.yml
       +
 ~/.config/connie/config.yml
       +
-.connie/config.yml
+~/.config/connie/projects/<slug>/config.yml
       +
 CONNIE_CMD / CONNIE_MEMORY / CONNIE_CPUS / CONNIE_MAX_PIDS
       +
-CLI flags                          (highest precedence)
+CLI flags                                     (highest precedence)
       │
       ▼
   merged config
@@ -253,14 +263,13 @@ Exactly three locations on the host filesystem are visible inside the container:
 | Host path | Container path | Access | Purpose |
 | --- | --- | --- | --- |
 | `[project dir]` | `/workspace` | Read/Write | The project being worked on |
-| `[project dir]/.connie/.claude/` | `~/.claude/` | Read/Write | Claude Code state, memory, and credentials — per-project |
-| `[project dir]/.connie/.claude.json` | `~/.claude.json` | Read/Write | Claude Code app config — per-project |
+| `~/.local/state/connie/<slug>/.claude/` | `~/.claude/` | Read/Write | Claude Code state, memory, and credentials — per-project |
+| `~/.local/state/connie/<slug>/.claude.json` | `~/.claude.json` | Read/Write | Claude Code app config — per-project |
 
-All three mount points live inside the project directory. Nothing else from
-the host is mounted. `.connie/.claude/` and `.connie/.claude.json` must be
-pre-created on the host before Docker mounts them — with a read-only
-container filesystem Docker cannot create the mount point at the target path
-if it doesn't exist in the image.
+The project directory is mounted read/write but nothing is ever written to it
+by connie. The state mounts must be pre-created on the host before Docker
+mounts them — with a read-only container filesystem Docker cannot create the
+mount point at the target path if it doesn't exist in the image.
 
 ### Resource Limits
 
@@ -323,7 +332,7 @@ image if it does not exist. Run `connie build-base` explicitly when:
 
 Claude Code authenticates via `OAuth`. On first `connie run` for a project, it
 prompts the user to log in via browser. Credentials are written to
-`.connie/.claude.json` and `.connie/.claude/` inside the project directory.
+`~/.local/state/connie/<slug>/.claude.json` and `.claude/`.
 
 On subsequent runs for the same project, the saved credentials are reused
 automatically — no re-authentication needed.
@@ -347,16 +356,20 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 
 **Owned by the developer (edit freely):**
 
-- `.connie/config.yml` — the project contract
+- `~/.config/connie/projects/<slug>/config.yml` — the project contract
 
 **Owned by Claude Code (do not edit manually):**
 
-- `.connie/.claude/` — session state, memory, history
-- `.connie/.claude.json` — auth tokens and config
+- `~/.local/state/connie/<slug>/.claude/` — session state, memory, history
+- `~/.local/state/connie/<slug>/.claude.json` — auth tokens and config
 
-**Never committed:**
+**Managed by connie (registry):**
 
-- `.connie/` as a whole — added to the project's `.gitignore`
+- `~/.local/share/connie/projects.yml` — maps project paths to their slugs
+
+**Never touches the project directory:**
+
+- Nothing is written to the project's source tree. No `.gitignore` update needed.
 
 ---
 

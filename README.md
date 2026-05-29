@@ -14,18 +14,18 @@ into Claude Code — ready to assist with development tasks.
 ```text
 connie run ~/repos/my-project
         │
-        ├── reads  .connie/config.yml        project dependencies + config
-        ├── builds connie-workspace image      base image + project packages
-        ├── mounts ~/repos/my-project       →  /workspace          (read/write)
-        ├── mounts .connie/.claude/         →  ~/.claude/           (read/write)
-        ├── mounts .connie/.claude.json     →  ~/.claude.json       (read/write)
-        └── starts Claude Code              inside the hardened container
+        ├── reads  ~/.config/connie/projects/<slug>/config.yml  project config
+        ├── builds connie-workspace image                        base + packages
+        ├── mounts ~/repos/my-project  →  /workspace              (read/write)
+        ├── mounts ~/.local/state/connie/<slug>/.claude/        →  ~/.claude/
+        ├── mounts ~/.local/state/connie/<slug>/.claude.json    →  ~/.claude.json
+        └── starts Claude Code         inside the hardened container
 ```
 
-Claude Code state (auth tokens, project memory, conversation history) is stored
-in `.connie/` alongside the rest of the project's container config. Each project
-has completely isolated Claude Code state — no memory or history leaks between
-projects.
+Nothing is written to the project directory. Claude Code state (auth tokens,
+project memory, conversation history) lives in `~/.local/state/connie/<slug>/`
+on the developer's machine. Each project has completely isolated state — no
+memory or history leaks between projects.
 
 ---
 
@@ -62,8 +62,9 @@ make uninstall PREFIX=~/.local
 # 1. Scaffold connie config inside a project
 connie init ~/repos/my-project
 
-# 2. Optionally edit the config to add project-specific packages
-$EDITOR ~/repos/my-project/.connie/config.yml
+# 2. Edit the config to add project-specific packages
+# (connie config shows the exact path)
+connie config ~/repos/my-project
 
 # 3. Start Claude Code in the container
 connie run ~/repos/my-project
@@ -82,8 +83,8 @@ connie builds it automatically before starting the container. This takes a few
 minutes once per machine.
 
 On first run per project, Claude Code will prompt you to authenticate with your
-Anthropic account. Credentials are saved to `.connie/.claude/.credentials.json`
-and reused on every subsequent `connie run` for that project.
+Anthropic account. Credentials are saved to `~/.local/state/connie/<slug>/` and reused on every
+subsequent `connie run` for that project.
 
 ---
 
@@ -92,11 +93,11 @@ and reused on every subsequent `connie run` for that project.
 | Command | Description |
 | --- | --- |
 | `connie build-base` | Build (or rebuild) the connie base image |
-| `connie init [dir]` | Scaffold `.connie/` inside a project |
+| `connie init [dir]` | Initialize connie for a project directory |
 | `connie run [dir]` | Build (if needed) and start Claude Code |
 | `connie build [dir]` | Build the project container image without starting it |
 | `connie clean [dir]` | Remove the locally built project container image |
-| `connie config [dir]` | Print the effective Compose override and exit |
+| `connie config [dir]` | Show project paths and effective Compose override |
 | `connie help` | Show usage |
 | `connie version` | Show version |
 
@@ -127,7 +128,7 @@ from lowest to highest precedence:
 1. connie compiled-in defaults       (/usr/local/lib/connie/config/defaults.yml)
 2. System-wide config                (/etc/xdg/connie/config.yml)
 3. User config                       (~/.config/connie/config.yml)
-4. Project config                    ([project]/.connie/config.yml)
+4. Project config                    (~/.config/connie/projects/<slug>/config.yml)
 5. Environment variables             (CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS)
 6. CLI flags (--package, --env, --cmd)
 ```
@@ -136,10 +137,14 @@ from lowest to highest precedence:
 the container as the lowest-precedence env entries — below even project config.
 They can be overridden via `config.yml` `env:` or `--env`.
 
-### The Project Config: `.connie/config.yml`
+### The Project Config
 
-This is the file you edit to describe a project's container needs. Created by
-`connie init` and never overwritten by subsequent connie operations.
+Each project has a `config.yml` at
+`~/.config/connie/projects/<slug>/config.yml` where `<slug>` is derived from
+the project's directory name and path. Created by `connie init` and never
+overwritten by subsequent connie operations.
+
+Run `connie config [dir]` to see the exact path for any project.
 
 See [`config.yml` reference](#configyml-reference) below.
 
@@ -190,9 +195,9 @@ env:
 
 # Additional volume mounts beyond the standard mounts.
 # Standard mounts (always present, not configured here):
-#   [project dir]        →  /workspace                 (read/write)
-#   .connie/.claude/     →  ~/.claude/                 (read/write)
-#   .connie/.claude.json →  ~/.claude.json             (read/write)
+#   [project dir]                          →  /workspace      (read/write)
+#   ~/.local/state/connie/<slug>/.claude/  →  ~/.claude/      (read/write)
+#   ~/.local/state/connie/<slug>/.claude.json → ~/.claude.json (read/write)
 volumes:
   - /some/other/path:/data:ro
 
@@ -225,24 +230,39 @@ rationale. The enforced constraints are:
 - **`/tmp` as tmpfs** — RAM-backed, ephemeral, vanishes on exit
 - **Auto-updater disabled** — `DISABLE_AUTOUPDATER=1` prevents silent writes
   to the read-only filesystem at startup
-- **Exactly three host mounts** — project directory, `.connie/.claude/`, and
-  `.connie/.claude.json` — nothing else from the host is visible
+- **Exactly three host mounts** — project directory, per-project `.claude/`,
+  and `.claude.json` — nothing else from the host is visible
 - **Resource limits** — 4GB RAM, 2 CPUs, 512 PIDs (all overridable)
 
 ---
 
-## What Lives in `.connie/`
+## Where connie Stores Things
+
+connie writes nothing to the project directory. All state lives in standard
+XDG locations on your machine:
 
 ```text
-.connie/
-├── .claude/         Claude Code credentials, history, and state — per-project
-├── .claude.json     Claude Code account metadata and app config — per-project
-└── config.yml       Your project config (edit this)
+~/.config/connie/
+├── config.yml                        your personal preferences (all projects)
+└── projects/
+    └── <slug>/
+        └── config.yml                project-specific config (edit this)
+
+~/.local/state/connie/
+└── <slug>/
+    ├── .claude/                      Claude Code credentials, history, state
+    └── .claude.json                  Claude Code account metadata and config
+
+~/.local/share/connie/
+└── projects.yml                      registry: project paths → slugs
 ```
 
-The entire `.connie/` directory is gitignored — none of this is committed to
-your project repository. The project under development never needs to know
-connie exists.
+The `<slug>` is derived from the project directory name and path
+(e.g. `my-project-1234567890`). Run `connie config [dir]` to see the exact
+paths for any project.
+
+The project directory itself is never modified — no `.gitignore` update, no
+config files, nothing. The project does not need to know connie exists.
 
 ---
 
@@ -288,10 +308,9 @@ they change; otherwise Docker's layer cache makes the build instant.
 read on every `connie run`, `connie build`, and `connie config` and is never
 copied anywhere.
 
-`templates/config.yml` is the only file here that gets copied to a project.
-`connie init` copies it to `.connie/config.yml` once, and connie never
-touches it again. It is the developer-owned file that describes the project's
-container needs.
+`templates/config.yml` is copied once by `connie init` to
+`~/.config/connie/projects/<slug>/config.yml` and never overwritten. It is the
+developer-owned file that describes the project's container needs.
 
 ---
 

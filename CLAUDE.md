@@ -54,18 +54,26 @@ exercise `init` / `build` / `run` / `clean` against a scratch project.
    from `$LIB_DIR/extend.Dockerfile`, which is `FROM connie/base:latest`
    plus `EXTRA_PACKAGES` (apk) injected as a build arg.
 
-### What `connie init` writes into a project
+### What `connie init` writes — and where
 
-Everything connie touches in a target project lives under `.connie/` (and the
-directory is gitignored — connie never modifies the project's own source tree):
+`connie init` writes nothing to the target project directory. All state lives
+in XDG directories on the user's machine:
 
-- `config.yml` — **developer-owned**, the only file meant to be hand-edited;
-  never overwritten by re-running `init`.
-- `.claude/` (dir) and `.claude.json` (file) — **Claude-Code-owned** per-project
-  state and auth. Pre-created on the host because the read-only container
-  filesystem cannot create the bind-mount targets itself (and Docker would
-  otherwise auto-create `.claude.json` as a *directory*, breaking config parsing).
-- No generated files — `override.yml` is written to a temp file and deleted when connie exits.
+- `$XDG_CONFIG_HOME/connie/projects/<slug>/config.yml` — **developer-owned**,
+  the project's container config; the only file meant to be hand-edited; never
+  overwritten by re-running `init`.
+- `$XDG_STATE_HOME/connie/<slug>/.claude/` and `.claude.json` —
+  **Claude-Code-owned** per-project state and auth. Pre-created on the host
+  because the read-only container filesystem cannot create the bind-mount
+  targets itself (and Docker would otherwise auto-create `.claude.json` as a
+  *directory*, breaking config parsing).
+- `$XDG_DATA_HOME/connie/projects.yml` — **connie-managed** registry mapping
+  project paths to their slugs.
+- No generated files — the Compose override is written to a temp file and
+  deleted when connie exits.
+
+The `<slug>` is `<basename>-<cksum>`, e.g. `my-project-1234567890`. Run
+`connie config [dir]` to see the exact paths for any project.
 
 ### Config merge → override.yml → compose (the core flow)
 
@@ -74,7 +82,7 @@ it through these stages rather than editing one in isolation:
 
 1. `_merge_configs` deep-merges YAML (via `yq` reduce) in ascending precedence:
    `lib/connie/config/defaults.yml` → `/etc/xdg/connie/config.yml` →
-   `~/.config/connie/config.yml` → project `.connie/config.yml`. Produces one
+   `~/.config/connie/config.yml` → `~/.config/connie/projects/<slug>/config.yml`. Produces one
    temp file.
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.
