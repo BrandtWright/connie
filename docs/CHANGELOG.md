@@ -9,6 +9,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `connie run` now generates `~/.claude/CLAUDE.md` in the per-project state
+  directory before starting the container. Claude Code loads this file
+  automatically as user-level context on every session, giving the agent
+  accurate knowledge of the container environment — filesystem constraints,
+  available tools, installed packages, build-time setup, extra mounts, exposed
+  ports, environment variables, and resource limits — without the project's own
+  `CLAUDE.md` needing any awareness of connie.
+
 ### Changed
 
 - `config/defaults.yml` is now load-bearing: all config keys are guaranteed
