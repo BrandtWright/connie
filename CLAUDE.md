@@ -14,6 +14,7 @@ runtime dependency beyond `docker`, `docker compose` v2, and `yq` v4.
 
 ```sh
 make check                                # syntax-check src/connie (sh -n) — run after every edit
+make test                                 # run the POSIX shell test suite
 make install PREFIX=~/.local              # install to ~/.local without sudo
 make uninstall PREFIX=~/.local
 
@@ -24,8 +25,15 @@ CONNIE_LIB_DIR=./src ./src/connie run  ~/repos/scratch
 CONNIE_LIB_DIR=./src ./src/connie run  --cmd sh   # shell into the container to debug
 ```
 
-There is no automated test suite. Verification is manual: `make check`, then
-exercise `init` / `build` / `run` / `clean` against a scratch project.
+`make check` is a sub-second `sh -n` parse check. `make test` runs the
+roll-your-own POSIX shell test suite under `tests/` against `src/connie`'s
+function definitions (sourced with `CONNIE_NO_DISPATCH=1` so the CLI doesn't
+fire). Tests are organised by depth: `tests/unit/` (pure functions),
+`tests/integration/` (filesystem I/O, no Docker), `tests/cli/` (full CLI
+invocations, no Docker). Test files contain `test_*` functions that the
+harness discovers, each running in an isolated subshell with a fresh
+fake-home workspace (`HOME`, `XDG_*` redirected to a `mktemp -d`). Docker-
+requiring tests are deferred — they need a host that can build images.
 
 ### Verification tooling
 

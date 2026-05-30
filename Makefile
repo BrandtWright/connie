@@ -8,7 +8,7 @@ INSTALL  := install
 
 # ── Phony targets ─────────────────────────────────────────────────────────────
 
-.PHONY: all install uninstall check help
+.PHONY: all install uninstall check test help
 
 all: help
 
@@ -17,7 +17,8 @@ help:
 	@echo ""
 	@echo "  install    Install connie to PREFIX (default: /usr/local)"
 	@echo "  uninstall  Remove connie from PREFIX"
-	@echo "  check      Syntax-check the CLI script"
+	@echo "  check      Syntax-check the CLI script (sh -n)"
+	@echo "  test       Run the POSIX shell test suite (tests/run.sh)"
 	@echo ""
 	@echo "Override PREFIX to install without sudo:"
 	@echo "  make install PREFIX=~/.local"
@@ -56,3 +57,6 @@ uninstall:
 check:
 	@echo "==> Checking src/connie syntax"
 	@sh -n $(CURDIR)/src/connie && echo "    OK"
+
+test:
+	@sh $(CURDIR)/tests/run.sh

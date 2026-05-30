@@ -69,12 +69,26 @@ scope.
 
 ## Quality / Internals
 
-### Automated Test Suite
+### Expand Test Coverage
 
-Currently verification is manual (`make check` + exercise against a scratch
-project). A lightweight integration-test harness — likely a shell script that
-runs `init`/`build`/`run --cmd`/`clean` against a fixture project and checks
-exit codes and output — would catch regressions.
+The roll-your-own POSIX shell test harness is in place under `tests/`,
+with one unit-test file demonstrating it. Remaining work is filling out
+coverage incrementally:
+
+- **Unit (no I/O)**: `_merge_configs`, `_generate_override` and its
+  sub-helpers (`_build_env_block`, `_build_vol_block`,
+  `_build_ports_section`, `_build_fwd_env_obj`, `_build_cli_env_obj`),
+  argument parser, `_compose_project_name`.
+- **Integration (filesystem, no Docker)**: `cmd_init`, `cmd_config`,
+  `cmd_context`, the four context emit functions, registry walk
+  (`_register_project` together with `_find_project_root`),
+  `_migrate_project` (from-old-`.connie/` migration), `_write_user_context`.
+- **CLI (no Docker)**: `connie help`, `connie version`, error paths
+  (unknown flag, unknown command, duplicate positional, missing
+  required argument), the typo-subcommand guard.
+- **Docker (gated)**: `connie build-base`, `connie build`, `connie run`
+  with `--cmd sh`, `connie clean`. Needs to run on a host with Docker
+  available; the harness should skip these when `docker` is absent.
 
 ### `connie update` Command
 

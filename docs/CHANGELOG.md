@@ -11,6 +11,21 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **POSIX shell test suite** — roll-your-own ~140-line test harness under
+  `tests/` with no external dependencies. The harness provides per-test
+  subshell isolation, per-test fake-home workspaces (`HOME` and `XDG_*`
+  redirected to a `mktemp -d` so connie's path-derived globals point at
+  a sandbox), given/when/then documentation helpers, ~9 assertion helpers
+  (`assert_equal`, `assert_starts_with`, `assert_matches`, etc.), and
+  TAP-compatible output. Test files contain `test_*` functions that the
+  runner discovers automatically. `src/connie`'s argument parser and
+  dispatch are now wrapped in a `_main` function called by an entry-point
+  line at the bottom of the script, so tests can source the script with
+  `CONNIE_NO_DISPATCH=1` to get the function definitions without firing
+  the CLI. `make test` runs the suite. The initial commit ships one
+  unit-test file (`tests/unit/test_project_slug.sh`) demonstrating the
+  harness with six tests against `_project_slug`; more test files will
+  be added incrementally.
 - **Zero project footprint** — `connie` no longer writes anything to the
   project directory. All state (config, Claude Code auth, session history)
   now lives in standard XDG directories on the developer's machine:

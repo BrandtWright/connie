@@ -894,74 +894,87 @@ cmd_context() {
     _ctx_preview_footer
 }
 
-# ── Argument parsing ──────────────────────────────────────────────────────────
+# ── Main: argument parsing and dispatch ──────────────────────────────────────
+#
+# Wrapped in a function so the test harness can source this script for its
+# function definitions without triggering the CLI. The entry-point line at
+# the bottom of the file calls _main unless CONNIE_NO_DISPATCH=1 is set.
 
-_ARG_PACKAGES=""
-_ARG_ENV=""
-_ARG_CMD=""
-_SUBCOMMAND=""
-_TARGET_DIR=""
+_main() {
+    _ARG_PACKAGES=""
+    _ARG_ENV=""
+    _ARG_CMD=""
+    _SUBCOMMAND=""
+    _TARGET_DIR=""
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        init|run|build|clean|config|context|help|version)
-            _SUBCOMMAND="$1"
-            shift
-            ;;
-        build-base)
-            _SUBCOMMAND="build-base"
-            shift
-            ;;
-        --package)
-            [ $# -ge 2 ] || _die "--package requires an argument"
-            _ARG_PACKAGES="${_ARG_PACKAGES:+$_ARG_PACKAGES }$2"
-            shift 2
-            ;;
-        --env)
-            [ $# -ge 2 ] || _die "--env requires an argument"
-            # Newline-delimited so IFS-splitting in _build_cli_env_obj handles
-            # values that contain spaces. The literal newline is intentional.
-            _ARG_ENV="${_ARG_ENV:+$_ARG_ENV
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            init|run|build|clean|config|context|help|version)
+                _SUBCOMMAND="$1"
+                shift
+                ;;
+            build-base)
+                _SUBCOMMAND="build-base"
+                shift
+                ;;
+            --package)
+                [ $# -ge 2 ] || _die "--package requires an argument"
+                _ARG_PACKAGES="${_ARG_PACKAGES:+$_ARG_PACKAGES }$2"
+                shift 2
+                ;;
+            --env)
+                [ $# -ge 2 ] || _die "--env requires an argument"
+                # Newline-delimited so IFS-splitting in _build_cli_env_obj
+                # handles values that contain spaces. The literal newline is
+                # intentional.
+                _ARG_ENV="${_ARG_ENV:+$_ARG_ENV
 }$2"
-            shift 2
-            ;;
-        --cmd)
-            [ $# -ge 2 ] || _die "--cmd requires an argument"
-            _ARG_CMD="$2"
-            shift 2
-            ;;
-        --version)
-            printf '%s %s\n' "$TOOL" "$VERSION"
-            exit 0
-            ;;
-        -*)
-            _die "Unknown flag: $1. Run '$TOOL help' for usage."
-            ;;
-        *)
-            [ -z "$_TARGET_DIR" ] || _die "Unexpected argument: $1. Run '$TOOL help' for usage."
-            _TARGET_DIR="$1"
-            shift
+                shift 2
+                ;;
+            --cmd)
+                [ $# -ge 2 ] || _die "--cmd requires an argument"
+                _ARG_CMD="$2"
+                shift 2
+                ;;
+            --version)
+                printf '%s %s\n' "$TOOL" "$VERSION"
+                exit 0
+                ;;
+            -*)
+                _die "Unknown flag: $1. Run '$TOOL help' for usage."
+                ;;
+            *)
+                [ -z "$_TARGET_DIR" ] || \
+                    _die "Unexpected argument: $1. Run '$TOOL help' for usage."
+                _TARGET_DIR="$1"
+                shift
+                ;;
+        esac
+    done
+
+    case "${_SUBCOMMAND:-help}" in
+        init)        cmd_init       "${_TARGET_DIR:-}" ;;
+        build)       cmd_build      "${_TARGET_DIR:-}" ;;
+        build-base)  cmd_build_base ;;
+        run)         cmd_run        "${_TARGET_DIR:-}" ;;
+        clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
+        config)      cmd_config     "${_TARGET_DIR:-}" ;;
+        context)     cmd_context    "${_TARGET_DIR:-}" ;;
+        version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
+        help)
+            # If we landed here because the first positional argument didn't
+            # match any known subcommand, surface the error rather than
+            # silently showing usage — the user almost certainly typo'd a
+            # command name.
+            [ -z "$_TARGET_DIR" ] || \
+                _die "Unknown command: $_TARGET_DIR. Run '$TOOL help' for usage."
+            _usage
             ;;
     esac
-done
+}
 
-# ── Dispatch ──────────────────────────────────────────────────────────────────
+# ── Entry point ──────────────────────────────────────────────────────────────
+# Skipped when CONNIE_NO_DISPATCH=1 — the test harness sources this script to
+# get the function definitions without triggering the CLI.
 
-case "${_SUBCOMMAND:-help}" in
-    init)        cmd_init       "${_TARGET_DIR:-}" ;;
-    build)       cmd_build      "${_TARGET_DIR:-}" ;;
-    build-base)  cmd_build_base ;;
-    run)         cmd_run        "${_TARGET_DIR:-}" ;;
-    clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
-    config)      cmd_config     "${_TARGET_DIR:-}" ;;
-    context)     cmd_context    "${_TARGET_DIR:-}" ;;
-    version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
-    help)
-        # If we landed here because the first positional argument didn't match
-        # any known subcommand, surface the error rather than silently showing
-        # usage — the user almost certainly typo'd a command name.
-        [ -z "$_TARGET_DIR" ] || \
-            _die "Unknown command: $_TARGET_DIR. Run '$TOOL help' for usage."
-        _usage
-        ;;
-esac
+[ "${CONNIE_NO_DISPATCH:-0}" = "1" ] || _main "$@"
