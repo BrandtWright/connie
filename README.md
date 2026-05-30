@@ -86,8 +86,8 @@ connie builds it automatically before starting the container. This takes a few
 minutes once per machine.
 
 On first run per project, Claude Code will prompt you to authenticate with your
-Anthropic account. Credentials are saved to `~/.local/state/connie/<slug>/` and reused on every
-subsequent `connie run` for that project.
+Anthropic account. Credentials are saved to `~/.local/state/connie/<slug>/`
+and reused on every subsequent `connie run` for that project.
 
 ---
 

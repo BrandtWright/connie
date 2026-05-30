@@ -110,15 +110,16 @@ it through these stages rather than editing one in isolation:
 
 1. `_merge_configs` deep-merges YAML (via `yq` reduce) in ascending precedence:
    `src/config/defaults.yml` → `/etc/xdg/connie/config.yml` →
-   `~/.config/connie/config.yml` → `~/.config/connie/projects/<slug>/config.yml`. Produces one
-   temp file.
+   `~/.config/connie/config.yml` →
+   `~/.config/connie/projects/<slug>/config.yml`. Produces one temp file.
 2. CLI flags (`--package`, `--env`, `--cmd`) and shell env override on top of the
    merged file — these are applied in `_generate_override`, not the merge.
 3. `_generate_override` reads the merged config and writes a temp file:
    build args (`EXTRA_PACKAGES`, `BUILD_COMMANDS`), `environment` (from `env`),
    `volumes` (the three standard mounts first, then extras), `ports`, resource
    limits, and `command`.
-4. `_run_compose` runs `docker compose -f $LIB_DIR/docker/docker-compose.yml -f <tmpfile> ...`.
+4. `_run_compose` runs
+   `docker compose -f $LIB_DIR/docker/docker-compose.yml -f <tmpfile> ...`.
    The static `docker-compose.yml` carries the immutable security posture
    (`read_only`, `cap_drop: ALL`, `no-new-privileges`, `/tmp` tmpfs, `init: true`);
    the override carries everything derived from config. `connie run` calls
@@ -161,10 +162,11 @@ preferred way to verify context output.
 
 - Version lives in one place: `VERSION` at the top of `src/connie`. Bump it
   and add a `docs/CHANGELOG.md` entry (Keep a Changelog format) per release.
-- Changing a value in `src/config/defaults.yml` affects every project relying on the
-  default — treat it like a public API change.
-- Security-relevant edits to `src/docker/docker-compose.yml` or `src/docker/base.Dockerfile`
-  should be mirrored in `docs/DESIGN.md`, which documents the rationale for each hardening measure.
+- Changing a value in `src/config/defaults.yml` affects every project relying
+  on the default — treat it like a public API change.
+- Security-relevant edits to `src/docker/docker-compose.yml` or
+  `src/docker/base.Dockerfile` should be mirrored in `docs/DESIGN.md`, which
+  documents the rationale for each hardening measure.
 - Changes to context generation (`_generate_connie_context`,
   `_emit_user_context`, `_write_user_context`, or the `CONNIE_CONTEXT`
   build-arg wiring in `extend.Dockerfile`) should be mirrored in the
