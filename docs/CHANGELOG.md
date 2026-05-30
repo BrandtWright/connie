@@ -71,6 +71,16 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `_merge_configs` now checks for the file at startup and exits with a clear
   error if it is missing rather than silently producing null values.
 
+### Security
+
+- Per-project state directories (`~/.local/state/connie/<slug>/`) and their
+  `.claude/` subdirectories are now created — or normalised if already present
+  — with mode `0700` at `connie init`, `connie run`, and during auto-migration.
+  This protects the OAuth bearer token that Claude Code persists at
+  `<slug>/.claude/.credentials.json` from other local users on the same machine,
+  even if Claude Code itself does not set restrictive permissions on the
+  credential file. Defense-in-depth, applied at the directory layer.
+
 ### Fixed
 
 - `connie clean` now surfaces docker errors instead of silently swallowing

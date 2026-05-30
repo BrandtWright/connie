@@ -334,8 +334,11 @@ image if it does not exist. Run `connie build-base` explicitly when:
 ## Authentication
 
 Claude Code authenticates via `OAuth`. On first `connie run` for a project, it
-prompts the user to log in via browser. Credentials are written to
-`~/.local/state/connie/<slug>/.claude.json` and `.claude/`.
+prompts the user to log in via browser. The OAuth bearer token Claude Code
+persists at `~/.claude/.credentials.json` (inside the container) lands on
+the host at `~/.local/state/connie/<slug>/.claude/.credentials.json` via the
+bind mount; account metadata is written to
+`~/.local/state/connie/<slug>/.claude.json` alongside it.
 
 On subsequent runs for the same project, the saved credentials are reused
 automatically — no re-authentication needed.
@@ -346,6 +349,29 @@ ensures each project's Claude Code session is fully isolated, including the
 auth context.
 
 No API keys are required. Authentication uses the user's Anthropic subscription.
+
+### Credential storage
+
+Persisting OAuth tokens on disk is the standard pattern for OAuth-based
+tools — `~/.ssh/id_*`, `~/.aws/credentials`, `~/.config/gh/hosts.yml`, and
+similar all persist credentials to per-user directories under `$HOME`.
+Connie's contribution to this model is per-project isolation and
+defense-in-depth on the directory permissions.
+
+Connie does not write `.credentials.json` itself; Claude Code does, from
+inside the container. What connie does is harden the directory hierarchy
+around it. Both the per-project state directory
+(`~/.local/state/connie/<slug>/`) and its `.claude/` subdirectory are
+created — or normalised, when they already exist — with mode `0700` (user
+read/write/exec, group and others denied) at `connie init`, `connie run`,
+and during auto-migration. Even if Claude Code does not set restrictive
+permissions on `.credentials.json` itself, the parent directories prevent
+other local users on the same machine from traversing to it.
+
+File ownership stays with the user running connie. No privilege escalation
+is required at any layer, and the read-only container filesystem prevents a
+compromised in-container process from rewriting the credential file through
+any path other than the bind mount.
 
 ---
 

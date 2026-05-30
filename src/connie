@@ -180,6 +180,11 @@ _migrate_project() {
     _info "Migrating $TOOL state for $_mp_root to XDG directories"
 
     mkdir -p "$_mp_cfg_dir" "$_mp_state_dir"
+    # The state hierarchy holds Claude Code OAuth credentials. Tighten the
+    # directory permissions to 0700 (user only) as defense-in-depth so other
+    # local users on the same machine cannot read the bearer token, even if
+    # Claude Code itself does not set restrictive perms on .credentials.json.
+    chmod 700 "$_mp_state_dir"
 
     if [ -f "$_mp_old/config.yml" ]; then
         mv "$_mp_old/config.yml" "$_mp_cfg_dir/config.yml"
@@ -195,6 +200,7 @@ _migrate_project() {
     else
         mkdir -p "$_mp_state_dir/.claude"
     fi
+    chmod 700 "$_mp_state_dir/.claude"
 
     if [ -f "$_mp_old/.claude.json" ]; then
         mv "$_mp_old/.claude.json" "$_mp_state_dir/.claude.json"
@@ -561,6 +567,9 @@ _prepare() {
     # directory, which breaks Claude Code's JSON config parsing.
     _prep_state=$(_project_state_dir "$_prep_root")
     mkdir -p "$_prep_state/.claude"
+    # See _migrate_project for rationale: 0700 protects the OAuth credential
+    # file that Claude Code writes inside .claude/ from other local users.
+    chmod 700 "$_prep_state" "$_prep_state/.claude"
     if [ ! -f "$_prep_state/.claude.json" ] || [ ! -s "$_prep_state/.claude.json" ]; then
         printf '{}' > "$_prep_state/.claude.json"
     fi
@@ -625,6 +634,9 @@ cmd_init() {
     _info "Initializing $TOOL for $_target"
 
     mkdir -p "$_init_cfg_dir" "$_init_state_dir"
+    # See _migrate_project for rationale: 0700 protects the OAuth credential
+    # file that Claude Code writes inside .claude/ from other local users.
+    chmod 700 "$_init_state_dir"
 
     # config.yml is developer-owned — never overwrite it
     if [ ! -f "$_init_cfg_dir/config.yml" ]; then
@@ -643,6 +655,7 @@ cmd_init() {
     else
         _detail "exists   $STATE_DIR/$_init_slug/.claude/ (skipped)"
     fi
+    chmod 700 "$_init_state_dir/.claude"
     if [ ! -f "$_init_state_dir/.claude.json" ] || [ ! -s "$_init_state_dir/.claude.json" ]; then
         printf '{}' > "$_init_state_dir/.claude.json"
         _detail "created  $STATE_DIR/$_init_slug/.claude.json"
