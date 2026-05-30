@@ -34,7 +34,7 @@ set -eu
 
 # ── Version and paths ─────────────────────────────────────────────────────────
 
-VERSION="0.3.0"
+VERSION="0.4.0"
 TOOL="connie"
 # Production default for the base image tag. Overridable via
 # $CONNIE_BASE_IMAGE so tests can build to an isolated tag without
