@@ -394,6 +394,7 @@ services:
   workspace:
     build:
       args:
+        BASE_IMAGE: "${BASE_IMAGE}"
         EXTRA_PACKAGES: "${_final_packages}"
         BUILD_COMMANDS: ${_build_cmds_yaml}
         CONNIE_CONTEXT: ${_connie_ctx_yaml}

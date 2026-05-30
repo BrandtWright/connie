@@ -7,6 +7,10 @@
 # Alpine Linux, core utilities, git, Node.js, and Claude Code.
 #
 # Build args injected by connie from the merged config:
+#   BASE_IMAGE       the locally-tagged base to FROM (defaults to the
+#                    production tag; tests override via $CONNIE_BASE_IMAGE
+#                    so the per-project image can be built atop an isolated
+#                    base without touching the user's real production tag)
 #   EXTRA_PACKAGES   apk packages to install
 #   BUILD_COMMANDS   arbitrary shell commands run as claude-user
 #   CONNIE_CONTEXT   managed-policy Claude Code context, written to
@@ -16,7 +20,11 @@
 # If a build arg has not changed since the last build, Docker's layer cache
 # means the corresponding step completes instantly.
 
-FROM connie/base:latest
+# BASE_IMAGE is a "global" ARG — it must appear before the first FROM
+# so it can be referenced in the FROM line. ARGs declared after FROM
+# are scoped to a build stage.
+ARG BASE_IMAGE=connie/base:latest
+FROM ${BASE_IMAGE}
 
 ARG EXTRA_PACKAGES
 ARG BUILD_COMMANDS

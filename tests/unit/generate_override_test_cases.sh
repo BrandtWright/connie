@@ -187,3 +187,14 @@ generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {
     expect the_override_value_at_path_to_be ".services.workspace.ulimits.nofile.soft" "4096"
     expect the_override_value_at_path_to_be ".services.workspace.ulimits.nofile.hard" "8192"
 }
+
+generate_override_passes_the_base_image_tag_through_as_a_build_arg_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    when the_override_is_generated
+    # The BASE_IMAGE build arg propagates the script's BASE_IMAGE shell
+    # variable (default `connie/base:latest`, overridable via
+    # $CONNIE_BASE_IMAGE) to extend.Dockerfile's `FROM ${BASE_IMAGE}`.
+    # Without this, the per-project image would always build from the
+    # production tag, which would defeat test isolation.
+    expect the_override_value_at_path_to_be ".services.workspace.build.args.BASE_IMAGE" "connie/base:latest"
+}

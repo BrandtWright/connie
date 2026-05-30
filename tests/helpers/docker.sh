@@ -31,10 +31,31 @@ a_unique_test_base_image_tag() {
     trap "docker image rm -f '$test_base_image' >/dev/null 2>&1 || true" EXIT
 }
 
+# Variant for tests that exercise per-project image builds: also sets
+# up a project directory and pre-computes the docker compose-derived
+# workspace image name so cleanup removes BOTH the base and the
+# workspace image at subshell exit. Docker compose names service images
+# `<project>-<service>` when no explicit `image:` key is set; here that
+# resolves to `connie-<slug>-workspace`.
+a_unique_test_base_image_tag_and_an_initialized_project() {
+    test_base_image="connie-test/base:harness-${TEST_NAME}-$$"
+    export CONNIE_BASE_IMAGE="$test_base_image"
+    project_path="$WORKSPACE/project"
+    mkdir -p "$project_path"
+    exercise_connie init "$project_path" >/dev/null 2>&1
+    workspace_image="$(_compose_project_name "$project_path")-workspace"
+    # shellcheck disable=SC2064 # we want the variables resolved now
+    trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true" EXIT
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_user_runs_connie_build_base() {
     exercise_connie build-base
+}
+
+the_user_runs_connie_build_against_the_project() {
+    exercise_connie build "$project_path"
 }
 
 # ── Assertions ─────────────────────────────────────────────────────────────
@@ -99,5 +120,42 @@ the_image_contains_directory() {
     fi
     _assertion_failure "directory to exist in image" "$_path" \
                        "actual" "no such directory in container filesystem"
+    return 1
+}
+
+# ── Workspace-image assertions ────────────────────────────────────────────
+#
+# Mirror the base-image assertions above but target $workspace_image (set
+# by a_unique_test_base_image_tag_and_an_initialized_project) so per-
+# project build tests can introspect the image cmd_build produced.
+
+the_workspace_image_exists() {
+    if docker image inspect "$workspace_image" >/dev/null 2>&1; then
+        return 0
+    fi
+    _assertion_failure "image to exist" "$workspace_image" \
+                       "actual" "no such image (docker image inspect failed)"
+    return 1
+}
+
+the_workspace_image_contains_file() {
+    _path="$1"
+    if docker run --rm "$workspace_image" test -f "$_path" >/dev/null 2>&1; then
+        return 0
+    fi
+    _assertion_failure "file to exist in workspace image" "$_path" \
+                       "actual" "no such file in container filesystem"
+    return 1
+}
+
+the_workspace_image_file_to_contain() {
+    _path="$1"
+    _expected="$2"
+    _actual=$(docker run --rm "$workspace_image" cat "$_path" 2>/dev/null)
+    case "$_actual" in
+        *"$_expected"*) return 0 ;;
+    esac
+    _assertion_failure "file to contain" "$_expected (in $_path)" \
+                       "actual contents" "$_actual"
     return 1
 }
