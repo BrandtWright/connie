@@ -41,6 +41,24 @@ the_user_runs_connie_doctor_against_the_project() {
     exercise_connie doctor "$project_path"
 }
 
+# Force at least one check to fail in a way that's deterministic
+# regardless of the host environment (docker present or not, yq
+# present or not). Point CONNIE_LIB_DIR at a path that doesn't
+# exist — the install-presence checks (lib dir, defaults.yml,
+# Dockerfiles, …) then all fail with their reinstall hints.
+#
+# Bypasses exercise_connie because that helper hardcodes
+# CONNIE_LIB_DIR; we need the override to stick.
+the_user_runs_connie_doctor_with_a_broken_install() {
+    CONNIE_LIB_DIR="$WORKSPACE/does-not-exist/connie/lib" \
+        "$_HARNESS_REPO_ROOT/src/connie" doctor \
+        >"$TEST_STDOUT" 2>"$TEST_STDERR"
+    # Read by `expect it_fails` and `exit_status_to_be` in assertions
+    # downstream — shellcheck can't see across the call boundary.
+    # shellcheck disable=SC2034
+    actual_exit_status=$?
+}
+
 # ── Test cases ─────────────────────────────────────────────────────────────
 
 doctor_emits_a_summary_line_at_the_end_test_case() {
@@ -73,22 +91,28 @@ doctor_reports_connie_installation_checks_as_passing_in_a_valid_checkout_test_ca
     expect stderr_to_contain "ok    docker-compose.yml present"
 }
 
-doctor_exits_non_zero_when_docker_is_absent_test_case() {
-    # Inside the test harness's connie container, docker isn't
-    # installed. This SHOULD be a failure (not a warning) — without
-    # docker, `connie run` cannot work at all, and reporting it as
-    # "fine, just a warning" would mislead.
-    when the_user_runs_connie_doctor
+doctor_exits_non_zero_when_a_check_fails_test_case() {
+    # The exit-code contract: if any check fails (any of "fail" — not
+    # just "warn"), the process exits 1. This is what makes
+    # `connie doctor && connie run` a safe gating pattern.
+    #
+    # Forced via a broken-install fixture rather than depending on the
+    # host lacking docker — the previous formulation passed in this
+    # container's CI environment but failed against a developer host
+    # that has docker installed.
+    when the_user_runs_connie_doctor_with_a_broken_install
     expect it_fails
-    expect stderr_to_contain "fail  docker on PATH"
+    expect stderr_to_contain "^  fail"
 }
 
-doctor_includes_an_actionable_hint_under_each_failure_test_case() {
-    # The hint isn't decoration — it's the difference between a user
-    # knowing how to fix the problem and falling back to a search
-    # engine. The docker fail must point at the install docs.
-    when the_user_runs_connie_doctor
-    expect stderr_to_contain "Install Docker Engine"
+doctor_emits_an_actionable_hint_when_a_check_fails_test_case() {
+    # Every fail line is followed by an indented hint line pointing
+    # at the next concrete action. The hint pattern is what
+    # differentiates connie's diagnostics from a flat pass/fail list;
+    # this test locks it in. Hint text varies by check, but the
+    # broken-install case always produces the "Reinstall" hint.
+    when the_user_runs_connie_doctor_with_a_broken_install
+    expect stderr_to_contain "^        Reinstall"
 }
 
 doctor_includes_a_project_section_when_a_path_is_given_test_case() {
