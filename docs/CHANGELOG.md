@@ -30,15 +30,20 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - **User-level scope** (`~/.claude/CLAUDE.md`) — connie assembles the
     host's `/etc/claude-code/CLAUDE.md` and `~/.claude/CLAUDE.md` (if
     present) into a single file in the per-project state directory, which
-    is bind-mounted to `~/.claude/` inside the container. Forwards the
-    user's personal Claude Code preferences without per-project copies.
+    is bind-mounted to `~/.claude/` inside the container. Each source
+    contribution is preceded by a block-level HTML comment identifying
+    its origin; Claude Code strips block-level HTML comments before
+    context injection, so the markers cost no tokens but remain visible
+    to humans previewing the file. Forwards the user's personal Claude
+    Code preferences without per-project copies.
   Claude Code's default loading behaviour also picks up
   `/workspace/CLAUDE.md` and `/workspace/CLAUDE.local.md` from the project
   — connie never touches those, so projects that already use them work
   unchanged.
 - `connie context [dir]` — new subcommand that prints both connie-managed
-  contexts without starting the container. Requires no Docker; useful for
-  previewing what Claude Code will load before a run.
+  contexts without starting the container. Pure read operation — no
+  on-disk state is modified. Requires no Docker; useful for previewing
+  what Claude Code will load before a run.
 - `connie config [dir]` subcommand — prints the config file path, state
   directory path, and the effective Compose override for a project. Useful
   for diagnosing what `connie run` will do.

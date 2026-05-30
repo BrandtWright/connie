@@ -36,7 +36,14 @@ When working on connie inside connie, the project's own `config.yml`
 packages:
   - yq          # exercise yq pipelines in src/connie directly
   - shellcheck  # POSIX/bashism enforcement (make check only checks parse validity)
-  - hadolint    # Dockerfile linter for src/docker/*.Dockerfile
+
+build_commands:
+  # hadolint is a Haskell binary and is not available in Alpine's apk
+  # repositories. Install the static release into ~/.local/bin, which is
+  # already on PATH for claude-user (set in base.Dockerfile).
+  - mkdir -p ~/.local/bin
+  - wget -qO ~/.local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+  - chmod +x ~/.local/bin/hadolint
 ```
 
 Each tool closes a specific verification gap:
@@ -47,15 +54,6 @@ Each tool closes a specific verification gap:
   below; run as `shellcheck -s sh src/connie`
 - `hadolint` — catches common Dockerfile mistakes in `src/docker/base.Dockerfile`
   and `src/docker/extend.Dockerfile`
-
-If `hadolint` is not available via `apk`, fall back to a static binary in
-`build_commands:`:
-
-```yaml
-build_commands:
-  - sudo wget -qO /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
-  - sudo chmod +x /usr/local/bin/hadolint
-```
 
 ## Hard constraints
 
@@ -144,10 +142,14 @@ Claude Code loads `CLAUDE.md` from four scopes. connie populates two of them:
    YAML value and passes it as the `CONNIE_CONTEXT` build arg.
    `extend.Dockerfile` writes it to the image as root. Baked into the layer
    cache; immutable from inside the container.
-2. **User-level** (`~/.claude/CLAUDE.md` in the container) —
-   `_generate_user_context` concatenates the host's `/etc/claude-code/CLAUDE.md`
-   and `~/.claude/CLAUDE.md` (if present) into the per-project state directory,
-   which is bind-mounted to `~/.claude/`. Called from `cmd_run` at run time.
+2. **User-level** (`~/.claude/CLAUDE.md` in the container) — split between
+   `_emit_user_context` (pure, prints the assembled content to stdout with
+   block-level HTML source-attribution markers between the host's
+   `/etc/claude-code/CLAUDE.md` and `~/.claude/CLAUDE.md` contributions) and
+   `_write_user_context` (calls `_emit_user_context` and writes the result
+   into the per-project state directory, which is bind-mounted to
+   `~/.claude/`). `cmd_run` calls `_write_user_context` at run time;
+   `cmd_context` calls `_emit_user_context` for a read-only preview.
 
 The project and local scopes (`/workspace/CLAUDE.md`,
 `/workspace/CLAUDE.local.md`) come from the project directory unchanged —
@@ -164,10 +166,10 @@ preferred way to verify context output.
 - Security-relevant edits to `src/docker/docker-compose.yml` or `src/docker/base.Dockerfile`
   should be mirrored in `docs/DESIGN.md`, which documents the rationale for each hardening measure.
 - Changes to context generation (`_generate_connie_context`,
-  `_generate_user_context`, or the `CONNIE_CONTEXT` build-arg wiring in
-  `extend.Dockerfile`) should be mirrored in the **Claude Code Context Model**
-  section of `docs/DESIGN.md` and the **Claude Code Context** section of
-  `README.md`.
+  `_emit_user_context`, `_write_user_context`, or the `CONNIE_CONTEXT`
+  build-arg wiring in `extend.Dockerfile`) should be mirrored in the
+  **Claude Code Context Model** section of `docs/DESIGN.md` and the
+  **Claude Code Context** section of `README.md`.
 - `docs/TODO.md` tracks features and ideas under consideration.
   Consult it when evaluating new work; update it when items are completed or
   when new ideas arise during a session.

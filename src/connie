@@ -488,27 +488,40 @@ under Exposed Ports.
 FOOTER
 }
 
-# Assemble the user-level Claude Code context. Concatenates the host's
-# /etc/claude-code/CLAUDE.md (system-wide host context) and ~/.claude/CLAUDE.md
-# (the user's personal Claude Code preferences) into a single file in the
-# per-project state directory. That state directory is bind-mounted into the
-# container as ~/.claude/, so the assembled file ends up at the user-level
-# scope path Claude Code expects. Refreshed on every connie run.
-_generate_user_context() {
-    _guc_root="$1"
-    _guc_dest="$(_project_state_dir "$_guc_root")/.claude/CLAUDE.md"
-    _guc_etc="/etc/claude-code/CLAUDE.md"
-    _guc_user="$HOME/.claude/CLAUDE.md"
+# Emit the user-level Claude Code context to stdout. Concatenates the host's
+# /etc/claude-code/CLAUDE.md (system-wide) and ~/.claude/CLAUDE.md
+# (user-specific), in that order, with block-level HTML comments identifying
+# each contribution's source. Per the Claude Code docs, block-level HTML
+# comments are stripped before context injection, so the markers cost no
+# tokens but remain visible when humans preview the assembled file (e.g.
+# via 'connie context'), making it easy to trace any instruction back to
+# its host source. Emits nothing if neither host file exists.
+_emit_user_context() {
+    _euc_etc="/etc/claude-code/CLAUDE.md"
+    _euc_user="$HOME/.claude/CLAUDE.md"
 
-    rm -f "$_guc_dest"
-    if [ -f "$_guc_etc" ]; then
-        cat "$_guc_etc" > "$_guc_dest"
+    if [ -f "$_euc_etc" ]; then
+        printf '<!-- source: /etc/claude-code/CLAUDE.md on host (system-wide) -->\n\n'
+        cat "$_euc_etc"
     fi
-    if [ -f "$_guc_user" ]; then
-        [ -s "$_guc_dest" ] && printf '\n' >> "$_guc_dest"
-        cat "$_guc_user" >> "$_guc_dest"
+    if [ -f "$_euc_user" ]; then
+        [ -f "$_euc_etc" ] && printf '\n'
+        printf '<!-- source: ~/.claude/CLAUDE.md on host (user-specific) -->\n\n'
+        cat "$_euc_user"
     fi
-    # If neither host file exists, no $_guc_dest is created.
+}
+
+# Install the user-level Claude Code context to the per-project state
+# directory. The state directory's .claude/ is bind-mounted to ~/.claude/
+# inside the container, so the file lands at the user-level scope path
+# Claude Code expects. Removes the destination instead of leaving a 0-byte
+# file when both host sources are absent.
+_write_user_context() {
+    _wuc_root="$1"
+    _wuc_dest="$(_project_state_dir "$_wuc_root")/.claude/CLAUDE.md"
+    rm -f "$_wuc_dest"
+    _emit_user_context > "$_wuc_dest"
+    [ -s "$_wuc_dest" ] || rm -f "$_wuc_dest"
 }
 
 # ── Validation and config merge ───────────────────────────────────────────────
@@ -681,7 +694,7 @@ cmd_run() {
     # arg; user-level context is assembled fresh from host files at run time.
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
-    _generate_user_context "$_project_root"
+    _write_user_context "$_project_root"
     _run_compose "$_project_root" "$_override" build workspace
     _run_compose "$_project_root" "$_override" run --rm workspace
 }
@@ -733,9 +746,6 @@ cmd_context() {
     [ -f "$_cfg" ] || \
         _die "No project config found for $_project_root. Run '$TOOL init' first."
 
-    _ctx_state=$(_project_state_dir "$_project_root")
-    mkdir -p "$_ctx_state/.claude"
-
     _info "Project: $_project_root"
     printf '\n' >&2
 
@@ -750,14 +760,14 @@ cmd_context() {
 
     printf '\n\n' >&2
     _info "── User context (user-level scope) ──"
-    _detail "Assembled at $_ctx_state/.claude/CLAUDE.md"
+    _detail "Assembled from host /etc/claude-code/CLAUDE.md and ~/.claude/CLAUDE.md"
     _detail "Mounted as ~/.claude/CLAUDE.md inside the container"
     printf '\n' >&2
-    _generate_user_context "$_project_root"
-    if [ -s "$_ctx_state/.claude/CLAUDE.md" ]; then
-        cat "$_ctx_state/.claude/CLAUDE.md"
+    _user_ctx=$(_emit_user_context)
+    if [ -n "$_user_ctx" ]; then
+        printf '%s\n' "$_user_ctx"
     else
-        _detail "(empty — no host ~/.claude/CLAUDE.md or /etc/claude-code/CLAUDE.md found)"
+        _detail "(empty — neither host source file exists)"
     fi
 }
 

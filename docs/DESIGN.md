@@ -435,14 +435,32 @@ into the per-project state directory's `.claude/CLAUDE.md`. The state
 directory is bind-mounted to `~/.claude/` inside the container, so the
 assembled file lands at the path Claude Code expects.
 
-The assembly is done by `_generate_user_context` in `cmd_run` after
-`_generate_override` writes the Compose file but before the container
-starts. If neither host file exists, no file is written and the
-user-level scope is empty.
+Each source contribution is preceded by a block-level HTML comment
+identifying its origin (`<!-- source: /etc/claude-code/CLAUDE.md on host
+(system-wide) -->` and `<!-- source: ~/.claude/CLAUDE.md on host
+(user-specific) -->`). Claude Code strips block-level HTML comments from
+CLAUDE.md content before injecting it into context, so these markers cost
+no tokens. They remain visible to humans previewing the assembled file
+via `connie context` or by inspecting the state directory directly, which
+makes it straightforward to trace any user-level instruction back to its
+host source.
 
-This means host-side edits to `~/.claude/CLAUDE.md` are snapshotted at
-`connie run` time, consistent with how connie handles all other config.
-A change on the host takes effect on the next run, not the current one.
+Assembly is split between two functions:
+
+- `_emit_user_context` — emits the assembled content (including source
+  markers) to stdout. Pure; no side effects.
+- `_write_user_context` — calls `_emit_user_context` and redirects its
+  output to the state directory. Removes the destination instead of
+  leaving a zero-byte file when both host sources are absent.
+
+`cmd_run` calls `_write_user_context` after `_generate_override` writes
+the Compose file but before the container starts. `cmd_context` calls
+only `_emit_user_context` — preview never updates on-disk state.
+
+Host-side edits to `~/.claude/CLAUDE.md` or `/etc/claude-code/CLAUDE.md`
+are snapshotted at `connie run` time, consistent with how connie handles
+all other config. A change on the host takes effect on the next run, not
+the current one.
 
 ### Project and local: the project's own context
 
@@ -455,9 +473,11 @@ exists.
 ### Previewing
 
 `connie context [dir]` prints both connie-managed contexts without
-launching the container. It is the cheapest way to verify what Claude
-Code will load, and it uses the exact same code paths
-(`_generate_connie_context`, `_generate_user_context`) as `connie run`.
+launching the container or modifying any on-disk state. It is the
+cheapest way to verify what Claude Code will load. The command calls the
+same pure stdout-emitting functions used by `connie run`
+(`_generate_connie_context` and `_emit_user_context`), so what you see
+is exactly what the next `connie run` would install.
 
 ---
 
