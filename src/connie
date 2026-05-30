@@ -73,6 +73,11 @@ _VERBOSITY=1
 
 _die() {
     printf 'error: %s\n' "$1" >&2
+    # Optional second argument: an actionable hint printed under the
+    # primary message, indented to align with the leading 'error: '.
+    # Helps users recover without a search engine round-trip. Same
+    # split-message convention as _doctor's check output.
+    [ -n "${2:-}" ] && printf '       %s\n' "$2" >&2
     exit 1
 }
 
@@ -96,7 +101,9 @@ _debug() {
 }
 
 _require() {
-    command -v "$1" >/dev/null 2>&1 || _die "'$1' is required but not installed."
+    command -v "$1" >/dev/null 2>&1 || \
+        _die "'$1' is required but not installed." \
+             "Run '$TOOL doctor' for a full check of prerequisites."
 }
 
 _require_yq() {
@@ -104,7 +111,8 @@ _require_yq() {
     # eval-all is a yq v4 (mikefarah) command; earlier versions and the Python
     # yq fork do not have it and will produce cryptic errors throughout.
     yq eval-all 'null' /dev/null >/dev/null 2>&1 || \
-        _die "'yq' v4 (github.com/mikefarah/yq) is required but the installed 'yq' does not support 'eval-all'. See: https://github.com/mikefarah/yq#install"
+        _die "'yq' v4 (github.com/mikefarah/yq) is required, but the installed 'yq' does not support 'eval-all'." \
+             "Install yq v4: https://github.com/mikefarah/yq#install"
 }
 
 _usage() {
@@ -289,7 +297,8 @@ _migrate_project() {
 _merge_configs() {
     _mc_root="$1"
     [ -f "$DEFAULTS_FILE" ] || \
-        _die "defaults.yml not found at $DEFAULTS_FILE — try reinstalling connie."
+        _die "defaults.yml not found at $DEFAULTS_FILE" \
+             "Reinstall connie: make install PREFIX=~/.local (or 'connie doctor' to verify the install)"
     _mc_work=$(mktemp)
 
     printf '{}' > "$_mc_work"
@@ -722,7 +731,8 @@ _prepare() {
 
     _prep_config=$(_project_config "$_prep_root")
     [ -f "$_prep_config" ] || \
-        _die "No project config found for $_prep_root. Run '$TOOL init' first."
+        _die "No project config found for $_prep_root." \
+             "Run '$TOOL init $_prep_root' to scaffold one, or '$TOOL doctor $_prep_root' to diagnose."
 
     _require docker
 
@@ -783,7 +793,8 @@ cmd_build_base() {
 
     _base_dockerfile="$LIB_DIR/docker/base.Dockerfile"
     [ -f "$_base_dockerfile" ] || \
-        _die "base.Dockerfile not found at $_base_dockerfile"
+        _die "base.Dockerfile not found at $_base_dockerfile." \
+             "Reinstall connie: make install PREFIX=~/.local"
 
     _info "Building connie base image ($BASE_IMAGE)..."
     _detail "Alpine 3.20 + bash + curl + git + coreutils + Claude Code (includes Node.js)"
@@ -925,7 +936,8 @@ cmd_clean() {
     _require_yq
 
     [ -f "$(_project_config "$_project_root")" ] || \
-        _die "No project config found for $_project_root. Run '$TOOL init' first."
+        _die "No project config found for $_project_root." \
+             "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _require docker
 
@@ -944,7 +956,8 @@ cmd_config() {
 
     _cfg=$(_project_config "$_project_root")
     [ -f "$_cfg" ] || \
-        _die "No project config found for $_project_root. Run '$TOOL init' first."
+        _die "No project config found for $_project_root." \
+             "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _info "Project:  $_project_root"
     _info "Config:   $_cfg"
@@ -965,7 +978,8 @@ cmd_context() {
 
     _cfg=$(_project_config "$_project_root")
     [ -f "$_cfg" ] || \
-        _die "No project config found for $_project_root. Run '$TOOL init' first."
+        _die "No project config found for $_project_root." \
+             "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _merged=$(mktemp)
     trap 'rm -f "$_merged"' EXIT
@@ -1233,11 +1247,11 @@ _main() {
                 exit 0
                 ;;
             -*)
-                _die "Unknown flag: $1. Run '$TOOL help' for usage."
+                _die "Unknown flag: $1" "Run '$TOOL help' for usage."
                 ;;
             *)
                 [ -z "$_TARGET_DIR" ] || \
-                    _die "Unexpected argument: $1. Run '$TOOL help' for usage."
+                    _die "Unexpected argument: $1" "Run '$TOOL help' for usage."
                 _TARGET_DIR="$1"
                 shift
                 ;;
@@ -1260,7 +1274,7 @@ _main() {
             # silently showing usage — the user almost certainly typo'd a
             # command name.
             [ -z "$_TARGET_DIR" ] || \
-                _die "Unknown command: $_TARGET_DIR. Run '$TOOL help' for usage."
+                _die "Unknown command: $_TARGET_DIR" "Run '$TOOL help' for usage."
             _usage
             ;;
     esac
