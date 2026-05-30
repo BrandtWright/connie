@@ -873,7 +873,15 @@ cmd_build() {
     _info "Building project container for $_project_root"
     _merged=$(mktemp)
     _override=$(mktemp)
+    # EXIT trap fires on every termination path (normal exit, _die,
+    # uncaught signal that propagates via the INT/TERM handlers below).
+    # The signal handlers print a friendly "Interrupted." / "Terminated."
+    # so the user knows the exit was deliberate and not a crash, then
+    # exit with the conventional signal-derived code (128 + signum) which
+    # causes the EXIT trap to fire and remove the temp files.
     trap 'rm -f "$_merged" "$_override"' EXIT
+    trap '_info "Interrupted. Cleaning up."; exit 130' INT
+    trap '_info "Terminated. Cleaning up."; exit 143' TERM
     _prepare "$_project_root" "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
@@ -885,7 +893,10 @@ cmd_run() {
     _info "Starting Claude Code for $_project_root"
     _merged=$(mktemp)
     _override=$(mktemp)
+    # See cmd_build for the EXIT/INT/TERM trap rationale.
     trap 'rm -f "$_merged" "$_override"' EXIT
+    trap '_info "Interrupted. Cleaning up."; exit 130' INT
+    trap '_info "Terminated. Cleaning up."; exit 143' TERM
     _prepare "$_project_root" "$_merged"
     # _generate_override embeds the connie (managed-policy) context as a build
     # arg; user-level context is assembled fresh from host files at run time.
