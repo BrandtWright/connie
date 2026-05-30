@@ -634,7 +634,6 @@ _prepare() {
     _prep_out="$2"
 
     _require_yq
-    _require docker
 
     # Auto-migrate from old .connie/ layout if the new config doesn't exist yet
     if [ ! -f "$(_project_config "$_prep_root")" ] && [ -d "$_prep_root/.connie" ]; then
@@ -644,6 +643,8 @@ _prepare() {
     _prep_config=$(_project_config "$_prep_root")
     [ -f "$_prep_config" ] || \
         _die "No project config found for $_prep_root. Run '$TOOL init' first."
+
+    _require docker
 
     if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
         _info "Base image '$BASE_IMAGE' not found — building it now."
@@ -810,10 +811,11 @@ cmd_clean() {
     _project_root=$(_find_project_root "${1:-$PWD}")
 
     _require_yq
-    _require docker
 
     [ -f "$(_project_config "$_project_root")" ] || \
         _die "No project config found for $_project_root. Run '$TOOL init' first."
+
+    _require docker
 
     _info "Removing project container image for $_project_root"
     docker compose \
