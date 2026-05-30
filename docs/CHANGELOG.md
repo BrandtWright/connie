@@ -9,6 +9,125 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`connie doctor`** — new diagnostic subcommand. Runs a series of
+  checks across required tools (docker on PATH, daemon reachable, yq
+  on PATH, yq is v4), connie installation (lib dir + every Dockerfile
+  / compose file / config template), the base image (built or not),
+  and — optionally, when a path is given — per-project state (config
+  present and parseable, state-dir mode 0700). Each check reports
+  `ok` / `warn` / `fail` with an actionable hint on non-ok results.
+  Exits 0 if no failures, 1 if any. This is the command a user runs
+  FIRST when something isn't working right — surfaces misconfiguration
+  directly instead of letting a later `connie run` discover it
+  through a less-friendly error path. `connie doctor && connie run`
+  is a safe gating pattern.
+- **`-q` / `--quiet` and `-v` / `--verbose` flags** (with matching
+  `CONNIE_QUIET=1` / `CONNIE_VERBOSE=1` env vars). Three verbosity
+  levels: quiet (only errors), normal (info + detail, default),
+  verbose (also `[debug]` lines). Suppresses `==> Initializing` and
+  similar progress output for scripts that wrap connie; enables
+  internal tracing (currently the exact `docker compose` invocation)
+  for debugging.
+- **`_debug` log helper** — visible only at verbose level. Used by
+  `_run_compose` to trace the full `docker compose -p … -f … -f …`
+  call so a user can see exactly what connie is about to run when
+  diagnosing why something hangs or fails.
+- **SIGINT / SIGTERM signal handlers** in `cmd_run` and `cmd_build` —
+  print `Interrupted. Cleaning up.` / `Terminated. Cleaning up.` and
+  exit with the conventional 130 / 143 codes. The existing EXIT
+  trap still handles temp-file cleanup; the new handlers just make
+  Ctrl+C exit deliberately rather than silently.
+- **`make watch`** — wraps `tests/watch.sh` for re-run-on-change
+  development. Extra args pass through to `tests/run.sh` after `--`:
+  `make watch -- --pretty -f slug`.
+- **`make format` / `make format-check`** — wrap `shfmt` with the
+  project's POSIX-dialect, 4-space-indent, simplify options. The
+  `-check` variant is safe in CI / pre-commit (exits 0 if shfmt
+  isn't installed, so it can land before shfmt is provisioned
+  everywhere).
+- **Sectioned + ANSI-coloured `make help`** — Install / Lint and
+  format / Test / PREFIX sections with bold headers and dimmed
+  sub-text. Colors disable cleanly in non-TTY contexts.
+- **`.vscode/settings.json` + `.vscode/extensions.json`** — workspace
+  editor settings shipping shellcheck dialect (`-s sh`), shellscript
+  association for the bare `connie` script, 80-char rulers for
+  shell/markdown, LF EOLs, final newlines. `extensions.json`
+  recommends the four linter extensions matching `make lint`.
+- **OSS hygiene quartet**:
+  - `CODE_OF_CONDUCT.md` — adopts Contributor Covenant 2.1 by
+    reference (avoids in-repo drift from the canonical source)
+  - `.github/ISSUE_TEMPLATE/bug_report.md` — what happened / what
+    you expected / reproduction / environment / output
+  - `.github/ISSUE_TEMPLATE/feature_request.md` — problem / proposed
+    shape / alternatives / scope check against DESIGN.md principles
+  - `.github/PULL_REQUEST_TEMPLATE.md` — pre-commit checklist
+    (check / lint / test / test-docker / CHANGELOG / DESIGN if
+    security-relevant) plus summary / test plan / notes
+  - `.github/dependabot.yml` — weekly auto-PRs to bump
+    `actions/checkout@v4` and similar
+- **Function-index ToC at the top of `src/connie`** — 25-line table
+  of contents grouped by the existing section markers. Names only
+  (line numbers drift); doubles as a navigation roadmap matching
+  the order of definitions in the file.
+- **`docs/DESIGN.md` "Test Architecture" section** — documents the
+  four-layer split (unit / integration / cli / docker), the
+  given/when/expect DSL with one-claim-per-test convention, per-test
+  subshell isolation with redirected HOME/XDG_*, Docker-layer
+  per-subshell tag + network cleanup, the test-hook env overrides
+  (CONNIE_BASE_IMAGE, CONNIE_ETC_CLAUDE_MD, CONNIE_LIB_DIR,
+  CONNIE_NO_DISPATCH), and the cmd_run auto-TTY detection.
+- **`docs/TODO.md` "Release-Integration Punch List"** — captures
+  items deferred until the project has a real Git remote: GPG-signed
+  release tags, README badges, SBOM generation in CI, FUNDING.yml,
+  GitHub repo metadata.
+- **24 new tests** under `tests/cli/`: 8 verbosity, 8 doctor, 8
+  failure-path / error-message-shape. Total 207/207 (was 183).
+
+### Changed
+
+- **`_die` now accepts an optional second argument as a hint line**,
+  printed indented under the primary message. Every actionable error
+  path now ships a hint pointing at the next concrete recovery step:
+  `_require` failures point at `connie doctor`; `_require_yq` points
+  at the install URL; "no project config" points at both `connie init`
+  and `connie doctor`; "unknown flag / command / argument" all point
+  at `connie help`. Pre-existing one-arg `_die` callers continue to
+  work unchanged. The `--package requires an argument`-style
+  arg-validation errors deliberately stay hint-less.
+- **`_info` and `_detail` now gate on `$_VERBOSITY`** — silent under
+  `-q`, visible at default and `-v`. `_debug` is new at the same gate
+  boundary, visible only at `-v`. The "==> Next steps:" heredoc and
+  the "NOTE: Base image not found" leading newline in `cmd_init` are
+  also gated, so `connie -q init <dir>` produces truly empty stderr
+  on success.
+- **`docs/DESIGN.md` Build Process section** refreshed to describe
+  the SHA-pinned installer with the update procedure, reference the
+  new Alpine digest pin, and explain the supply-chain rationale.
+
+### Fixed
+
+- **Doctor failure-mode tests are now hermetic.** The original
+  formulation assumed docker would be absent at test time (true in
+  the dev container, false on real developer hosts) — two tests
+  failed when run on a host with docker installed. Fix: force a
+  deterministic failure by pointing `CONNIE_LIB_DIR` at a missing
+  path, so the install-presence checks always fail and the test
+  doesn't depend on the host's tool inventory.
+
+### Security
+
+- **Alpine base pinned by content digest**, not just tag. Docker
+  Hub does not guarantee tag immutability — a re-push to
+  `alpine:3.20` (whether legitimate or compromised) would silently
+  change what every fresh connie base image starts from. Now uses
+  `alpine:3.20@sha256:d9e853e87e55…` so a rebuild reproduces
+  exactly the same Alpine layers, or fails loudly if the registry
+  no longer serves that digest. Update procedure documented in a
+  comment block in `base.Dockerfile`. Same pattern as the
+  SHA-pinned Claude Code installer landed in v0.3.0.
+
 ---
 
 ## [0.3.0] — 2026-05-30
