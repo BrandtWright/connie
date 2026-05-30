@@ -400,6 +400,29 @@ any path other than the bind mount.
 
 - Nothing is written to the project's source tree. No `.gitignore` update needed.
 
+### XDG placement and machine-locality
+
+Per-project config lives in `XDG_CONFIG_HOME` (`~/.config/connie/projects/<slug>/`)
+because it is user-edited configuration — the textbook XDG_CONFIG_HOME case.
+The `<slug>` is derived from the project path, so these entries are inherently
+machine-local: a different machine without that exact path won't have a
+matching project, and the config files there have no meaning.
+
+`XDG_STATE_HOME` has stronger spec language about non-portability ("not
+important or portable enough to the user that it should be stored in
+`XDG_DATA_HOME`") and would also be defensible for machine-local data. It
+was not chosen here because state-home is conventionally for application-
+managed state (logs, history, undo, layout) rather than user-edited input,
+and putting hand-curated config files there breaks the "config = stuff I
+edit" mental model that other CLI tools (`gh`, `git`, VS Code, etc.)
+reinforce by placing similar machine-specific user config under
+`XDG_CONFIG_HOME`.
+
+The practical consequence for developers who sync `~/.config/` to a
+dotfiles repository: exclude `~/.config/connie/projects/` from the sync.
+The rest of `~/.config/connie/` — including any user-level
+`~/.config/connie/config.yml` — is portable and safe to sync.
+
 ---
 
 ## Claude Code Context Model

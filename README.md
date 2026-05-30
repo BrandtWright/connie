@@ -319,6 +319,16 @@ paths for any project.
 The project directory itself is never modified — no `.gitignore` update, no
 config files, nothing. The project does not need to know connie exists.
 
+### Syncing `~/.config/` to a dotfiles repository
+
+If you keep `~/.config/` in a dotfiles repository, exclude
+`~/.config/connie/projects/` from the sync. The per-project configs there
+are keyed to specific project paths on the current machine (via the
+`<slug>`) and aren't meaningful on a different machine where the same
+project doesn't exist at the same path. The rest of `~/.config/connie/`
+— including any user-level `~/.config/connie/config.yml` you may add — is
+safe to sync normally.
+
 ---
 
 ## Installed Files
