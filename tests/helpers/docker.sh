@@ -1,0 +1,103 @@
+# tests/helpers/docker.sh
+#
+# Docker-specific fixtures, stimuli, and assertions for tests under
+# tests/docker/. Sourced by the harness alongside preconditions.sh
+# (harness sources every tests/helpers/*.sh), but the helpers here only
+# do useful work when docker is on $PATH and a test uses them.
+#
+# Image isolation: tests set $CONNIE_BASE_IMAGE via
+# `a_unique_test_base_image_tag` so connie writes to a one-off tag
+# under the connie-test/base namespace. The fixture also registers a
+# trap to `docker rmi` that tag at subshell exit, so a clean run leaves
+# the user's `connie/base:latest` untouched and no stray test images
+# behind. If a test is killed mid-run the orphan can be removed later
+# with `docker image rm $(docker image ls -q connie-test/base)`.
+
+# shellcheck disable=SC2148 # sourced by harness; no shebang needed
+
+# ── Fixtures ───────────────────────────────────────────────────────────────
+
+# Generate a unique image tag under the connie-test/base namespace and
+# export it as CONNIE_BASE_IMAGE so connie's BASE_IMAGE constant picks it
+# up. Registers a trap to remove the tag at subshell exit; an explicit
+# `docker image rm -f` is used so test images don't accumulate even when
+# they're tagged in interim build layers.
+a_unique_test_base_image_tag() {
+    # $TEST_NAME comes from the harness; $$ is the test subshell's PID.
+    # The combination is guaranteed unique within a harness run.
+    test_base_image="connie-test/base:harness-${TEST_NAME}-$$"
+    export CONNIE_BASE_IMAGE="$test_base_image"
+    # shellcheck disable=SC2064 # we want the variable resolved now
+    trap "docker image rm -f '$test_base_image' >/dev/null 2>&1 || true" EXIT
+}
+
+# ── Stimuli ────────────────────────────────────────────────────────────────
+
+the_user_runs_connie_build_base() {
+    exercise_connie build-base
+}
+
+# ── Assertions ─────────────────────────────────────────────────────────────
+
+the_image_exists() {
+    if docker image inspect "$test_base_image" >/dev/null 2>&1; then
+        return 0
+    fi
+    _assertion_failure "image to exist" "$test_base_image" \
+                       "actual" "no such image (docker image inspect failed)"
+    return 1
+}
+
+the_image_user_field_to_be() {
+    _expected="$1"
+    _actual=$(docker image inspect "$test_base_image" --format '{{.Config.User}}')
+    expect_equal "$_expected" "$_actual"
+}
+
+the_image_to_have_env_var() {
+    _name="$1"
+    _expected="$2"
+    _actual=$(docker image inspect "$test_base_image" \
+        --format "{{range .Config.Env}}{{println .}}{{end}}" \
+        | grep "^${_name}=" | sed "s/^${_name}=//")
+    expect_equal "$_expected" "$_actual"
+}
+
+the_image_entrypoint_to_include() {
+    _expected="$1"
+    _actual=$(docker image inspect "$test_base_image" --format '{{.Config.Entrypoint}}')
+    expect_contains "$_actual" "$_expected"
+}
+
+# Verify that `id` for a given user inside the image yields the
+# expected uid. Combines image-run with the assertion in one call so
+# tests don't have to thread state between separate steps.
+the_image_has_user_at_uid() {
+    _user="$1"
+    _expected_uid="$2"
+    _actual=$(docker run --rm "$test_base_image" id -u "$_user" 2>/dev/null)
+    expect_equal "$_expected_uid" "$_actual"
+}
+
+# Verify that a file exists inside the image at the given path (run
+# inside a transient container).
+the_image_contains_file() {
+    _path="$1"
+    if docker run --rm "$test_base_image" test -f "$_path" >/dev/null 2>&1; then
+        return 0
+    fi
+    _assertion_failure "file to exist in image" "$_path" \
+                       "actual" "no such file in container filesystem"
+    return 1
+}
+
+# Verify a directory exists inside the image at the given path.
+the_image_contains_directory() {
+    _path="$1"
+    if docker run --rm "$test_base_image" test -d "$_path" >/dev/null 2>&1; then
+        return 0
+    fi
+    _assertion_failure "directory to exist in image" "$_path" \
+                       "actual" "no such directory in container filesystem"
+    return 1
+}

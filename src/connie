@@ -7,7 +7,12 @@ set -eu
 
 VERSION="0.2.0"
 TOOL="connie"
-BASE_IMAGE="connie/base:latest"
+# Production default for the base image tag. Overridable via
+# $CONNIE_BASE_IMAGE so tests can build to an isolated tag without
+# clobbering the user's real `connie/base:latest`. Also useful outside
+# testing — e.g. building a `connie-arm/base:latest` on an arm host
+# without overwriting the x86_64 image.
+BASE_IMAGE="${CONNIE_BASE_IMAGE:-connie/base:latest}"
 
 # CONNIE_LIB_DIR can be overridden for development:
 #   CONNIE_LIB_DIR=./src ./src/connie run ~/repos/project

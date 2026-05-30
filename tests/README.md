@@ -7,7 +7,7 @@ behaviour specifications.
 ## Running
 
 ```sh
-make test                            # run everything (TAP output)
+make test                            # run everything except docker (TAP output)
 sh tests/run.sh                      # same
 sh tests/run.sh --pretty             # ANSI-coloured human-readable output
 sh tests/run.sh -v                   # verbose: breadcrumbs on every test,
@@ -16,6 +16,11 @@ sh tests/run.sh -f slug              # filter: only tests whose name
                                      # contains "slug"
 sh tests/run.sh tests/unit/...sh     # run a specific file
 sh tests/watch.sh                    # re-run on file change (needs `entr`)
+
+make test-docker                     # run the docker-gated layer
+sh tests/run-docker.sh               # same; same flags as run.sh
+                                     # Skips with exit 0 if `docker` is not
+                                     # on PATH or the daemon is unreachable
 ```
 
 ## Architecture at a glance
@@ -35,9 +40,13 @@ tests/
 └── docker/                     # gated; run from a Docker-capable host only
 ```
 
-`tests/run.sh` runs `tests/{unit,integration,cli}/*.sh` by default —
-Docker tests are deliberately excluded and live in a separate tree so
-they can run only on a host that can build images.
+`tests/run.sh` runs `tests/{unit,integration,cli}/*.sh` by default.
+Docker-gated tests live separately under `tests/docker/` and are run by
+`tests/run-docker.sh`, which exits 0 with a message if `docker` is not
+available — so it's safe to call from CI that may or may not have a
+daemon. Tests set `CONNIE_BASE_IMAGE` to a unique `connie-test/base:*`
+tag and `docker image rm` it on subshell exit so a developer's
+production `connie/base:latest` is never touched.
 
 ## How a test is structured
 

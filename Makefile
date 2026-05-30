@@ -8,7 +8,7 @@ INSTALL  := install
 
 # ── Phony targets ─────────────────────────────────────────────────────────────
 
-.PHONY: all install uninstall check test help
+.PHONY: all install uninstall check test test-docker help
 
 all: help
 
@@ -19,6 +19,10 @@ help:
 	@echo "  uninstall  Remove connie from PREFIX"
 	@echo "  check      Syntax-check the CLI script (sh -n)"
 	@echo "  test       Run the POSIX shell test suite (tests/run.sh)"
+	@echo "  test-docker  Run the Docker-gated test layer (tests/run-docker.sh)"
+	@echo "             Skips if docker is not on PATH; otherwise builds"
+	@echo "             real images into a connie-test/* namespace and"
+	@echo "             cleans up after itself."
 	@echo ""
 	@echo "Test runner accepts flags via 'sh tests/run.sh':"
 	@echo "  --pretty   ANSI-coloured output instead of TAP"
@@ -66,3 +70,6 @@ check:
 
 test:
 	@sh $(CURDIR)/tests/run.sh
+
+test-docker:
+	@sh $(CURDIR)/tests/run-docker.sh
