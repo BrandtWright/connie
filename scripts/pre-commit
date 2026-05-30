@@ -1,0 +1,39 @@
+#!/bin/sh
+# scripts/pre-commit
+#
+# Pre-commit hook for connie. Runs the project lint convention so that
+# bashisms, doc-style drift, Dockerfile smells, and malformed YAML get
+# caught at commit time rather than during a later audit.
+#
+# Install with:  make install-hooks
+# Bypass once:   git commit --no-verify
+#
+# Implementation note: we run the FULL `make lint` rather than just the
+# changed files. The convention here is correctness over speed — the
+# whole repo is small enough that linting it takes a couple of seconds,
+# and partial linting risks letting cross-file regressions slip through.
+
+set -eu
+
+_repo_root=$(git rev-parse --show-toplevel)
+
+# Make tools are not POSIX-mandatory on every host, but `make lint` is
+# the documented entry point and other contributors will use it. If
+# `make` is absent, fall through to a direct shellcheck run so the
+# hook at least catches POSIX-sh issues — the most expensive class to
+# debug after the fact.
+if command -v make >/dev/null 2>&1; then
+    cd "$_repo_root"
+    if ! make lint; then
+        printf '\npre-commit: lint failed. Fix the issues above, or bypass with --no-verify.\n' >&2
+        exit 1
+    fi
+else
+    printf 'pre-commit: make not on PATH; falling back to shellcheck-only.\n' >&2
+    if command -v shellcheck >/dev/null 2>&1; then
+        shellcheck -s sh "$_repo_root/src/connie" || exit 1
+    else
+        printf 'pre-commit: shellcheck also missing; cannot verify. Install one of them.\n' >&2
+        exit 1
+    fi
+fi
