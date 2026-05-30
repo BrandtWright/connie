@@ -535,17 +535,26 @@ the cheapest way to verify what Claude Code will actually load.
 
 All four emit functions are pure: they print to stdout, take no side
 effects, and emit nothing if their sources are absent. `cmd_context`
-prints them in load order (broadest to most specific) with stderr
-section headers identifying the scope and its source paths.
+prints them in load order (broadest to most specific). The four scopes
+are wrapped between a document-level preview header and footer, with
+each scope preceded by a per-scope header identifying the scope number
+(1/4 through 4/4), its container path, and how its content gets there.
 
-For scopes where the output combines multiple host files (managed
-policy via merged config, user-level via concatenation, project via
-both `./CLAUDE.md` and `./.claude/CLAUDE.md`), the emitted content
-includes block-level HTML source-attribution markers. Claude Code
-strips block-level HTML comments before context injection per its
-memory documentation, so the markers cost no tokens at run time but
-remain visible to humans reading the preview, making it easy to trace
-any instruction back to its source.
+All preview structure — document header, per-scope headers, footer, and
+empty-scope markers — is written to stdout as block-level HTML comments.
+Claude Code strips block-level HTML comments before context injection
+per its memory documentation, so the markers cost no tokens if the
+preview is ever redirected to a file and loaded back as actual context.
+The advantage of putting the structure on stdout (rather than stderr)
+is that `connie context > preview.md` produces a coherent, self-
+contained document with every scope clearly delineated rather than
+losing the scope labels on redirect.
+
+Source-attribution markers within a scope (when multiple host files
+contribute — user-level from two host paths, project from `./CLAUDE.md`
+and `./.claude/CLAUDE.md`) follow the same HTML-comment convention.
+Together with the section headers, they let humans trace any
+instruction back to its source.
 
 What's not yet previewed: `.claude/rules/*.md` (project and user
 rules), which Claude Code also loads. Their inclusion would require
