@@ -101,9 +101,14 @@ expect_to_match_snapshot() {
     _actual_value="$2"
     _snapshot="$_HARNESS_REPO_ROOT/tests/snapshots/$_snapshot_name"
 
+    # `$(...)` capture strips trailing newlines, so the snapshot must
+    # always end with exactly one — printf '%s\n' restores it on both
+    # the write path (so the file passes markdownlint's MD047 and reads
+    # cleanly in editors) and the diff path (so the comparison files
+    # have matching shape).
     if [ "${UPDATE_SNAPSHOTS:-0}" = "1" ]; then
         mkdir -p "$(dirname "$_snapshot")"
-        printf '%s' "$_actual_value" > "$_snapshot"
+        printf '%s\n' "$_actual_value" > "$_snapshot"
         return 0
     fi
 
@@ -115,7 +120,7 @@ expect_to_match_snapshot() {
     fi
 
     _actual_tmp=$(mktemp)
-    printf '%s' "$_actual_value" > "$_actual_tmp"
+    printf '%s\n' "$_actual_value" > "$_actual_tmp"
     if diff -q "$_snapshot" "$_actual_tmp" >/dev/null 2>&1; then
         rm -f "$_actual_tmp"
         return 0

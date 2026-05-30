@@ -464,14 +464,22 @@ project itself is described by /workspace/CLAUDE.md (if present).
 ## Available Tools
 
 HEADER
-    printf 'Base image: bash, git, curl, wget, ripgrep, fd, jq, tree, file, tar, gzip, unzip, lsof, and standard Unix utilities.\n'
+    # Wrap the "Base image:" sentence across two source lines so each
+    # stays under 80 chars (markdownlint MD013). Markdown collapses a
+    # single newline inside a paragraph, so the rendered output is
+    # identical to the one-line form.
+    printf 'Base image: bash, git, curl, wget, ripgrep, fd, jq, tree, file, tar,\n'
+    printf 'gzip, unzip, lsof, and standard Unix utilities.\n'
     if [ -n "$_gcc_pkgs" ]; then
         _gcc_pkg_line=$(printf '%s\n' "$_gcc_pkgs" | tr '\n' ',' | sed 's/,$//; s/,/, /g')
         printf '\nProject packages (apk): %s\n' "$_gcc_pkg_line"
     fi
     if [ -n "$_gcc_cmds" ]; then
-        printf '\nBuild-time setup commands:\n'
-        printf '%s\n' "$_gcc_cmds" | sed 's/^/  - /'
+        # Blank line before the list and zero indent on the bullets so
+        # the output passes markdownlint MD007/MD032. Renders the same
+        # as the prior 2-space-indented form in any markdown engine.
+        printf '\nBuild-time setup commands:\n\n'
+        printf '%s\n' "$_gcc_cmds" | sed 's/^/- /'
     fi
     if [ -n "$_gcc_vols" ]; then
         printf '\n## Additional Mounts\n\n'

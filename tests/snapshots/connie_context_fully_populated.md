@@ -13,12 +13,14 @@ project itself is described by /workspace/CLAUDE.md (if present).
 
 ## Available Tools
 
-Base image: bash, git, curl, wget, ripgrep, fd, jq, tree, file, tar, gzip, unzip, lsof, and standard Unix utilities.
+Base image: bash, git, curl, wget, ripgrep, fd, jq, tree, file, tar,
+gzip, unzip, lsof, and standard Unix utilities.
 
 Project packages (apk): python3, py3-pip
 
 Build-time setup commands:
-  - pip install black
+
+- pip install black
 
 ## Additional Mounts
 
