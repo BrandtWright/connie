@@ -33,19 +33,31 @@ a_unique_test_base_image_tag() {
 
 # Variant for tests that exercise per-project image builds: also sets
 # up a project directory and pre-computes the docker compose-derived
-# workspace image name so cleanup removes BOTH the base and the
-# workspace image at subshell exit. Docker compose names service images
-# `<project>-<service>` when no explicit `image:` key is set; here that
-# resolves to `connie-<slug>-workspace`.
+# workspace image AND network names so cleanup removes ALL three at
+# subshell exit. Docker compose names service images
+# `<project>-<service>` and the default network `<project>_default`
+# when no explicit `image:` / `networks:` key is set; here those
+# resolve to `connie-<slug>-workspace` and `connie-<slug>_default`.
+#
+# The network cleanup matters because `docker compose run --rm` removes
+# the container but NOT the network — without explicit teardown, every
+# test leaves a /16 subnet allocated. Docker's default IPAM pool runs
+# out after ~30 networks, and the next `docker compose run` then fails
+# with "all predefined address pools have been fully subnetted". The
+# `connie clean` integration test uses `docker compose down --rmi local`
+# which does remove the network, but the `connie run` tests use
+# `docker compose run --rm` and need this explicit cleanup.
 a_unique_test_base_image_tag_and_an_initialized_project() {
     test_base_image="connie-test/base:harness-${TEST_NAME}-$$"
     export CONNIE_BASE_IMAGE="$test_base_image"
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path"
     exercise_connie init "$project_path" >/dev/null 2>&1
-    workspace_image="$(_compose_project_name "$project_path")-workspace"
+    _proj=$(_compose_project_name "$project_path")
+    workspace_image="${_proj}-workspace"
+    workspace_network="${_proj}_default"
     # shellcheck disable=SC2064 # we want the variables resolved now
-    trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true" EXIT
+    trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true; docker network rm '$workspace_network' >/dev/null 2>&1 || true" EXIT
 }
 
 # Drop a sentinel file with known content into the project directory so
@@ -72,9 +84,11 @@ a_unique_test_base_image_tag_and_a_legacy_dot_connie_project() {
     # moved" since it could've been created from scratch.
     cp "$_HARNESS_REPO_ROOT/src/config/project-template.yml" \
        "$project_path/.connie/config.yml"
-    workspace_image="$(_compose_project_name "$project_path")-workspace"
+    _proj=$(_compose_project_name "$project_path")
+    workspace_image="${_proj}-workspace"
+    workspace_network="${_proj}_default"
     # shellcheck disable=SC2064 # we want the variables resolved now
-    trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true" EXIT
+    trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true; docker network rm '$workspace_network' >/dev/null 2>&1 || true" EXIT
 }
 
 # Variant that stages a fingerprint in the project's merged config — a
