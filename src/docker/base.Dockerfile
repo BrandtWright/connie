@@ -9,7 +9,20 @@
 #   connie build-base
 # =============================================================================
 
-FROM alpine:3.20
+# Alpine 3.20 pinned by content-addressed digest, not just tag. Docker
+# Hub does not guarantee tag immutability — a re-push to `alpine:3.20`
+# would silently change what every fresh connie base image starts from.
+# The digest is content-addressed and immutable.
+#
+# Update procedure (when bumping the minor Alpine version, or when a
+# verified Alpine rebuild ships a security fix worth picking up):
+#   1. Pull the new tag:  docker pull alpine:3.20
+#   2. Compute the digest: docker inspect --format='{{.RepoDigests}}' alpine:3.20
+#      (or use the registry API — see https://docs.docker.com/registry/spec/api/)
+#   3. Replace the value below, optionally bumping the human-readable
+#      `3.20` tag to whatever new minor was released.
+#   4. Note the change in docs/CHANGELOG.md under the next release.
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
 
 RUN apk add --no-cache \
     # Shell and core utilities
