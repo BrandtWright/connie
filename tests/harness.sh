@@ -69,6 +69,16 @@ _harness_setup_workspace() {
     # uniform for both shapes of test.
     export CONNIE_LIB_DIR="$_HARNESS_REPO_ROOT/src"
 
+    # Redirect the system-wide Claude Code policy path into the sandbox
+    # so emit_user_context (and anything that calls it) reads from a
+    # test-controlled location rather than /etc/claude-code/CLAUDE.md on
+    # the host. Tests that need the file present create it at this path;
+    # tests that need it absent leave it alone. Without this override the
+    # suite would behave differently inside a connie container (where
+    # /etc/ is populated) versus on a developer's host machine (where it
+    # almost certainly isn't).
+    export CONNIE_ETC_CLAUDE_MD="$WORKSPACE/system-claude.md"
+
     export HOME="$WORKSPACE/home"
     export XDG_CONFIG_HOME="$HOME/.config"
     export XDG_STATE_HOME="$HOME/.local/state"

@@ -503,8 +503,15 @@ FOOTER
 # tokens but remain visible when humans preview the assembled file (e.g.
 # via 'connie context'), making it easy to trace any instruction back to
 # its host source. Emits nothing if neither host file exists.
+#
+# The system-wide path is overridable via $CONNIE_ETC_CLAUDE_MD so the
+# test suite can stage fixtures without touching /etc/ (the path is
+# unwritable to non-root and would otherwise be a global side-effect
+# across all connie installations on the machine). In production the
+# override is unset and the path defaults to the Claude Code docs'
+# managed-policy location.
 _emit_user_context() {
-    _euc_etc="/etc/claude-code/CLAUDE.md"
+    _euc_etc="${CONNIE_ETC_CLAUDE_MD:-/etc/claude-code/CLAUDE.md}"
     _euc_user="$HOME/.claude/CLAUDE.md"
 
     if [ -f "$_euc_etc" ]; then

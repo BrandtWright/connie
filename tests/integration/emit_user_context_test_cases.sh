@@ -4,32 +4,49 @@
 # concatenates the host's /etc/claude-code/CLAUDE.md (system-wide) and
 # ~/.claude/CLAUDE.md (user-specific) into the user-level Claude Code
 # context, with block-level HTML source-attribution markers between the
-# two contributions. Emits nothing if neither host file exists.
+# two contributions.
 #
-# Testing caveat: the test environment runs inside a connie container
-# that has /etc/claude-code/CLAUDE.md baked in (connie's own
-# managed-policy context). We can't remove or rewrite that file inside
-# the sandbox, so we can't fully exercise the "etc absent" branch from
-# here. The tests below verify what's observable: the etc marker is
-# always present, the user marker and content are emitted when ~/.claude/
-# CLAUDE.md exists, and the user marker and content are absent when
-# ~/.claude/CLAUDE.md does not.
+# The system-wide path is redirected to a sandbox file (via
+# $CONNIE_ETC_CLAUDE_MD, set by the harness) so the tests run
+# identically inside a connie container (where /etc/claude-code/CLAUDE.md
+# is baked in) and on a developer host (where it typically isn't).
+# Tests stage the system-wide and user files independently to exercise
+# all four combinations.
 
 # shellcheck disable=SC2148 # sourced by harness; no shebang needed
 
 # ── Preconditions ──────────────────────────────────────────────────────────
 
-a_user_level_claude_md_with_custom_content() {
-    mkdir -p "$HOME/.claude"
-    user_md_content="# My personal Claude Code preferences
+neither_host_source_present() {
+    # The harness already arranges for $CONNIE_ETC_CLAUDE_MD to point at
+    # a sandbox path that doesn't exist; ensure $HOME/.claude/CLAUDE.md
+    # is also absent.
+    rm -f "$HOME/.claude/CLAUDE.md"
+}
 
-- Prefer 2-space indentation.
-- Always run \`make check\` before committing."
+only_the_system_wide_source_present() {
+    system_md_content="# System-wide Claude Code policy
+
+Distinctive marker: org-wide-rules"
+    printf '%s' "$system_md_content" > "$CONNIE_ETC_CLAUDE_MD"
+    rm -f "$HOME/.claude/CLAUDE.md"
+}
+
+only_the_user_source_present() {
+    rm -f "$CONNIE_ETC_CLAUDE_MD"
+    mkdir -p "$HOME/.claude"
+    user_md_content="# Personal Claude Code preferences
+
+Distinctive marker: my-own-rules"
     printf '%s' "$user_md_content" > "$HOME/.claude/CLAUDE.md"
 }
 
-no_user_level_claude_md() {
-    rm -f "$HOME/.claude/CLAUDE.md"
+both_host_sources_present() {
+    system_md_content="# System-wide policy"
+    user_md_content="# Personal preferences"
+    printf '%s' "$system_md_content" > "$CONNIE_ETC_CLAUDE_MD"
+    mkdir -p "$HOME/.claude"
+    printf '%s' "$user_md_content" > "$HOME/.claude/CLAUDE.md"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -40,6 +57,10 @@ the_user_context_is_emitted() {
 
 # ── Assertions ─────────────────────────────────────────────────────────────
 
+the_output_is_empty() {
+    expect_empty "$emitted"
+}
+
 the_output_contains_the_system_wide_source_marker() {
     expect_contains "$emitted" "<!-- source: /etc/claude-code/CLAUDE.md on host (system-wide) -->"
 }
@@ -48,17 +69,31 @@ the_output_contains_the_user_source_marker() {
     expect_contains "$emitted" "<!-- source: ~/.claude/CLAUDE.md on host (user) -->"
 }
 
+the_output_does_not_contain_the_system_wide_source_marker() {
+    case "$emitted" in
+        *"<!-- source: /etc/claude-code/CLAUDE.md"*)
+            _assertion_failure "system-wide marker absence" "no system-wide marker" \
+                               "actual" "output contained the system-wide marker"
+            return 1
+            ;;
+    esac
+}
+
 the_output_does_not_contain_the_user_source_marker() {
     case "$emitted" in
         *"<!-- source: ~/.claude/CLAUDE.md"*)
-            _assertion_failure "user marker absence" "no user-source HTML comment" \
+            _assertion_failure "user marker absence" "no user-source marker" \
                                "actual" "output contained the user marker"
             return 1
             ;;
     esac
 }
 
-the_output_contains_the_user_claude_md_content() {
+the_output_contains_the_system_wide_content() {
+    expect_contains "$emitted" "$system_md_content"
+}
+
+the_output_contains_the_user_content() {
     expect_contains "$emitted" "$user_md_content"
 }
 
@@ -79,31 +114,39 @@ the_system_wide_marker_precedes_the_user_marker() {
 
 # ── Test cases ─────────────────────────────────────────────────────────────
 
-user_context_includes_the_system_wide_marker_for_etc_claude_code_md_test_case() {
+emit_user_context_emits_nothing_when_neither_host_source_exists_test_case() {
+    given neither_host_source_present
+    when the_user_context_is_emitted
+    expect the_output_is_empty
+}
+
+emit_user_context_includes_the_system_wide_marker_and_content_when_only_etc_exists_test_case() {
+    given only_the_system_wide_source_present
     when the_user_context_is_emitted
     expect the_output_contains_the_system_wide_source_marker
-}
-
-user_context_includes_the_user_marker_when_the_user_claude_md_exists_test_case() {
-    given a_user_level_claude_md_with_custom_content
-    when the_user_context_is_emitted
-    expect the_output_contains_the_user_source_marker
-}
-
-user_context_includes_the_user_claude_md_content_when_present_test_case() {
-    given a_user_level_claude_md_with_custom_content
-    when the_user_context_is_emitted
-    expect the_output_contains_the_user_claude_md_content
-}
-
-user_context_omits_the_user_marker_when_the_user_claude_md_does_not_exist_test_case() {
-    given no_user_level_claude_md
-    when the_user_context_is_emitted
+    expect the_output_contains_the_system_wide_content
     expect the_output_does_not_contain_the_user_source_marker
 }
 
-user_context_emits_the_system_wide_section_before_the_user_section_test_case() {
-    given a_user_level_claude_md_with_custom_content
+emit_user_context_includes_the_user_marker_and_content_when_only_user_exists_test_case() {
+    given only_the_user_source_present
+    when the_user_context_is_emitted
+    expect the_output_contains_the_user_source_marker
+    expect the_output_contains_the_user_content
+    expect the_output_does_not_contain_the_system_wide_source_marker
+}
+
+emit_user_context_includes_both_sections_when_both_host_sources_exist_test_case() {
+    given both_host_sources_present
+    when the_user_context_is_emitted
+    expect the_output_contains_the_system_wide_source_marker
+    expect the_output_contains_the_user_source_marker
+    expect the_output_contains_the_system_wide_content
+    expect the_output_contains_the_user_content
+}
+
+emit_user_context_emits_the_system_wide_section_before_the_user_section_test_case() {
+    given both_host_sources_present
     when the_user_context_is_emitted
     expect the_system_wide_marker_precedes_the_user_marker
 }
