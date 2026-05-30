@@ -104,6 +104,27 @@ a git safe directory, and `exec`s the command as PID 1. The base image bakes in
 `DISABLE_AUTOUPDATER=1` — without it Claude Code's updater hangs trying to
 write to the read-only filesystem.
 
+### Claude Code context generation
+
+Claude Code loads `CLAUDE.md` from four scopes. connie populates two of them:
+
+1. **Managed policy** (`/etc/claude-code/CLAUDE.md` in the container) —
+   `_generate_connie_context` reads the merged config and emits markdown
+   describing the container. `_generate_override` encodes it as a JSON-string
+   YAML value and passes it as the `CONNIE_CONTEXT` build arg.
+   `extend.Dockerfile` writes it to the image as root. Baked into the layer
+   cache; immutable from inside the container.
+2. **User-level** (`~/.claude/CLAUDE.md` in the container) —
+   `_generate_user_context` concatenates the host's `/etc/claude-code/CLAUDE.md`
+   and `~/.claude/CLAUDE.md` (if present) into the per-project state directory,
+   which is bind-mounted to `~/.claude/`. Called from `cmd_run` at run time.
+
+The project and local scopes (`/workspace/CLAUDE.md`,
+`/workspace/CLAUDE.local.md`) come from the project directory unchanged —
+connie never touches `/workspace/`. `connie context` exercises the same
+generation code paths without launching the container, which is the
+preferred way to verify context output.
+
 ## Conventions
 
 - Version lives in one place: `VERSION` at the top of `src/connie`. Bump it
@@ -112,6 +133,11 @@ write to the read-only filesystem.
   default — treat it like a public API change.
 - Security-relevant edits to `src/docker/docker-compose.yml` or `src/docker/base.Dockerfile`
   should be mirrored in `docs/DESIGN.md`, which documents the rationale for each hardening measure.
+- Changes to context generation (`_generate_connie_context`,
+  `_generate_user_context`, or the `CONNIE_CONTEXT` build-arg wiring in
+  `extend.Dockerfile`) should be mirrored in the **Claude Code Context Model**
+  section of `docs/DESIGN.md` and the **Claude Code Context** section of
+  `README.md`.
 - `docs/TODO.md` tracks features and ideas under consideration.
   Consult it when evaluating new work; update it when items are completed or
   when new ideas arise during a session.

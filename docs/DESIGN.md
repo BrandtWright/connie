@@ -376,6 +376,91 @@ No API keys are required. Authentication uses the user's Anthropic subscription.
 
 ---
 
+## Claude Code Context Model
+
+Claude Code loads `CLAUDE.md` files from four scopes, documented in the
+[Claude Code memory documentation](https://code.claude.com/docs/en/memory):
+
+| Scope | Location in container | Populated by | Loaded |
+| --- | --- | --- | --- |
+| Managed policy | `/etc/claude-code/CLAUDE.md` | connie (build time) | Every session, immutable |
+| User-level | `~/.claude/CLAUDE.md` | connie (run time) | Every session |
+| Project | `/workspace/[.claude/]CLAUDE.md` | the project | When working in `/workspace` |
+| Local | `/workspace/CLAUDE.local.md` | the developer | When working in `/workspace` |
+
+connie populates the managed-policy and user-level scopes because they
+describe context that the project itself cannot articulate without
+knowing about connie. The project and local scopes come from `/workspace`
+exactly as Claude Code finds them — connie never touches
+`/workspace/CLAUDE.md` or `/workspace/CLAUDE.local.md`, preserving the
+non-invasive contract.
+
+### Managed-policy: the connie self-description
+
+The managed-policy scope is the only Claude Code scope that the user
+cannot exclude. This is the right home for context describing connie
+itself and how the container has been customized for the project:
+
+- A short description of what connie is
+- Filesystem layout (`/workspace` read/write, `/tmp` tmpfs, rest read-only)
+- Available tooling (base-image utilities + packages from `config.yml`)
+- Build-time setup commands
+- Additional mounts and exposed ports
+- Environment variables
+- Resource limits
+- Security constraints
+
+All of this is derivable from the merged config (see [Config Merge Flow]
+(#config-merge-flow)). At build time, `_generate_connie_context` reads
+the merged config, emits the markdown, and `_generate_override` encodes
+it as a JSON-string YAML value in the Compose override under
+`build.args.CONNIE_CONTEXT`. `extend.Dockerfile` writes it to
+`/etc/claude-code/CLAUDE.md` inside the image as root. Docker's layer
+cache makes the rebuild instant when the content has not changed.
+
+JSON encoding is used because multi-line YAML block scalars require
+indentation matching the parent key. A JSON-encoded string is single-line
+with `\n` escapes, which YAML's double-quoted string syntax decodes back
+to a real multi-line value on parse. This avoids any indentation-tracking
+logic in the heredoc that produces the override.
+
+### User-level: host preferences into the container
+
+The user-level scope is the right home for host-side preferences that
+apply to every project — coding style, commit message format, personal
+workflow notes. These live on the host at `~/.claude/CLAUDE.md`, plus
+potentially `/etc/claude-code/CLAUDE.md` for system-wide host context.
+Connie respects both by reading them at run time and concatenating them
+into the per-project state directory's `.claude/CLAUDE.md`. The state
+directory is bind-mounted to `~/.claude/` inside the container, so the
+assembled file lands at the path Claude Code expects.
+
+The assembly is done by `_generate_user_context` in `cmd_run` after
+`_generate_override` writes the Compose file but before the container
+starts. If neither host file exists, no file is written and the
+user-level scope is empty.
+
+This means host-side edits to `~/.claude/CLAUDE.md` are snapshotted at
+`connie run` time, consistent with how connie handles all other config.
+A change on the host takes effect on the next run, not the current one.
+
+### Project and local: the project's own context
+
+connie never reads or writes these. They are part of `/workspace`, which
+is mounted from the host project directory. If a project already uses
+`CLAUDE.md`, it works as-is — Claude Code finds it via its normal
+directory-walk loading. The project author has no need to know connie
+exists.
+
+### Previewing
+
+`connie context [dir]` prints both connie-managed contexts without
+launching the container. It is the cheapest way to verify what Claude
+Code will load, and it uses the exact same code paths
+(`_generate_connie_context`, `_generate_user_context`) as `connie run`.
+
+---
+
 ## Future Directions
 
 Explicitly out of scope for the initial implementation but accounted for in

@@ -11,24 +11,6 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- `connie run` now generates `~/.claude/CLAUDE.md` in the per-project state
-  directory before starting the container. Claude Code loads this file
-  automatically as user-level context on every session, giving the agent
-  accurate knowledge of the container environment — filesystem constraints,
-  available tools, installed packages, build-time setup, extra mounts, exposed
-  ports, environment variables, and resource limits — without the project's own
-  `CLAUDE.md` needing any awareness of connie.
-
-### Changed
-
-- `config/defaults.yml` is now load-bearing: all config keys are guaranteed
-  to be present in the merged config after it is loaded, so the `// fallback`
-  values that were duplicated in the script's yq expressions have been removed.
-  `_merge_configs` now checks for the file at startup and exits with a clear
-  error if it is missing rather than silently producing null values.
-
-### Added
-
 - **Zero project footprint** — `connie` no longer writes anything to the
   project directory. All state (config, Claude Code auth, session history)
   now lives in standard XDG directories on the developer's machine:
@@ -36,6 +18,27 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - `~/.local/state/connie/<slug>/` — Claude Code state and auth
   - `~/.local/share/connie/projects.yml` — project registry (path → slug)
   No `.gitignore` entry needed; the project does not need to know connie exists.
+- **Claude Code context generation** at two of Claude Code's four
+  documented context scopes. Connie owns the two that describe the
+  container environment; the project and local scopes are untouched.
+  - **Managed-policy scope** (`/etc/claude-code/CLAUDE.md`) — connie reads
+    the merged config and generates a description of the container
+    environment (installed packages, build commands, additional mounts,
+    exposed ports, environment variables, resource limits, security
+    constraints) and bakes it into the image at build time via a Docker
+    build arg. Because it lives in the image, the user cannot exclude it.
+  - **User-level scope** (`~/.claude/CLAUDE.md`) — connie assembles the
+    host's `/etc/claude-code/CLAUDE.md` and `~/.claude/CLAUDE.md` (if
+    present) into a single file in the per-project state directory, which
+    is bind-mounted to `~/.claude/` inside the container. Forwards the
+    user's personal Claude Code preferences without per-project copies.
+  Claude Code's default loading behaviour also picks up
+  `/workspace/CLAUDE.md` and `/workspace/CLAUDE.local.md` from the project
+  — connie never touches those, so projects that already use them work
+  unchanged.
+- `connie context [dir]` — new subcommand that prints both connie-managed
+  contexts without starting the container. Requires no Docker; useful for
+  previewing what Claude Code will load before a run.
 - `connie config [dir]` subcommand — prints the config file path, state
   directory path, and the effective Compose override for a project. Useful
   for diagnosing what `connie run` will do.
@@ -54,6 +57,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   separate `connie build-base` step. `connie build-base` remains available
   to explicitly rebuild the base image (e.g. to pick up a new Claude Code
   version).
+
+### Changed
+
+- `config/defaults.yml` is now load-bearing: all config keys are guaranteed
+  to be present in the merged config after it is loaded, so the `// fallback`
+  values that were duplicated in the script's yq expressions have been removed.
+  `_merge_configs` now checks for the file at startup and exits with a clear
+  error if it is missing rather than silently producing null values.
 
 ### Fixed
 
