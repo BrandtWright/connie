@@ -26,14 +26,25 @@ CONNIE_LIB_DIR=./src ./src/connie run  --cmd sh   # shell into the container to 
 ```
 
 `make check` is a sub-second `sh -n` parse check. `make test` runs the
-roll-your-own POSIX shell test suite under `tests/` against `src/connie`'s
-function definitions (sourced with `CONNIE_NO_DISPATCH=1` so the CLI doesn't
-fire). Tests are organised by depth: `tests/unit/` (pure functions),
-`tests/integration/` (filesystem I/O, no Docker), `tests/cli/` (full CLI
-invocations, no Docker). Test files contain `test_*` functions that the
-harness discovers, each running in an isolated subshell with a fresh
-fake-home workspace (`HOME`, `XDG_*` redirected to a `mktemp -d`). Docker-
-requiring tests are deferred — they need a host that can build images.
+POSIX shell test suite under `tests/` — a roll-your-own harness with a
+`given`/`when`/`expect` DSL where each step is a named function the
+framework executes and records, inspired by slipbox's test architecture.
+`tests/README.md` is the authoritative reference; the short version:
+
+- File naming: `<feature>_test_cases.sh`
+- Function naming: preconditions `a_*`/`an_*`, stimuli `the_*`,
+  assertions `it_*` (named) or `expect_*` (primitive), tests `*_test_case`
+- One logical claim per test (multiple `expect` calls are fine when they
+  describe inseparable aspects of the same claim)
+- Each test runs in an isolated subshell with `HOME`/`XDG_*` redirected
+  to a `mktemp -d` so connie's path-derived globals point at a sandbox
+- `src/connie`'s argument parser and dispatch live in `_main`, called by
+  an entry-point line at the bottom; tests source the script with
+  `CONNIE_NO_DISPATCH=1` to get the functions without firing the CLI
+- Output: TAP by default; `sh tests/run.sh --pretty` for human-readable
+- Filter: `sh tests/run.sh -f <substring>` to run a subset
+- Docker-requiring tests live in a separate `tests/docker/` tree and run
+  from a Docker-capable host only — `make test` skips them
 
 ### Verification tooling
 

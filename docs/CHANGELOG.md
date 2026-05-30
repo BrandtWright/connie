@@ -11,21 +11,33 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **POSIX shell test suite** — roll-your-own ~140-line test harness under
-  `tests/` with no external dependencies. The harness provides per-test
-  subshell isolation, per-test fake-home workspaces (`HOME` and `XDG_*`
-  redirected to a `mktemp -d` so connie's path-derived globals point at
-  a sandbox), given/when/then documentation helpers, ~9 assertion helpers
-  (`assert_equal`, `assert_starts_with`, `assert_matches`, etc.), and
-  TAP-compatible output. Test files contain `test_*` functions that the
-  runner discovers automatically. `src/connie`'s argument parser and
-  dispatch are now wrapped in a `_main` function called by an entry-point
-  line at the bottom of the script, so tests can source the script with
-  `CONNIE_NO_DISPATCH=1` to get the function definitions without firing
-  the CLI. `make test` runs the suite. The initial commit ships one
-  unit-test file (`tests/unit/test_project_slug.sh`) demonstrating the
-  harness with six tests against `_project_slug`; more test files will
-  be added incrementally.
+- **POSIX shell test suite** — roll-your-own test harness under `tests/`
+  with no external dependencies, designed around a `given`/`when`/`expect`
+  DSL where each step is a named function the framework executes and
+  records. Inspired by slipbox's test architecture but with TAP output
+  by default and the "one logical claim per test" rule treated as a
+  documented convention rather than a structural constraint.
+  Provides per-test subshell isolation, per-test fake-home workspaces
+  (`HOME` and `XDG_*` redirected to a `mktemp -d` so connie's path-
+  derived globals point at a sandbox), per-test `$TEST_STDOUT` /
+  `$TEST_STDERR` files for capture-based assertions, primitive
+  assertions (`expect_equal`, `expect_match`, `expect_file_to_exist`,
+  etc.), process-level assertions (`it_succeeds`, `it_fails`,
+  `it_logs_to_stderr`), and an `exercise_connie` stimulus helper.
+  TAP version 13 by default with YAML diagnostic blocks and a
+  failed-test summary; pretty mode with ANSI colour via `--pretty`;
+  verbose mode preserving artifact directories via `-v`; substring
+  test selection via `-f`; entr-based watch mode via `tests/watch.sh`.
+  `src/connie`'s argument parser and dispatch are wrapped in a `_main`
+  function called by an entry-point line at the bottom of the script;
+  tests source the script with `CONNIE_NO_DISPATCH=1` to get the
+  function definitions without firing the CLI. Docker-requiring tests
+  will live in a separate `tests/docker/` tree run from a Docker-capable
+  host only — `make test` skips them. `tests/README.md` documents the
+  conventions. The initial commit ships one unit-test file
+  (`tests/unit/project_slug_test_cases.sh`) with six tests against
+  `_project_slug` demonstrating the harness; remaining coverage will
+  be added incrementally per the punch-list in `docs/TODO.md`.
 - **Zero project footprint** — `connie` no longer writes anything to the
   project directory. All state (config, Claude Code auth, session history)
   now lives in standard XDG directories on the developer's machine:

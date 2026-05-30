@@ -71,9 +71,11 @@ scope.
 
 ### Expand Test Coverage
 
-The roll-your-own POSIX shell test harness is in place under `tests/`,
-with one unit-test file demonstrating it. Remaining work is filling out
-coverage incrementally:
+The POSIX shell test harness under `tests/` is in place — a roll-your-own
+framework with a `given`/`when`/`expect` DSL inspired by slipbox, TAP and
+pretty output, per-test isolation with fake-home workspaces, and one
+unit-test file (`tests/unit/project_slug_test_cases.sh`) demonstrating
+the patterns. Remaining work is filling out coverage incrementally:
 
 - **Unit (no I/O)**: `_merge_configs`, `_generate_override` and its
   sub-helpers (`_build_env_block`, `_build_vol_block`,
