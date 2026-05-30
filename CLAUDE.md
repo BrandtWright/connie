@@ -153,10 +153,11 @@ Claude Code loads `CLAUDE.md` from four scopes. connie populates two of them:
    `cmd_context` calls `_emit_user_context` for a read-only preview.
 
 The project and local scopes (`/workspace/CLAUDE.md`,
-`/workspace/CLAUDE.local.md`) come from the project directory unchanged —
-connie never touches `/workspace/`. `connie context` exercises the same
-generation code paths without launching the container, which is the
-preferred way to verify context output.
+`/workspace/.claude/CLAUDE.md`, `/workspace/CLAUDE.local.md`) come from
+the project directory unchanged — connie never writes them. For
+preview-only purposes, `_emit_project_context` and `_emit_local_context`
+read them from the host project root so `cmd_context` can show all four
+scopes in one place without launching the container.
 
 ## Conventions
 
@@ -168,10 +169,11 @@ preferred way to verify context output.
   `src/docker/base.Dockerfile` should be mirrored in `docs/DESIGN.md`, which
   documents the rationale for each hardening measure.
 - Changes to context generation (`_generate_connie_context`,
-  `_emit_user_context`, `_write_user_context`, or the `CONNIE_CONTEXT`
-  build-arg wiring in `extend.Dockerfile`) should be mirrored in the
-  **Claude Code Context Model** section of `docs/DESIGN.md` and the
-  **Claude Code Context** section of `README.md`.
+  `_emit_user_context`, `_write_user_context`, `_emit_project_context`,
+  `_emit_local_context`, or the `CONNIE_CONTEXT` build-arg wiring in
+  `extend.Dockerfile`) should be mirrored in the **Claude Code Context
+  Model** section of `docs/DESIGN.md` and the **Claude Code Context**
+  section of `README.md`.
 - `docs/TODO.md` tracks features and ideas under consideration.
   Consult it when evaluating new work; update it when items are completed or
   when new ideas arise during a session.

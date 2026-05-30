@@ -518,6 +518,39 @@ _emit_user_context() {
     fi
 }
 
+# Emit the project-scope Claude Code context to stdout. Per the Claude Code
+# memory docs, Claude Code looks for project context at either ./CLAUDE.md
+# or ./.claude/CLAUDE.md from its working directory — /workspace inside the
+# container. Both can coexist; if both are present, the docs say they load
+# into context. This function reads from the host project root (which the
+# container bind-mounts at /workspace) so 'connie context' can preview them
+# without launching the container. Connie never writes these files.
+_emit_project_context() {
+    _epc_root="$1"
+    _epc_main="$_epc_root/CLAUDE.md"
+    _epc_alt="$_epc_root/.claude/CLAUDE.md"
+
+    if [ -f "$_epc_main" ]; then
+        printf '<!-- source: /workspace/CLAUDE.md -->\n\n'
+        cat "$_epc_main"
+    fi
+    if [ -f "$_epc_alt" ]; then
+        [ -f "$_epc_main" ] && printf '\n'
+        printf '<!-- source: /workspace/.claude/CLAUDE.md -->\n\n'
+        cat "$_epc_alt"
+    fi
+}
+
+# Emit the local-scope Claude Code context (./CLAUDE.local.md) to stdout.
+# The local scope is intended for personal, gitignored project notes per
+# the Claude Code docs. As with the project scope, connie never writes this
+# file; we read it from the host project root for preview only.
+_emit_local_context() {
+    _elc_root="$1"
+    _elc_file="$_elc_root/CLAUDE.local.md"
+    [ -f "$_elc_file" ] && cat "$_elc_file"
+}
+
 # Install the user-level Claude Code context to the per-project state
 # directory. The state directory's .claude/ is bind-mounted to ~/.claude/
 # inside the container, so the file lands at the user-level scope path
@@ -782,6 +815,31 @@ cmd_context() {
         printf '%s\n' "$_user_ctx"
     else
         _detail "(empty — neither host source file exists)"
+    fi
+
+    printf '\n\n' >&2
+    _info "── Project context (project scope) ──"
+    _detail "Loaded by Claude Code from /workspace/CLAUDE.md and"
+    _detail "/workspace/.claude/CLAUDE.md inside the container"
+    _detail "(host: $_project_root/{CLAUDE.md, .claude/CLAUDE.md})"
+    printf '\n' >&2
+    _proj_ctx=$(_emit_project_context "$_project_root")
+    if [ -n "$_proj_ctx" ]; then
+        printf '%s\n' "$_proj_ctx"
+    else
+        _detail "(no project CLAUDE.md found)"
+    fi
+
+    printf '\n\n' >&2
+    _info "── Local context (local scope) ──"
+    _detail "Loaded by Claude Code from /workspace/CLAUDE.local.md inside the container"
+    _detail "(host: $_project_root/CLAUDE.local.md)"
+    printf '\n' >&2
+    _local_ctx=$(_emit_local_context "$_project_root")
+    if [ -n "$_local_ctx" ]; then
+        printf '%s\n' "$_local_ctx"
+    else
+        _detail "(no CLAUDE.local.md in project root)"
     fi
 }
 

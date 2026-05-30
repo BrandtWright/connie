@@ -521,12 +521,37 @@ exists.
 
 ### Previewing
 
-`connie context [dir]` prints both connie-managed contexts without
-launching the container or modifying any on-disk state. It is the
-cheapest way to verify what Claude Code will load. The command calls the
-same pure stdout-emitting functions used by `connie run`
-(`_generate_connie_context` and `_emit_user_context`), so what you see
-is exactly what the next `connie run` would install.
+`connie context [dir]` prints all four Claude Code scopes — the two
+connie populates and the two it reads from the project directory —
+without launching the container or modifying any on-disk state. It is
+the cheapest way to verify what Claude Code will actually load.
+
+| Scope shown | Source on host | Generator |
+| --- | --- | --- |
+| Managed policy | derived from merged config | `_generate_connie_context` |
+| User-level | `/etc/claude-code/CLAUDE.md` + `~/.claude/CLAUDE.md` | `_emit_user_context` |
+| Project | `<project>/CLAUDE.md` + `<project>/.claude/CLAUDE.md` | `_emit_project_context` |
+| Local | `<project>/CLAUDE.local.md` | `_emit_local_context` |
+
+All four emit functions are pure: they print to stdout, take no side
+effects, and emit nothing if their sources are absent. `cmd_context`
+prints them in load order (broadest to most specific) with stderr
+section headers identifying the scope and its source paths.
+
+For scopes where the output combines multiple host files (managed
+policy via merged config, user-level via concatenation, project via
+both `./CLAUDE.md` and `./.claude/CLAUDE.md`), the emitted content
+includes block-level HTML source-attribution markers. Claude Code
+strips block-level HTML comments before context injection per its
+memory documentation, so the markers cost no tokens at run time but
+remain visible to humans reading the preview, making it easy to trace
+any instruction back to its source.
+
+What's not yet previewed: `.claude/rules/*.md` (project and user
+rules), which Claude Code also loads. Their inclusion would require
+walking the rules directories and parsing per-file frontmatter for
+path-scoped rules — a worthwhile follow-up but out of scope for the
+initial preview.
 
 ---
 

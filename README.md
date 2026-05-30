@@ -266,9 +266,11 @@ Changes on the host take effect on the next `connie run`.
 
 ### Previewing
 
-Run `connie context [dir]` to print both connie-managed contexts without
-starting the container. This requires no Docker and is the quickest way to
-verify what Claude Code will see before a run.
+Run `connie context [dir]` to print all four context scopes — the two
+connie populates plus the project and local scopes it reads from the
+project directory — without starting the container. This requires no
+Docker and is the quickest way to verify exactly what Claude Code will
+load before a run.
 
 ---
 

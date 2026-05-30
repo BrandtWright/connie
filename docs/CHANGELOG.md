@@ -40,10 +40,14 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `/workspace/CLAUDE.md` and `/workspace/CLAUDE.local.md` from the project
   — connie never touches those, so projects that already use them work
   unchanged.
-- `connie context [dir]` — new subcommand that prints both connie-managed
-  contexts without starting the container. Pure read operation — no
-  on-disk state is modified. Requires no Docker; useful for previewing
-  what Claude Code will load before a run.
+- `connie context [dir]` — new subcommand that prints all four Claude Code
+  context scopes (managed policy, user-level, project, local) without
+  starting the container. Pure read operation — no on-disk state is
+  modified. Requires no Docker. The project and local scopes are read
+  from the project directory on the host so the preview reflects exactly
+  what Claude Code will load on the next `connie run`, including project
+  context (`./CLAUDE.md`, `./.claude/CLAUDE.md`) and local context
+  (`./CLAUDE.local.md`) that connie itself never writes.
 - `connie config [dir]` subcommand — prints the config file path, state
   directory path, and the effective Compose override for a project. Useful
   for diagnosing what `connie run` will do.
