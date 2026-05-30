@@ -69,28 +69,40 @@ scope.
 
 ## Quality / Internals
 
-### Expand Test Coverage
+### Docker-gated Tests
 
-The POSIX shell test harness under `tests/` is in place — a roll-your-own
-framework with a `given`/`when`/`expect` DSL inspired by slipbox, TAP and
-pretty output, per-test isolation with fake-home workspaces, and one
-unit-test file (`tests/unit/project_slug_test_cases.sh`) demonstrating
-the patterns. Remaining work is filling out coverage incrementally:
+The non-Docker punch-list is complete — 150 tests cover the pure
+functions, the filesystem-touching helpers, and the CLI surface that
+doesn't need a Docker daemon. See `tests/README.md` for the conventions
+and `tests/{unit,integration,cli}/` for the test files. All pass under
+both `ash` (Alpine `/bin/sh`) and `bash --posix` (Arch `/usr/bin/sh`).
 
-- **Unit (no I/O)**: `_merge_configs`, `_generate_override` and its
-  sub-helpers (`_build_env_block`, `_build_vol_block`,
-  `_build_ports_section`, `_build_fwd_env_obj`, `_build_cli_env_obj`),
-  argument parser, `_compose_project_name`.
-- **Integration (filesystem, no Docker)**: `cmd_init`, `cmd_config`,
-  `cmd_context`, the four context emit functions, registry walk
-  (`_register_project` together with `_find_project_root`),
-  `_migrate_project` (from-old-`.connie/` migration), `_write_user_context`.
-- **CLI (no Docker)**: `connie help`, `connie version`, error paths
-  (unknown flag, unknown command, duplicate positional, missing
-  required argument), the typo-subcommand guard.
-- **Docker (gated)**: `connie build-base`, `connie build`, `connie run`
-  with `--cmd sh`, `connie clean`. Needs to run on a host with Docker
-  available; the harness should skip these when `docker` is absent.
+What remains is the Docker layer — exercising the subcommands that
+actually build images and start containers. These need to run on a host
+that can build images, so they belong in a separate `tests/docker/`
+tree that the default `tests/run.sh` deliberately excludes. The
+mechanism for invoking them and skipping when `docker` is absent will
+be designed alongside the first Docker test.
+
+Candidates (in approximate order of value):
+
+- **`connie build-base`** — builds `connie/base:latest` from
+  `src/docker/base.Dockerfile`. Verify the image gets created, has the
+  expected entrypoint, and that `claude-user` exists in it.
+- **`connie build`** against an initialized project — exercises the
+  `_generate_override` → `extend.Dockerfile` → `docker build` chain.
+  Verify the image gets created and contains `CONNIE_CONTEXT` at
+  `/etc/claude-code/CLAUDE.md`.
+- **`connie run --cmd sh`** — full lifecycle exercise. Verify the
+  container starts, mounts `/workspace` and `~/.claude/` correctly,
+  runs as `claude-user`, has the documented filesystem constraints
+  (read-only root, `/tmp` writable, `/etc` read-only), and that
+  `CONNIE_NO_DISPATCH` is not in the container's environment.
+- **`connie clean`** — verify the workspace image is removed but the
+  base image is not (the `down --rmi local` semantics).
+- **The auto-migration trigger** — drop a fake `.connie/` directory in
+  a project root, run `connie run`, and verify migration happens before
+  the container starts.
 
 ### `connie update` Command
 
