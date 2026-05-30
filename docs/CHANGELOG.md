@@ -2,8 +2,8 @@
 
 All notable changes to connie will be documented here.
 
-Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Format follows [Keep a Changelog][keep-a-changelog].
+Versioning follows [Semantic Versioning][semver].
 
 ---
 
@@ -16,7 +16,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (architecture, conventions, hard constraints, file responsibilities)
   with only a small "session-specific guidance" section bound to
   Claude Code specifically. The new name follows the
-  [AGENTS.md spec](https://agents.md/) — a tool-agnostic convention
+  [AGENTS.md spec][agents-md] — a tool-agnostic convention
   that lets Claude Code, Cursor, Aider, Copilot, and any other
   assistant adopting it read the same project context without
   per-tool duplication. Claude Code looks for `CLAUDE.md` by default;
@@ -456,3 +456,7 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Auto-detection of project root by walking up the directory tree
 - POSIX-compliant shell script — works with sh, bash, dash, zsh
 - `CONNIE_LIB_DIR` environment variable for local development without reinstalling
+
+[keep-a-changelog]: https://keepachangelog.com/en/1.0.0/
+[semver]: https://semver.org/spec/v2.0.0.html
+[agents-md]: https://agents.md/

@@ -1,6 +1,6 @@
 # connie
 
-A CLI tool that runs [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+A CLI tool that runs [Claude Code][claude-code]
 in a constrained, reproducible container attached to a project directory.
 
 Point `connie` at any project and it builds a hardened container with Claude
@@ -35,7 +35,7 @@ memory or history leaks between projects.
 
 - Docker Engine 24.0 or later
 - Docker Compose v2.20 or later (`docker compose` plugin, not `docker-compose`)
-- `yq` v4.x — YAML processor ([install guide](https://github.com/mikefarah/yq))
+- `yq` v4.x — YAML processor ([install guide][yq-install])
 - A POSIX-compliant shell (`sh`, `bash`, `zsh`, `dash` all work)
 
 ---
@@ -150,7 +150,7 @@ overwritten by subsequent connie operations.
 
 Run `connie config [dir]` to see the exact path for any project.
 
-See [`config.yml` reference](#configyml-reference) below.
+See [`config.yml` reference][configyml-ref] below.
 
 ### User Config
 
@@ -276,7 +276,7 @@ load before a run.
 
 ## Security Model
 
-Containers are hardened by default. See [DESIGN.md](docs/DESIGN.md) for full
+Containers are hardened by default. See [DESIGN.md][design-md] for full
 rationale. The enforced constraints are:
 
 - **Non-root user** — Claude Code runs as `claude-user` (uid 1000), not root
@@ -383,8 +383,14 @@ developer-owned file that describes the project's container needs.
 
 ## Further Reading
 
-- [DESIGN.md](docs/DESIGN.md) — architecture, security model, and design rationale
-- [CHANGELOG.md](docs/CHANGELOG.md) — version history
+- [DESIGN.md][design-md] — architecture, security model, and design rationale
+- [CHANGELOG.md][changelog-md] — version history
+
+[claude-code]: https://docs.anthropic.com/en/docs/claude-code
+[yq-install]: https://github.com/mikefarah/yq
+[configyml-ref]: #configyml-reference
+[design-md]: docs/DESIGN.md
+[changelog-md]: docs/CHANGELOG.md
 
 ---
 

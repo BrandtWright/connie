@@ -140,7 +140,7 @@ as a public API change and document them in `docs/CHANGELOG.md`.
 
 ## Versioning
 
-connie uses [Semantic Versioning](https://semver.org/):
+connie uses [Semantic Versioning][semver]:
 
 - **Patch** — bug fixes, no behaviour changes
 - **Minor** — new features, backward compatible
@@ -154,5 +154,8 @@ release.
 
 ## Changelog
 
-Maintain `docs/CHANGELOG.md` in [Keep a Changelog](https://keepachangelog.com/)
+Maintain `docs/CHANGELOG.md` in [Keep a Changelog][keep-a-changelog]
 format. Each entry should explain what changed and why, not just list the diff.
+
+[semver]: https://semver.org/
+[keep-a-changelog]: https://keepachangelog.com/

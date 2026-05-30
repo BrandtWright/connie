@@ -176,7 +176,7 @@ CLI flags                                     (highest precedence)
 Note: `TERM` and `COLORTERM` from the host shell are forwarded into the
 container as the lowest-precedence env entries — below even `defaults.yml`.
 This is handled separately in `_generate_override`, not through the merge
-pipeline above. See [Terminal Environment Forwarding](#terminal-environment-forwarding).
+pipeline above. See [Terminal Environment Forwarding][terminal-env].
 
 ---
 
@@ -237,7 +237,7 @@ it cannot write the update files and waits indefinitely. Disabling it is
 required for the read-only container model to work.
 
 To update Claude Code, run `connie build-base` to rebuild the base image
-against the latest installer. See [Rebuild Triggers](#rebuild-triggers).
+against the latest installer. See [Rebuild Triggers][rebuild-triggers].
 
 ### Terminal Environment Forwarding
 
@@ -442,7 +442,7 @@ The rest of `~/.config/connie/` — including any user-level
 ## Claude Code Context Model
 
 Claude Code loads `CLAUDE.md` files from four scopes, documented in the
-[Claude Code memory documentation](https://code.claude.com/docs/en/memory):
+[Claude Code memory documentation][claude-code-memory]:
 
 | Scope | Location in container | Populated by | Loaded |
 | --- | --- | --- | --- |
@@ -692,3 +692,7 @@ the architecture:
 - **Capability grants** — a `capabilities` key for projects that need specific
   Linux capabilities re-granted
 - **Shell completions** — `connie completion bash|zsh|fish`
+
+[terminal-env]: #terminal-environment-forwarding
+[rebuild-triggers]: #rebuild-triggers
+[claude-code-memory]: https://code.claude.com/docs/en/memory

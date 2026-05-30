@@ -1,14 +1,12 @@
-# AGENTS.md
+# connie — guidance for AI coding assistants
 
-This file provides guidance to AI coding assistants working in this
-repository. It follows the [AGENTS.md
-spec](https://agents.md/) — a tool-agnostic
-convention so any assistant that adopts it (Claude Code, Cursor,
-Aider, Copilot, and others) picks up the same project context
-without per-tool duplication. Most of the content below is
-tool-agnostic engineering documentation; the few session-guidance
-items toward the end are framed in terms of common AI-assistant
-workflows rather than any one tool's UI.
+This file provides guidance to AI coding assistants working in this repository.
+It follows the [AGENTS.md spec][agents-md] — a tool-agnostic
+convention so any assistant that adopts it (Claude Code, Cursor, Aider,
+Copilot, and others) picks up the same project context without per-tool
+duplication. Most of the content below is tool-agnostic engineering
+documentation; the few session-guidance items toward the end are framed in
+terms of common AI-assistant workflows rather than any one tool's UI.
 
 ## What connie is
 
@@ -208,3 +206,5 @@ scopes in one place without launching the container.
 - `docs/TODO.md` tracks features and ideas under consideration.
   Consult it when evaluating new work; update it when items are completed or
   when new ideas arise during a session.
+
+[agents-md]: https://agents.md/

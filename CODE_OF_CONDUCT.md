@@ -1,7 +1,7 @@
 # Code of Conduct
 
 This project follows the
-[Contributor Covenant, version 2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+[Contributor Covenant, version 2.1][contributor-covenant].
 
 The full text is canonical at
 <https://www.contributor-covenant.org/version/2/1/code_of_conduct/>.
@@ -25,3 +25,5 @@ account from project spaces.
 This applies to anyone interacting with the project's GitHub
 repository or any other space the project explicitly designates as a
 project space.
+
+[contributor-covenant]: https://www.contributor-covenant.org/version/2/1/code_of_conduct/
