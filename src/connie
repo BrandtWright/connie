@@ -817,7 +817,16 @@ cmd_run() {
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
     _write_user_context "$_project_root"
     _run_compose "$_project_root" "$_override" build workspace
-    _run_compose "$_project_root" "$_override" run --rm workspace
+    # Auto-detect non-interactive contexts (CI, output-redirected, piped
+    # stdin) and pass `-T` to skip TTY allocation. The compose file's
+    # `tty: true` is the right default for interactive Claude Code usage,
+    # but if stdout isn't a TTY, docker compose will refuse with "the
+    # input device is not a TTY". Detecting this at invocation time lets
+    # connie run work the same in both contexts.
+    _tty_flag=""
+    [ -t 1 ] || _tty_flag="-T"
+    # shellcheck disable=SC2086 # _tty_flag is intentionally word-split
+    _run_compose "$_project_root" "$_override" run --rm $_tty_flag workspace
 }
 
 cmd_clean() {
