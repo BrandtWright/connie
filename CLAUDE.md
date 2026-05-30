@@ -142,7 +142,12 @@ it through these stages rather than editing one in isolation:
    The static `docker-compose.yml` carries the immutable security posture
    (`read_only`, `cap_drop: ALL`, `no-new-privileges`, `/tmp` tmpfs, `init: true`);
    the override carries everything derived from config. `connie run` calls
-   `_run_compose` twice — `build workspace` then `run --rm workspace`.
+   `_run_compose` twice — `build workspace` then `run --rm workspace`. The
+   second invocation auto-passes `-T` when stdout is not a TTY (`[ -t 1 ]`),
+   so the same `cmd_run` works in both interactive sessions (where the
+   compose file's `tty: true` lights up Claude Code's UI) and non-TTY
+   contexts like CI or the test harness (where `tty: true` would otherwise
+   fail with "the input device is not a TTY").
 
 ### Runtime environment (entrypoint.sh)
 
