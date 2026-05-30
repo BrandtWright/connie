@@ -42,9 +42,9 @@ memory or history leaks between projects.
 
 ## Installation
 
+From a local checkout of this repository:
+
 ```sh
-git clone https://github.com/yourorg/connie
-cd connie
 make install                        # installs to /usr/local (may need sudo)
 make install PREFIX=~/.local        # install without sudo
 ```
