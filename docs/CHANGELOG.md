@@ -9,8 +9,69 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.3.0] — 2026-05-30
+
 ### Added
 
+- **Docker-gated test layer** — 31 end-to-end tests under `tests/docker/`
+  exercising the subcommands that build real images and start
+  containers. Covers `connie build-base` (image creation, claude-user
+  uid 1000, `DISABLE_AUTOUPDATER` baked in, entrypoint path, Claude
+  Code binary location, idempotence), `connie build` (per-project
+  image creation, the `_generate_override` → `extend.Dockerfile` →
+  `docker build` chain, the `CONNIE_CONTEXT` build arg reaching
+  `/etc/claude-code/CLAUDE.md`, idempotence, auto-build-base
+  branch), `connie clean` (`docker compose down --rmi local` semantics
+  — workspace image removed, base image retained), `connie run`
+  lifecycle (claude-user uid, `/workspace` bind mount, writable
+  `/tmp`, read-only root, no `CONNIE_NO_DISPATCH` env leak),
+  cgroup-v2 resource-limit enforcement (`memory.max`, `pids.max`,
+  `cpu.max`), host↔container context parity (a fingerprint env var
+  staged in the project config appears in both the in-container
+  `/etc/claude-code/CLAUDE.md` and the host's `connie context`
+  preview), and the `.connie/` → XDG auto-migration trigger.
+  Run via `make test-docker`; the runner exits 0 with a skip message
+  when docker is absent so it is safe to call from any CI. Tests stage
+  images to a per-subshell `connie-test/base:harness-<test>-<pid>`
+  tag and `docker network rm` the per-project network in the cleanup
+  trap so neither the user's production `connie/base:latest` nor the
+  Docker IPAM pool ever accumulate state across runs.
+- **GitHub Actions CI workflow** (`.github/workflows/ci.yml`) — runs
+  `make check`, `make lint`, `make test` (default shell), `dash
+  tests/run.sh` (POSIX-sh portability check), and `make test-docker`
+  on every push and PR to `main`. The Docker job is parallel and
+  non-blocking for the lint half.
+- **`make lint`** — chains shellcheck (POSIX sh enforcement),
+  markdownlint, hadolint, and `yq` parse-checks across every file
+  of the matching type. Sub-targets `lint-sh`, `lint-md`,
+  `lint-docker`, `lint-yaml` are independently runnable.
+- **`make install-dev`** — convenience target for contributors that
+  chains `install PREFIX=~/.local` with `install-hooks`.
+- **`make install-hooks`** — installs `scripts/pre-commit` as a
+  symlink (or copy) into `.git/hooks/`. The hook runs `make lint`
+  on every commit. Bypass once with `git commit --no-verify`.
+- **Auto-TTY detection in `cmd_run`** — `connie run` now passes `-T`
+  to `docker compose run` when stdout is not a terminal (`[ -t 1 ]`).
+  The compose file's `tty: true` is the right default for interactive
+  Claude Code use, but the same setting makes `docker compose run`
+  refuse to start when invoked from CI, the test harness, or any
+  output-redirected context. Detection lets the same `cmd_run` work
+  in both contexts without a flag.
+- **`LICENSE`** — MIT, applied retroactively to all existing code.
+- **`SECURITY.md`** — vulnerability-reporting process, threat model,
+  containment guarantees, known limitations, supply-chain notes.
+- **`CONNIE_BASE_IMAGE` env var** — overrides the default
+  `connie/base:latest` tag. Used by the Docker test layer to stage
+  to a per-subshell `connie-test/base:harness-*` tag without
+  touching the production image. Also useful outside testing — e.g.
+  building a `connie-arm/base:latest` on an arm host alongside the
+  x86_64 tag.
+- **`CONNIE_ETC_CLAUDE_MD` env var** — overrides the system-wide
+  Claude Code policy path (`/etc/claude-code/CLAUDE.md` by default).
+  Used by the test harness to redirect to a fixture file so tests
+  pass on hosts where `/etc/` is not the connie-container layout.
 - **POSIX shell test suite** — roll-your-own test harness under `tests/`
   with no external dependencies, designed around a `given`/`when`/`expect`
   DSL where each step is a named function the framework executes and
@@ -31,13 +92,10 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `src/connie`'s argument parser and dispatch are wrapped in a `_main`
   function called by an entry-point line at the bottom of the script;
   tests source the script with `CONNIE_NO_DISPATCH=1` to get the
-  function definitions without firing the CLI. Docker-requiring tests
-  will live in a separate `tests/docker/` tree run from a Docker-capable
-  host only — `make test` skips them. `tests/README.md` documents the
-  conventions. The initial commit ships one unit-test file
-  (`tests/unit/project_slug_test_cases.sh`) with six tests against
-  `_project_slug` demonstrating the harness; remaining coverage will
-  be added incrementally per the punch-list in `docs/TODO.md`.
+  function definitions without firing the CLI. 152 non-Docker tests
+  across `tests/{unit,integration,cli}/` cover the pure functions,
+  filesystem-touching helpers, and the CLI surface. `tests/README.md`
+  documents the conventions.
 - **Zero project footprint** — `connie` no longer writes anything to the
   project directory. All state (config, Claude Code auth, session history)
   now lives in standard XDG directories on the developer's machine:
@@ -96,24 +154,44 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Generated `/etc/claude-code/CLAUDE.md` is now markdownlint-clean.**
+  The "Build-time setup commands" list is emitted with a leading
+  blank line and zero-indent bullets (MD007/MD032); the "Base image:"
+  sentence is wrapped to fit under 80 chars (MD013). Renders
+  identically in any markdown engine; previews via `connie context`
+  no longer carry preexisting lint debt.
+- **Snapshot test helper** writes and compares with `printf '%s\n'`
+  instead of `printf '%s'`, so the trailing newline that `$(...)`
+  capture strips is restored on both paths. Fixes the MD047
+  violation that every snapshot would otherwise inherit.
 - `config/defaults.yml` is now load-bearing: all config keys are guaranteed
   to be present in the merged config after it is loaded, so the `// fallback`
   values that were duplicated in the script's yq expressions have been removed.
   `_merge_configs` now checks for the file at startup and exits with a clear
   error if it is missing rather than silently producing null values.
 
-### Security
-
-- Per-project state directories (`~/.local/state/connie/<slug>/`) and their
-  `.claude/` subdirectories are now created — or normalised if already present
-  — with mode `0700` at `connie init`, `connie run`, and during auto-migration.
-  This protects the OAuth bearer token that Claude Code persists at
-  `<slug>/.claude/.credentials.json` from other local users on the same machine,
-  even if Claude Code itself does not set restrictive permissions on the
-  credential file. Defense-in-depth, applied at the directory layer.
-
 ### Fixed
 
+- **Per-test Docker network cleanup.** `docker compose run --rm`
+  removes the container but not the network it created. Each Docker
+  test left a `connie-<slug>_default` /16 subnet allocated; after
+  one or two `make test-docker` runs the default IPAM pool would
+  exhaust and every subsequent `connie run` failed with "all
+  predefined address pools have been fully subnetted." The fixture
+  cleanup trap now removes the network alongside the images.
+- **Test harness POSIX-special-builtin bug** under `bash --posix`.
+  `CONNIE_NO_DISPATCH=1 . src/connie` persisted and exported
+  `CONNIE_NO_DISPATCH` in the harness's subshell because of POSIX's
+  special-builtin variable-assignment semantics, causing every
+  subsequent `exercise_connie` invocation to silently skip `_main`.
+  The harness now sets and unsets explicitly.
+- **CONTRIBUTING.md stale paths.** Every reference to `bin/connie` and
+  `lib/connie/...` predated the rename to `src/connie`, `src/docker/`,
+  and `src/config/`. New contributors following the doc would have
+  hit "no such directory" errors.
+- **Placeholder GitHub URLs** in README and CONTRIBUTING
+  (`github.com/yourorg/connie`) — removed; install path reworded as
+  "from a local checkout" until a real repo URL exists.
 - Typo'd subcommand names (e.g. `connie buld` for `build`) now produce a
   clear error rather than silently falling through to the help text.
   Previously the parser's positional-argument case captured the typo into
@@ -136,6 +214,25 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Port mappings configured in `config.yml` `ports:` were silently dropped
   and never forwarded to the container. The `ports` block was computed in
   `_generate_override` but missing from the YAML output.
+
+### Security
+
+- **Claude Code installer pinned by SHA256** in `base.Dockerfile`.
+  The previous `curl -fsSL … | bash` was a textbook supply-chain
+  hole: a brief compromise of `claude.ai` would have shipped
+  arbitrary code into every fresh base image build. The pin is
+  declared as a Dockerfile ARG so the current value appears in the
+  build log on every rebuild and so a maintainer can test a candidate
+  update via `--build-arg CLAUDE_INSTALLER_SHA256=<new>` without
+  editing the file. Update procedure documented in a comment block
+  above the ARG.
+- Per-project state directories (`~/.local/state/connie/<slug>/`) and their
+  `.claude/` subdirectories are now created — or normalised if already present
+  — with mode `0700` at `connie init`, `connie run`, and during auto-migration.
+  This protects the OAuth bearer token that Claude Code persists at
+  `<slug>/.claude/.credentials.json` from other local users on the same machine,
+  even if Claude Code itself does not set restrictive permissions on the
+  credential file. Defense-in-depth, applied at the directory layer.
 
 ---
 
