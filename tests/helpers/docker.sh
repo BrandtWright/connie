@@ -58,6 +58,10 @@ the_user_runs_connie_build_against_the_project() {
     exercise_connie build "$project_path"
 }
 
+the_user_runs_connie_clean_against_the_project() {
+    exercise_connie clean "$project_path"
+}
+
 # ── Assertions ─────────────────────────────────────────────────────────────
 
 the_image_exists() {
@@ -157,5 +161,14 @@ the_workspace_image_file_to_contain() {
     esac
     _assertion_failure "file to contain" "$_expected (in $_path)" \
                        "actual contents" "$_actual"
+    return 1
+}
+
+the_workspace_image_no_longer_exists() {
+    if ! docker image inspect "$workspace_image" >/dev/null 2>&1; then
+        return 0
+    fi
+    _assertion_failure "image to be absent" "$workspace_image" \
+                       "actual" "image still present (cleanup did not run)"
     return 1
 }
