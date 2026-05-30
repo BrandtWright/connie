@@ -55,6 +55,39 @@ a_sentinel_file_in_the_workspace() {
     printf 'sentinel-content' > "$project_path/SENTINEL"
 }
 
+# Variant that skips `connie init` and instead pre-creates a legacy
+# `.connie/` directory inside the project root with a config.yml stub.
+# This is the state a developer reaches when they upgrade connie across
+# the XDG-migration boundary; `_prepare` should detect it and call
+# `_migrate_project` before doing anything else.
+a_unique_test_base_image_tag_and_a_legacy_dot_connie_project() {
+    test_base_image="connie-test/base:harness-${TEST_NAME}-$$"
+    export CONNIE_BASE_IMAGE="$test_base_image"
+    project_path="$WORKSPACE/project"
+    mkdir -p "$project_path/.connie"
+    # Use the project template so the migrated config is a known-good
+    # starting point that the build pipeline accepts. Without this,
+    # `_prepare` would synthesize one from PROJECT_TEMPLATE — fine, but
+    # then the test wouldn't be able to claim "the legacy config was
+    # moved" since it could've been created from scratch.
+    cp "$_HARNESS_REPO_ROOT/src/config/project-template.yml" \
+       "$project_path/.connie/config.yml"
+    workspace_image="$(_compose_project_name "$project_path")-workspace"
+    # shellcheck disable=SC2064 # we want the variables resolved now
+    trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true" EXIT
+}
+
+# Variant that stages a fingerprint in the project's merged config — a
+# unique env-var key/value pair that flows through _generate_connie_context
+# into BOTH the in-container /etc/claude-code/CLAUDE.md AND the host's
+# `connie context` preview. The fingerprint anchors the parity claim:
+# the same config produces the same context text on both sides.
+a_unique_test_base_image_tag_and_an_initialized_project_with_a_parity_fingerprint() {
+    a_unique_test_base_image_tag_and_an_initialized_project
+    _cfg=$(_project_config "$project_path")
+    yq -i '.env.PARITY_CHECK = "fp-deadbeef-2026"' "$_cfg"
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_user_runs_connie_build_base() {
@@ -77,6 +110,13 @@ the_user_runs_connie_clean_against_the_project() {
 # stdout/stderr land in $TEST_STDOUT/$TEST_STDERR cleanly.
 the_user_runs_connie_run_with_command() {
     exercise_connie run --cmd "$1" "$project_path"
+}
+
+# Preview the four-scope context for the project on the host. Used by
+# parity tests to verify that the managed-policy section reflects the
+# same config values as the in-container /etc/claude-code/CLAUDE.md.
+the_user_runs_connie_context_against_the_project() {
+    exercise_connie context "$project_path"
 }
 
 # ── Assertions ─────────────────────────────────────────────────────────────
@@ -187,5 +227,29 @@ the_workspace_image_no_longer_exists() {
     fi
     _assertion_failure "image to be absent" "$workspace_image" \
                        "actual" "image still present (cleanup did not run)"
+    return 1
+}
+
+# ── Migration assertions ──────────────────────────────────────────────────
+#
+# These check that `_prepare`'s auto-migration moved a legacy `.connie/`
+# layout into the XDG paths the harness has redirected HOME/XDG_* to.
+
+the_xdg_config_to_exist_for_the_project() {
+    _path=$(_project_config "$project_path")
+    if [ -f "$_path" ]; then
+        return 0
+    fi
+    _assertion_failure "XDG config to exist" "$_path" \
+                       "actual" "no such file"
+    return 1
+}
+
+the_legacy_dot_connie_directory_to_be_removed() {
+    if [ ! -d "$project_path/.connie" ]; then
+        return 0
+    fi
+    _assertion_failure "legacy .connie/ to be absent" "$project_path/.connie" \
+                       "actual" "directory still present (rmdir skipped — non-empty?)"
     return 1
 }
