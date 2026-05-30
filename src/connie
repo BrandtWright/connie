@@ -238,6 +238,7 @@ _merge_configs() {
     do
         [ -f "$_mc_cfg" ] || continue
         _mc_tmp=$(mktemp)
+        # shellcheck disable=SC2016 # $item is a yq variable, not a shell var
         yq eval-all '. as $item ireduce ({}; . * $item)' \
             "$_mc_work" "$_mc_cfg" > "$_mc_tmp" \
             || { rm -f "$_mc_work" "$_mc_tmp"; return 1; }
@@ -689,7 +690,7 @@ cmd_build() {
     _info "Building project container for $_project_root"
     _merged=$(mktemp)
     _override=$(mktemp)
-    trap "rm -f $_merged $_override" EXIT
+    trap 'rm -f "$_merged" "$_override"' EXIT
     _prepare "$_project_root" "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
@@ -701,7 +702,7 @@ cmd_run() {
     _info "Starting Claude Code for $_project_root"
     _merged=$(mktemp)
     _override=$(mktemp)
-    trap "rm -f $_merged $_override" EXIT
+    trap 'rm -f "$_merged" "$_override"' EXIT
     _prepare "$_project_root" "$_merged"
     # _generate_override embeds the connie (managed-policy) context as a build
     # arg; user-level context is assembled fresh from host files at run time.
@@ -744,7 +745,7 @@ cmd_config() {
     printf '\n' >&2
 
     _merged=$(mktemp)
-    trap "rm -f $_merged" EXIT
+    trap 'rm -f "$_merged"' EXIT
     _merge_configs "$_project_root" > "$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
@@ -763,7 +764,7 @@ cmd_context() {
     printf '\n' >&2
 
     _merged=$(mktemp)
-    trap "rm -f $_merged" EXIT
+    trap 'rm -f "$_merged"' EXIT
     _merge_configs "$_project_root" > "$_merged"
 
     _info "── Connie context (managed-policy scope) ──"

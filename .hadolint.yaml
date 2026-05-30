@@ -1,0 +1,19 @@
+# Hadolint configuration for the connie repository.
+
+# DL3007 — "Using latest is prone to errors if the image will ever update.
+#          Pin the version explicitly to a release tag."
+#   extend.Dockerfile uses `FROM connie/base:latest`, which refers to the
+#   locally-built connie base image — not a public registry image. The
+#   :latest tag is the correct way to point at the current locally-built
+#   version, and the base image is rebuilt explicitly via `connie build-base`.
+#
+# DL3018 — "Pin versions in apk add. Instead of `apk add <package>` use
+#          `apk add <package>=<version>`."
+#   Alpine package versions are intentionally unpinned. The Alpine major
+#   version pin in the base image (`FROM alpine:3.20`) provides the version
+#   bound; individual package pins would create brittle builds because old
+#   package versions are rapidly removed from Alpine repositories and would
+#   make `connie build-base` unreproducible after upstream removals.
+ignored:
+  - DL3007
+  - DL3018
