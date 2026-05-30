@@ -48,6 +48,13 @@ a_unique_test_base_image_tag_and_an_initialized_project() {
     trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true" EXIT
 }
 
+# Drop a sentinel file with known content into the project directory so
+# tests can verify the /workspace bind mount surfaces it inside the
+# container. Composes with the initialized-project fixture above.
+a_sentinel_file_in_the_workspace() {
+    printf 'sentinel-content' > "$project_path/SENTINEL"
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_user_runs_connie_build_base() {
@@ -60,6 +67,16 @@ the_user_runs_connie_build_against_the_project() {
 
 the_user_runs_connie_clean_against_the_project() {
     exercise_connie clean "$project_path"
+}
+
+# Run a one-shot command inside the workspace container via `connie run
+# --cmd <command>`. The command is executed by sh as the container's
+# start command (see the override's `command: "${_final_cmd}"`). Auto-
+# TTY detection inside cmd_run will pass -T to docker compose because
+# exercise_connie redirects stdout to a file, so the container's
+# stdout/stderr land in $TEST_STDOUT/$TEST_STDERR cleanly.
+the_user_runs_connie_run_with_command() {
+    exercise_connie run --cmd "$1" "$project_path"
 }
 
 # ── Assertions ─────────────────────────────────────────────────────────────
