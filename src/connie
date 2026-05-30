@@ -956,5 +956,12 @@ case "${_SUBCOMMAND:-help}" in
     config)      cmd_config     "${_TARGET_DIR:-}" ;;
     context)     cmd_context    "${_TARGET_DIR:-}" ;;
     version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
-    help)        _usage ;;
+    help)
+        # If we landed here because the first positional argument didn't match
+        # any known subcommand, surface the error rather than silently showing
+        # usage — the user almost certainly typo'd a command name.
+        [ -z "$_TARGET_DIR" ] || \
+            _die "Unknown command: $_TARGET_DIR. Run '$TOOL help' for usage."
+        _usage
+        ;;
 esac

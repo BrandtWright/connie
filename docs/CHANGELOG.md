@@ -87,6 +87,15 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Typo'd subcommand names (e.g. `connie buld` for `build`) now produce a
+  clear error rather than silently falling through to the help text.
+  Previously the parser's positional-argument case captured the typo into
+  `_TARGET_DIR` while `_SUBCOMMAND` stayed empty, and the dispatch defaulted
+  to `help` with no indication anything was wrong. A guard in the `help)`
+  dispatch branch now dies with `Unknown command: <X>. Run 'connie help'
+  for usage.` whenever a positional argument is present without a valid
+  subcommand. Valid invocations (including bare `connie`, `connie help`,
+  and flag-only forms) are unchanged.
 - `connie clean` now surfaces docker errors instead of silently swallowing
   them. Previously `2>/dev/null || true` caused a failed clean (e.g. Docker
   daemon not running) to print "Done." and exit 0 with nothing removed.
