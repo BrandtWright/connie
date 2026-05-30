@@ -57,17 +57,40 @@ PROJECTS_FILE="$DATA_DIR/projects.yml"
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
+# ── Verbosity ────────────────────────────────────────────────────────────────
+#
+# Three levels controlling what reaches stderr:
+#   0  quiet   — only _die survives; _info, _detail, _debug silent
+#   1  normal  — _die, _info, _detail visible (default)
+#   2  verbose — also enables _debug (used to trace docker compose calls)
+#
+# Set via CLI flag (-q / -v) or env var (CONNIE_QUIET / CONNIE_VERBOSE),
+# evaluated in `_main`. Env wins over the default; CLI wins over env.
+# Always show errors — _die ignores _VERBOSITY entirely.
+_VERBOSITY=1
+
 _die() {
     printf 'error: %s\n' "$1" >&2
     exit 1
 }
 
 _info() {
+    [ "$_VERBOSITY" -ge 1 ] || return 0
     printf '==> %s\n' "$1" >&2
 }
 
 _detail() {
+    [ "$_VERBOSITY" -ge 1 ] || return 0
     printf '    %s\n' "$1" >&2
+}
+
+# Debug output — only shown when -v / CONNIE_VERBOSE is active. Used
+# for "what is connie actually about to run" tracing that would be
+# noise during normal use but invaluable when diagnosing why a
+# `connie run` is hanging or failing.
+_debug() {
+    [ "$_VERBOSITY" -ge 2 ] || return 0
+    printf '[debug] %s\n' "$1" >&2
 }
 
 _require() {
@@ -107,6 +130,10 @@ Options (run, build, config):
   --env KEY=VALUE    Set an additional environment variable (repeatable)
   --cmd <cmd>        Override the start command (default: claude)
 
+Verbosity (any subcommand):
+  -q, --quiet        Suppress info/detail output; only errors reach stderr
+  -v, --verbose      Also emit [debug] lines (traces docker compose calls)
+
 Config is read in this order (lowest to highest precedence):
   $LIB_DIR/config/defaults.yml
   $SYSTEM_CONFIG
@@ -117,6 +144,8 @@ Config is read in this order (lowest to highest precedence):
 
 Environment variables:
   CONNIE_LIB_DIR    Override the library path (default: /usr/local/lib/connie)
+  CONNIE_QUIET=1    Same as --quiet
+  CONNIE_VERBOSE=1  Same as --verbose
   CONNIE_CMD        Override the container start command
   CONNIE_MEMORY     Override the container memory limit (e.g. 8g)
   CONNIE_CPUS       Override the container CPU limit (e.g. 4.0)
@@ -736,6 +765,7 @@ _run_compose() {
     _override_file="$2"
     shift 2
 
+    _debug "docker compose -p $(_compose_project_name "$_project_root") -f $LIB_DIR/docker/docker-compose.yml -f $_override_file $*"
     docker compose \
         -p "$(_compose_project_name "$_project_root")" \
         -f "$LIB_DIR/docker/docker-compose.yml" \
@@ -809,12 +839,22 @@ cmd_init() {
     _register_project "$_target" "$_init_slug"
     _detail "registered $_target in $PROJECTS_FILE"
 
-    if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+    # The blank-line separator before the "NOTE" line is part of the
+    # _detail message and should respect the same verbosity gate, not
+    # leak through as a stray newline in -q mode.
+    if [ "$_VERBOSITY" -ge 1 ] \
+        && ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
         printf '\n' >&2
         _detail "NOTE: Base image not found. It will be built automatically on first 'connie run'."
     fi
 
-    cat >&2 <<INITEOF
+    # The "Next steps" heredoc is part of the same friendly-init UX as
+    # the progress messages emitted via _info / _detail. Suppress it at
+    # the same verbosity threshold for consistency — a script wrapping
+    # `connie -q init` shouldn't have to filter out a trailing block of
+    # instructions either.
+    if [ "$_VERBOSITY" -ge 1 ]; then
+        cat >&2 <<INITEOF
 
 ==> Next steps:
     1. Edit $CONFIG_DIR/projects/$_init_slug/config.yml
@@ -825,6 +865,7 @@ cmd_init() {
     and reused on subsequent runs for this project.
 
 INITEOF
+    fi
 }
 
 cmd_build() {
@@ -966,6 +1007,16 @@ _main() {
     _SUBCOMMAND=""
     _TARGET_DIR=""
 
+    # Seed verbosity from env. CLI flags below override. Env-var form
+    # is the common shape for connie's other overrides (CONNIE_BASE_IMAGE,
+    # CONNIE_LIB_DIR, …) and is convenient for scripts that prefer not
+    # to thread a flag through every invocation.
+    if [ "${CONNIE_QUIET:-0}" = "1" ]; then
+        _VERBOSITY=0
+    elif [ "${CONNIE_VERBOSE:-0}" = "1" ]; then
+        _VERBOSITY=2
+    fi
+
     while [ $# -gt 0 ]; do
         case "$1" in
             init|run|build|clean|config|context|help|version)
@@ -974,6 +1025,14 @@ _main() {
                 ;;
             build-base)
                 _SUBCOMMAND="build-base"
+                shift
+                ;;
+            -q|--quiet)
+                _VERBOSITY=0
+                shift
+                ;;
+            -v|--verbose)
+                _VERBOSITY=2
                 shift
                 ;;
             --package)
