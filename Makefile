@@ -8,39 +8,45 @@ INSTALL  := install
 
 # ── Phony targets ─────────────────────────────────────────────────────────────
 
+# ANSI escapes for help text. Bare $$ resolves to a literal $ in a recipe
+# (Make consumes one round) which printf then sees. Wrapped in $(shell ...)
+# so non-TTY callers (CI, piped output) get plain text.
+BOLD := $(shell printf '\033[1m')
+DIM  := $(shell printf '\033[2m')
+RST  := $(shell printf '\033[0m')
+
 .PHONY: all install install-dev install-hooks uninstall check lint \
-        lint-sh lint-md lint-docker lint-yaml test test-docker help
+        lint-sh lint-md lint-docker lint-yaml format format-check \
+        test test-docker watch help
 
 all: help
 
 help:
-	@echo "connie make targets:"
-	@echo ""
-	@echo "  install        Install connie to PREFIX (default: /usr/local)"
-	@echo "  install-dev    Install to ~/.local + set up the pre-commit hook"
-	@echo "  install-hooks  Set up the pre-commit hook only"
-	@echo "  uninstall      Remove connie from PREFIX"
-	@echo "  check          Syntax-check the CLI script (sh -n)"
-	@echo "  lint           Run shellcheck + markdownlint + hadolint + yq parse"
-	@echo "                 across every file of the matching type. Catches the"
-	@echo "                 drift that 'check' alone misses (bashisms, doc style,"
-	@echo "                 Dockerfile smells, malformed YAML)."
-	@echo "  test           Run the POSIX shell test suite (tests/run.sh)"
-	@echo "  test-docker    Run the Docker-gated test layer (tests/run-docker.sh)"
-	@echo "                 Skips if docker is not on PATH; otherwise builds"
-	@echo "                 real images into a connie-test/* namespace and"
-	@echo "                 cleans up after itself."
-	@echo ""
-	@echo "Test runner accepts flags via 'sh tests/run.sh':"
-	@echo "  --pretty   ANSI-coloured output instead of TAP"
-	@echo "  -v         Verbose: show breadcrumbs even on pass, keep artifacts"
-	@echo "  -f STR     Run only tests whose name contains STR"
-	@echo "  See tests/README.md for full conventions."
-	@echo ""
-	@echo "Override PREFIX to install without sudo:"
-	@echo "  make install PREFIX=~/.local"
-	@echo ""
-	@echo "Then run 'connie init <dir>' and 'connie run' — base image builds automatically."
+	@printf '$(BOLD)connie$(RST) — Claude Code in a constrained, reproducible container\n\n'
+	@printf '$(BOLD)Install$(RST)\n'
+	@printf '  install         Install connie to PREFIX (default: /usr/local)\n'
+	@printf '  install-dev     Install to ~/.local + set up the pre-commit hook\n'
+	@printf '  install-hooks   Set up the pre-commit hook only\n'
+	@printf '  uninstall       Remove connie from PREFIX\n\n'
+	@printf '$(BOLD)Lint and format$(RST)\n'
+	@printf '  check           Syntax-check src/connie (sh -n)\n'
+	@printf '  lint            shellcheck + markdownlint + hadolint + yq parse\n'
+	@printf '                  (sub-targets: lint-sh, lint-md, lint-docker, lint-yaml)\n'
+	@printf '  format          Auto-format shell scripts with shfmt (writes in place)\n'
+	@printf '  format-check    Verify shell scripts match shfmt style without writing\n\n'
+	@printf '$(BOLD)Test$(RST)\n'
+	@printf '  test            Run the POSIX shell test suite (tests/run.sh)\n'
+	@printf '  test-docker     Run the Docker-gated test layer (tests/run-docker.sh)\n'
+	@printf '                  Skips if docker is not on PATH.\n'
+	@printf '  watch           Re-run tests on every file change (requires entr)\n\n'
+	@printf '$(DIM)Test runner flags (sh tests/run.sh ...)$(RST)\n'
+	@printf '$(DIM)  --pretty   ANSI-coloured output instead of TAP$(RST)\n'
+	@printf '$(DIM)  -v         Verbose: show breadcrumbs even on pass, keep artifacts$(RST)\n'
+	@printf '$(DIM)  -f STR     Run only tests whose name contains STR$(RST)\n'
+	@printf '$(DIM)  See tests/README.md for full conventions.$(RST)\n\n'
+	@printf '$(BOLD)PREFIX$(RST)\n'
+	@printf '  Override PREFIX to install without sudo:  make install PREFIX=~/.local\n\n'
+	@printf 'Then run "connie init <dir>" and "connie run" — base image builds automatically.\n'
 
 # ── Install ───────────────────────────────────────────────────────────────────
 
@@ -141,8 +147,43 @@ lint-yaml:
 	    -exec sh -c 'yq eval-all "null" "$$1" >/dev/null' _ {} \;
 	@echo "    OK"
 
+# shfmt is not pre-installed everywhere; check for it and emit a helpful
+# install hint if missing. The same find/xargs pattern as lint-sh keeps
+# the file scope identical (every shell script in the repo, including
+# the bare `src/connie`).
+SHFMT_FILES = $(shell find $(CURDIR) -type f \
+    \( -name "*.sh" -o -path "$(CURDIR)/src/connie" \) \
+    -not -path "$(CURDIR)/.git/*")
+
+format:
+	@command -v shfmt >/dev/null 2>&1 || { \
+		printf 'shfmt not installed. Install:\n' >&2; \
+		printf '  go install mvdan.cc/sh/v3/cmd/shfmt@latest\n' >&2; \
+		printf '  or: brew install shfmt  /  apk add shfmt\n' >&2; \
+		exit 1; \
+	}
+	@echo "==> shfmt -w (4-space indent, simplify, POSIX dialect)"
+	@shfmt -ln posix -i 4 -ci -s -w $(SHFMT_FILES)
+	@echo "    OK"
+
+# Read-only variant — fails if any file would be reformatted. Suitable
+# for CI; safe to wire into the pre-commit hook later.
+format-check:
+	@if ! command -v shfmt >/dev/null 2>&1; then \
+		printf 'shfmt not installed; skipping format-check.\n' >&2; \
+		exit 0; \
+	fi; \
+	echo "==> shfmt -d (diff against formatted version)"; \
+	shfmt -ln posix -i 4 -ci -s -d $(SHFMT_FILES) && echo "    OK"
+
 test:
 	@sh $(CURDIR)/tests/run.sh
 
 test-docker:
 	@sh $(CURDIR)/tests/run-docker.sh
+
+# Watch every git-tracked file and rerun the test suite on change.
+# Wraps tests/watch.sh (which uses entr); extra args go to run.sh:
+#   make watch -- --pretty -f slug
+watch:
+	@sh $(CURDIR)/tests/watch.sh $(filter-out watch,$(MAKECMDGOALS))
