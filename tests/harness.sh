@@ -59,6 +59,16 @@ _harness_setup_workspace() {
         exit 99
     }
 
+    # Point CONNIE_LIB_DIR at the in-tree src/ so connie's path-derived
+    # globals (LIB_DIR, DEFAULTS_FILE, PROJECT_TEMPLATE) resolve to the
+    # repo's files rather than the system-installed paths. This matters
+    # for unit tests that call internal functions directly (e.g.
+    # _merge_configs, which reads $DEFAULTS_FILE). CLI tests don't strictly
+    # need this — exercise_connie sets CONNIE_LIB_DIR explicitly when
+    # invoking the subprocess — but exporting it here makes the env
+    # uniform for both shapes of test.
+    export CONNIE_LIB_DIR="$_HARNESS_REPO_ROOT/src"
+
     export HOME="$WORKSPACE/home"
     export XDG_CONFIG_HOME="$HOME/.config"
     export XDG_STATE_HOME="$HOME/.local/state"
