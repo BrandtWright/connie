@@ -1,6 +1,33 @@
 #!/usr/bin/env sh
 # connie — run Claude Code in a constrained, reproducible container
 # POSIX sh — no bashisms
+#
+# ── Function index ───────────────────────────────────────────────────────────
+#
+# A flat ToC by section. Names only (line numbers drift); use your
+# editor's "go to symbol" or `grep -n '^name(' src/connie` to jump.
+#
+#   Utilities ──────────────────  _die _info _detail _require _require_yq _usage
+#   Project slug + XDG paths ───  _project_slug _project_config _project_state_dir
+#   Project registry ───────────  _register_project
+#   Project root detection ─────  _find_project_root
+#   Migration (.connie/ → XDG) ─  _migrate_project
+#   Config merging ─────────────  _merge_configs
+#   Override generation ────────  _build_fwd_env_obj _build_cli_env_obj
+#                                  _build_env_block _build_vol_block
+#                                  _build_ports_section _generate_override
+#   Context generation ─────────  _generate_connie_context _emit_user_context
+#                                  _emit_project_context _emit_local_context
+#                                  _write_user_context
+#   Context preview formatting ─  _ctx_preview_header _ctx_scope_header
+#                                  _ctx_preview_footer
+#   Validation / prepare ───────  _prepare
+#   Compose ────────────────────  _compose_project_name _run_compose
+#   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
+#                                  cmd_clean cmd_config cmd_context
+#   Main ───────────────────────  _main
+#
+# ── End function index ───────────────────────────────────────────────────────
 set -eu
 
 # ── Version and paths ─────────────────────────────────────────────────────────
