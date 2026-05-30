@@ -27,6 +27,36 @@ CONNIE_LIB_DIR=./src ./src/connie run  --cmd sh   # shell into the container to 
 There is no automated test suite. Verification is manual: `make check`, then
 exercise `init` / `build` / `run` / `clean` against a scratch project.
 
+### Verification tooling
+
+When working on connie inside connie, the project's own `config.yml`
+(at `~/.config/connie/projects/<slug>/config.yml`) should include:
+
+```yaml
+packages:
+  - yq          # exercise yq pipelines in src/connie directly
+  - shellcheck  # POSIX/bashism enforcement (make check only checks parse validity)
+  - hadolint    # Dockerfile linter for src/docker/*.Dockerfile
+```
+
+Each tool closes a specific verification gap:
+
+- `yq` — lets you run `connie context`, `connie config`, and reproduce
+  `_merge_configs` / `_generate_override` output during a session
+- `shellcheck` — mechanically enforces the "no bashisms" hard constraint
+  below; run as `shellcheck -s sh src/connie`
+- `hadolint` — catches common Dockerfile mistakes in `src/docker/base.Dockerfile`
+  and `src/docker/extend.Dockerfile`
+
+If `hadolint` is not available via `apk`, fall back to a static binary in
+`build_commands:`:
+
+```yaml
+build_commands:
+  - sudo wget -qO /usr/local/bin/hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+  - sudo chmod +x /usr/local/bin/hadolint
+```
+
 ## Hard constraints
 
 - **`src/connie` must stay POSIX `sh` — no bashisms.** The script also runs in
