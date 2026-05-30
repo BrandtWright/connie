@@ -1,0 +1,9 @@
+{
+    "//": "Extensions that match this project's lint conventions (make lint).",
+    "recommendations": [
+        "timonwong.shellcheck",
+        "davidanson.vscode-markdownlint",
+        "exiasr.hadolint",
+        "redhat.vscode-yaml"
+    ]
+}

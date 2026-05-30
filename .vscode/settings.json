@@ -1,0 +1,28 @@
+{
+    "//": "Workspace settings for connie. Personal preferences belong in .vscode/settings.local.json (ignored).",
+
+    "shellcheck.useWorkspaceRootAsCwd": true,
+    "shellcheck.customArgs": ["-s", "sh"],
+    "shellcheck.exclude": [],
+
+    "[shellscript]": {
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "editor.detectIndentation": false,
+        "editor.rulers": [80]
+    },
+
+    "[markdown]": {
+        "editor.rulers": [80],
+        "files.trimTrailingWhitespace": true
+    },
+
+    "files.associations": {
+        "*.Dockerfile": "dockerfile",
+        "connie": "shellscript"
+    },
+
+    "files.eol": "\n",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true
+}

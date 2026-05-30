@@ -8,6 +8,12 @@
 
 # Editor artifacts
 .idea/
-.vscode/
 *.swp
 *.swo
+
+# VSCode: ignore personal settings but allow shared workspace settings
+# (extensions.json recommends extensions; settings.json sets shellcheck
+# dialect and similar project-level defaults).
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
