@@ -295,14 +295,28 @@ from `src/docker/base.Dockerfile`. It is not published to any registry.
 
 ### Build Process
 
-Claude Code is installed by running the official install script
-(`https://claude.ai/install.sh`) *as the `claude-user` user*. This mirrors
-the recommended installation method and ensures the binary and supporting files
-land in `/home/claude-user/.local/bin/` with correct ownership — which is where
-Claude Code expects to manage itself.
+Claude Code is installed by downloading the official install script
+(`https://claude.ai/install.sh`) *as the `claude-user` user*, **verifying
+its SHA256** against a pinned value declared as a Dockerfile ARG, and only
+then executing it. The SHA pin closes what would otherwise be a textbook
+`curl … | bash` supply-chain hole: a brief compromise of `claude.ai`
+would otherwise ship arbitrary code into every fresh base image build.
+If Anthropic ships a new installer the build fails loudly at
+`sha256sum -c` until a maintainer reviews and refreshes the pin. The pin
+appears in the build log on every rebuild (no hidden state), and a
+maintainer can test a candidate update via
+`docker build --build-arg CLAUDE_INSTALLER_SHA256=<new> …` without
+editing the Dockerfile. Update procedure documented in a comment block
+above the ARG declaration.
 
-Installing as the correct user, rather than as root via `npm install -g`, avoids
-permission mismatches and ensures Claude Code can locate its own files at runtime.
+The Alpine base is also pinned by content digest, not just tag, so an
+unexpected re-push to `alpine:3.20` cannot silently change what every
+connie base image starts from.
+
+Installing as `claude-user` rather than as root via `npm install -g` lands
+the binary in `/home/claude-user/.local/bin/` with correct ownership —
+which is where Claude Code expects to manage itself — and avoids
+permission mismatches at runtime.
 
 ### Contents
 
@@ -561,6 +575,106 @@ rules), which Claude Code also loads. Their inclusion would require
 walking the rules directories and parsing per-file frontmatter for
 path-scoped rules — a worthwhile follow-up but out of scope for the
 initial preview.
+
+---
+
+## Test Architecture
+
+connie ships with 183 tests organised across four layers under `tests/`.
+The harness is a roll-your-own POSIX shell harness — no external
+framework — written in the same `sh` discipline as `src/connie` so the
+test layer doesn't introduce a runtime dependency.
+
+### Layers
+
+| Layer | Path | Tests | Purpose |
+| --- | --- | --- | --- |
+| Unit | `tests/unit/` | 68 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers, `_generate_connie_context`, `_compose_project_name`, etc. |
+| Integration | `tests/integration/` | 47 | Filesystem-touching helpers: `_migrate_project`, `_register_project`, `_find_project_root`, `cmd_init`, the context-emit functions. |
+| CLI | `tests/cli/` | 37 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, including the diagnostic case where a project isn't initialised. |
+| Docker | `tests/docker/` | 31 | End-to-end against real images and containers: `build-base`, `build`, `clean`, `run` lifecycle, cgroup-v2 resource-limit enforcement, host↔container context parity, `.connie/` → XDG auto-migration trigger. Gated on `docker` being on `$PATH`. |
+
+### DSL
+
+Tests are written as behaviour specifications using a `given` / `when` /
+`expect` DSL where each step is a named function the framework executes
+and records. The function names themselves are the documentation; no
+description strings.
+
+```sh
+build_succeeds_against_an_initialized_project_test_case() {
+    given a_unique_test_base_image_tag_and_an_initialized_project
+    when the_user_runs_connie_build_against_the_project
+    expect it_succeeds
+    expect the_workspace_image_exists
+}
+```
+
+Convention: **one logical claim per test**. Multiple `expect` calls are
+allowed when they describe inseparable aspects of the same claim
+(e.g. "the build succeeded AND the image was tagged AND the cmd ran").
+Tests are discovered by an `awk` scan for `*_test_case()` function
+definitions, so a test file is just a collection of functions with no
+boilerplate.
+
+### Isolation
+
+Each test runs in a fresh subshell with:
+
+- A `mktemp -d` workspace assigned to `$WORKSPACE`
+- `HOME` and every `XDG_*` env var redirected into the workspace, so
+  connie's path-derived globals (`CONFIG_DIR`, `STATE_DIR`, …) point at
+  a sandbox rather than the developer's real state
+- `$TEST_STDOUT` and `$TEST_STDERR` files where `exercise_connie`
+  captures the subject's output for capture-based assertions
+
+Tests source `src/connie` with `CONNIE_NO_DISPATCH=1` so the function
+definitions load without firing `_main`. The flag is set, exported,
+and unset explicitly around the `.` to avoid a POSIX special-builtin
+quirk under `bash --posix` (a leaked `CONNIE_NO_DISPATCH=1` would
+propagate to subsequent `exercise_connie` subprocess invocations and
+silently skip dispatch).
+
+### Docker layer isolation
+
+Docker tests stage to a per-subshell `connie-test/base:harness-<test>-<pid>`
+image tag via the `CONNIE_BASE_IMAGE` env var override (parameterized
+through `extend.Dockerfile`'s `ARG BASE_IMAGE` before `FROM`). The
+trap-on-exit removes both the base image, the workspace image, and the
+per-project network so neither the user's production `connie/base:latest`
+nor Docker's IPAM pool accumulates state across runs. The IPAM cleanup
+exists because `docker compose run --rm` removes the container but not
+the network — without explicit cleanup, the default pool exhausts after
+~30 tests with "all predefined address pools have been fully subnetted."
+
+### Hooks for testability
+
+A few overrides in `src/connie` exist purely so tests can stage
+fixtures without touching system paths or production tags:
+
+- `CONNIE_BASE_IMAGE` — overrides the default `connie/base:latest`
+  tag. Docker tests use this to isolate from the user's production
+  image. Also useful outside testing — e.g. building
+  `connie-arm/base:latest` on an arm host alongside the x86_64 tag.
+- `CONNIE_ETC_CLAUDE_MD` — overrides the host's system-wide Claude
+  Code policy path (`/etc/claude-code/CLAUDE.md` by default). The
+  test harness redirects this to a fixture file so tests pass on
+  hosts where `/etc/claude-code/` doesn't exist.
+- `CONNIE_LIB_DIR` — overrides the installed lib path so contributors
+  can test changes against the working tree without reinstalling.
+- `CONNIE_NO_DISPATCH` — suppresses `_main` dispatch when set, so the
+  test harness can source `src/connie` purely for function definitions.
+
+### Runtime auto-detection
+
+`cmd_run` runs `docker compose run --rm workspace` after the build
+phase. The compose file sets `tty: true` so interactive Claude Code
+gets a real PTY, but the same setting makes `docker compose run` refuse
+to start when stdout isn't a terminal. `cmd_run` auto-detects this
+with `[ -t 1 ]` and passes `-T` when stdout isn't a TTY, so the same
+subcommand works in interactive sessions, in CI, in the test harness,
+and any other output-redirected context without needing an explicit
+flag.
 
 ---
 
