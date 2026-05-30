@@ -87,6 +87,46 @@ expect_directory_to_exist() {
     _assertion_failure "directory to exist" "$1" "directory status" "no such directory"
 }
 
+# Compare a value against a stored snapshot under tests/snapshots/<name>.
+# Use this for assertions over multi-line outputs (markdown blobs, YAML
+# templates, etc.) where line-by-line assertions would be noisier than
+# a single golden-file comparison.
+#
+# On mismatch, prints a unified diff (snapshot first, actual second) so
+# the failure detail makes it obvious what changed. To accept the current
+# output as the new snapshot (e.g. after an intentional change), re-run
+# the suite with UPDATE_SNAPSHOTS=1.
+expect_to_match_snapshot() {
+    _snapshot_name="$1"
+    _actual_value="$2"
+    _snapshot="$_HARNESS_REPO_ROOT/tests/snapshots/$_snapshot_name"
+
+    if [ "${UPDATE_SNAPSHOTS:-0}" = "1" ]; then
+        mkdir -p "$(dirname "$_snapshot")"
+        printf '%s' "$_actual_value" > "$_snapshot"
+        return 0
+    fi
+
+    if [ ! -f "$_snapshot" ]; then
+        _assertion_failure \
+            "snapshot to exist at" "$_snapshot" \
+            "snapshot status" "missing (run UPDATE_SNAPSHOTS=1 make test to create)"
+        return 1
+    fi
+
+    _actual_tmp=$(mktemp)
+    printf '%s' "$_actual_value" > "$_actual_tmp"
+    if diff -q "$_snapshot" "$_actual_tmp" >/dev/null 2>&1; then
+        rm -f "$_actual_tmp"
+        return 0
+    fi
+    _diff_output=$(diff -u "$_snapshot" "$_actual_tmp" 2>&1 || true)
+    rm -f "$_actual_tmp"
+    _assertion_failure \
+        "value to match snapshot" "$_snapshot_name" \
+        "diff (- = snapshot / + = actual)" "$_diff_output"
+}
+
 # ── Process-level assertions (require exercise_connie / actual_exit_status) ─
 
 it_succeeds() {
