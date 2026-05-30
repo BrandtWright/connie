@@ -24,7 +24,9 @@
 #   Validation / prepare ───────  _prepare
 #   Compose ────────────────────  _compose_project_name _run_compose
 #   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
-#                                  cmd_clean cmd_config cmd_context
+#                                  cmd_clean cmd_config cmd_context cmd_doctor
+#   Doctor helpers ─────────────  _doctor_section _doctor_pass _doctor_warn
+#                                  _doctor_fail _doctor_check
 #   Main ───────────────────────  _main
 #
 # ── End function index ───────────────────────────────────────────────────────
@@ -122,6 +124,7 @@ Usage:
   $TOOL clean      [dir]    Remove the locally built project container image
   $TOOL config     [dir]    Show project paths and effective Compose override
   $TOOL context    [dir]    Generate and show the Claude Code context file
+  $TOOL doctor     [dir]    Diagnose required tools, install, base image, project
   $TOOL help                Show this message
   $TOOL version             Show version
 
@@ -1005,6 +1008,166 @@ cmd_context() {
     _ctx_preview_footer
 }
 
+# ── Doctor ───────────────────────────────────────────────────────────────────
+#
+# `connie doctor` runs a series of diagnostics across required tools,
+# connie installation, base image, and (optionally) per-project state.
+# Each check reports `ok`, `warn`, or `fail` plus an actionable hint
+# on non-ok results. Exits 0 if no failures, 1 if any failed (warnings
+# don't fail the run).
+#
+# This is the command a user runs FIRST when something isn't working
+# right — it surfaces the misconfiguration directly instead of letting
+# a later `connie run` discover it through a less-friendly error path.
+
+# Print a section header in the doctor output.
+_doctor_section() {
+    printf '\n%s\n' "$1" >&2
+}
+
+# Pass a check from a non-zero-exit-status command without an
+# intermediate variable. Increments _doc_passed.
+_doctor_pass() {
+    printf '  ok    %s\n' "$1" >&2
+    _doc_passed=$((_doc_passed + 1))
+}
+
+# Warn — non-failing, but worth flagging with a hint.
+_doctor_warn() {
+    printf '  warn  %s\n' "$1" >&2
+    [ -n "${2:-}" ] && printf '        %s\n' "$2" >&2
+    _doc_warned=$((_doc_warned + 1))
+}
+
+# Fail — counts toward the non-zero exit at end of run.
+_doctor_fail() {
+    printf '  fail  %s\n' "$1" >&2
+    [ -n "${2:-}" ] && printf '        %s\n' "$2" >&2
+    _doc_failed=$((_doc_failed + 1))
+}
+
+# Run a check: NAME HINT command [args...]. Redirects the command's
+# stdout and stderr to /dev/null so the diagnostic output stays clean.
+# Hint shows only on failure.
+_doctor_check() {
+    _dc_name="$1"
+    _dc_hint="$2"
+    shift 2
+    if "$@" >/dev/null 2>&1; then
+        _doctor_pass "$_dc_name"
+    else
+        _doctor_fail "$_dc_name" "$_dc_hint"
+    fi
+}
+
+# yq-v4 sniff (the same one _require_yq uses).
+_doctor_check_yq_v4() {
+    yq eval-all 'null' /dev/null
+}
+
+cmd_doctor() {
+    _doc_target="${1:-$PWD}"
+    _doc_failed=0
+    _doc_warned=0
+    _doc_passed=0
+
+    _info "Running connie diagnostics"
+
+    _doctor_section "Required tools:"
+    _doctor_check "docker on PATH" \
+        "Install Docker Engine 24+ — https://docs.docker.com/engine/install/" \
+        command -v docker
+    _doctor_check "docker daemon reachable" \
+        "Start the daemon (e.g. 'sudo systemctl start docker')" \
+        docker info
+    _doctor_check "yq on PATH" \
+        "Install yq v4 — https://github.com/mikefarah/yq#install" \
+        command -v yq
+    _doctor_check "yq is v4 (mikefarah)" \
+        "Installed yq doesn't support 'eval-all'; install v4 from mikefarah/yq" \
+        _doctor_check_yq_v4
+
+    _doctor_section "Connie installation:"
+    _doctor_check "lib dir present ($LIB_DIR)" \
+        "Reinstall: make install PREFIX=~/.local" \
+        test -d "$LIB_DIR"
+    _doctor_check "defaults.yml present" \
+        "Reinstall: make install (defaults.yml is shipped, not user-edited)" \
+        test -f "$LIB_DIR/config/defaults.yml"
+    _doctor_check "base.Dockerfile present" \
+        "Reinstall: make install" \
+        test -f "$LIB_DIR/docker/base.Dockerfile"
+    _doctor_check "extend.Dockerfile present" \
+        "Reinstall: make install" \
+        test -f "$LIB_DIR/docker/extend.Dockerfile"
+    _doctor_check "docker-compose.yml present" \
+        "Reinstall: make install" \
+        test -f "$LIB_DIR/docker/docker-compose.yml"
+    _doctor_check "entrypoint.sh present" \
+        "Reinstall: make install" \
+        test -f "$LIB_DIR/docker/entrypoint.sh"
+
+    _doctor_section "Base image:"
+    if docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+        _doctor_pass "base image $BASE_IMAGE present"
+    else
+        _doctor_warn "base image $BASE_IMAGE not built yet" \
+                     "Run 'connie build-base' (or let 'connie run' build it on first use)"
+    fi
+
+    # Per-project section, only meaningful when the target exists.
+    # Walking up the tree the way _find_project_root does is too
+    # surprising here ("doctor reported on my parent project, not the
+    # one I was asking about"); just check the exact path passed in.
+    if [ -d "$_doc_target" ]; then
+        _doc_project_root=$(cd "$_doc_target" 2>/dev/null && pwd)
+        _doc_config_path=$(_project_config "$_doc_project_root")
+        _doc_state_path=$(_project_state_dir "$_doc_project_root")
+
+        _doctor_section "Project ($_doc_project_root):"
+        if [ -f "$_doc_config_path" ]; then
+            _doctor_pass "config present: $_doc_config_path"
+            _doctor_check "config parses as YAML" \
+                "yq could not parse the config; check for syntax errors" \
+                yq eval-all 'null' "$_doc_config_path"
+        else
+            _doctor_warn "no project config yet" \
+                         "Run 'connie init $_doc_target' to scaffold one"
+        fi
+        if [ -d "$_doc_state_path" ]; then
+            # 0700 is the documented permission (defense-in-depth on
+            # the OAuth bearer token). `find -perm 700` is the POSIX
+            # way to test exact mode bits — `stat -c` and `stat -f`
+            # formats differ between GNU coreutils and BSD; `ls -ld`
+            # parsing trips shellcheck SC2012.
+            if find "$_doc_state_path" -maxdepth 0 -type d -perm 700 \
+                   2>/dev/null | grep -q .; then
+                _doctor_pass "state dir mode 700: $_doc_state_path"
+            else
+                _doctor_warn "state dir not mode 700: $_doc_state_path" \
+                             "Run 'chmod 700 \"$_doc_state_path\"' to harden"
+            fi
+        else
+            _doctor_warn "no state dir yet (created on first 'connie init' or 'connie run')" \
+                         "$_doc_state_path"
+        fi
+    fi
+
+    # Final summary. Always emit, even at -q — this command's whole
+    # purpose is producing output, so suppressing it would defeat it.
+    printf '\n' >&2
+    if [ "$_doc_failed" -gt 0 ]; then
+        printf 'Diagnostics: %d passed, %d warnings, %d failed.\n' \
+            "$_doc_passed" "$_doc_warned" "$_doc_failed" >&2
+        exit 1
+    elif [ "$_doc_warned" -gt 0 ]; then
+        printf 'Diagnostics: %d passed, %d warnings.\n' \
+            "$_doc_passed" "$_doc_warned" >&2
+    else
+        printf 'Diagnostics: all %d checks passed.\n' "$_doc_passed" >&2
+    fi
+}
+
 # ── Main: argument parsing and dispatch ──────────────────────────────────────
 #
 # Wrapped in a function so the test harness can source this script for its
@@ -1030,7 +1193,7 @@ _main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            init|run|build|clean|config|context|help|version)
+            init|run|build|clean|config|context|doctor|help|version)
                 _SUBCOMMAND="$1"
                 shift
                 ;;
@@ -1089,6 +1252,7 @@ _main() {
         clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
         config)      cmd_config     "${_TARGET_DIR:-}" ;;
         context)     cmd_context    "${_TARGET_DIR:-}" ;;
+        doctor)      cmd_doctor     "${_TARGET_DIR:-}" ;;
         version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
         help)
             # If we landed here because the first positional argument didn't
