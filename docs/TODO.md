@@ -43,6 +43,28 @@ process to stderr — which config files were found and loaded, which packages
 are being installed, what command will be run. Distinct from `connie config`,
 which shows the generated artifact; `--verbose` describes the process.
 
+### Rules-Directory Previewing in `connie context`
+
+`connie context` currently shows the four primary Claude Code scopes
+(managed policy, user-level, project, local) but does not show
+`~/.claude/rules/*.md` (user-level rules) or `<project>/.claude/rules/*.md`
+(project rules). Per the Claude Code memory docs, rules without `paths:`
+frontmatter load at session start; rules with `paths:` load when matching
+files are opened.
+
+Adding rules to the preview would require:
+
+- Walking the two rules directories recursively for `*.md` files
+- Parsing each file's YAML frontmatter to identify unconditional vs.
+  path-scoped rules
+- Displaying them under the appropriate scope, ideally with a note when
+  a rule is path-scoped (so the user knows it won't always be in context)
+
+Likely natural fit: nest the rules display *under* the relevant existing
+scope (project rules under the Project scope header, user rules under
+the User-level scope header) rather than introducing a fifth top-level
+scope.
+
 ---
 
 ## Quality / Internals
