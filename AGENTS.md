@@ -1,7 +1,14 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with
-code in this repository.
+This file provides guidance to AI coding assistants working in this
+repository. It follows the [AGENTS.md
+spec](https://agents.md/) — a tool-agnostic
+convention so any assistant that adopts it (Claude Code, Cursor,
+Aider, Copilot, and others) picks up the same project context
+without per-tool duplication. Most of the content below is
+tool-agnostic engineering documentation; the few session-guidance
+items toward the end are framed in terms of common AI-assistant
+workflows rather than any one tool's UI.
 
 ## What connie is
 

@@ -66,7 +66,7 @@ connie/
 ├── README.md                        User-facing documentation
 ├── CONTRIBUTING.md                  This file
 ├── SECURITY.md                      Vulnerability reporting and security model
-├── CLAUDE.md                        Guidance for Claude Code working in this repo
+├── AGENTS.md                        Guidance for AI coding assistants working in this repo
 ├── docs/
 │   ├── DESIGN.md                    Architecture and design decisions
 │   ├── CHANGELOG.md                 Version history

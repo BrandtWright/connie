@@ -9,6 +9,25 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **`CLAUDE.md` renamed to `AGENTS.md`** at the repo root. The file's
+  content was 80% tool-agnostic engineering documentation
+  (architecture, conventions, hard constraints, file responsibilities)
+  with only a small "session-specific guidance" section bound to
+  Claude Code specifically. The new name follows the
+  [AGENTS.md spec](https://agents.md/) — a tool-agnostic convention
+  that lets Claude Code, Cursor, Aider, Copilot, and any other
+  assistant adopting it read the same project context without
+  per-tool duplication. Claude Code looks for `CLAUDE.md` by default;
+  contributors who prefer the old name can add a `CLAUDE.md` symlink
+  pointing at `AGENTS.md` (kept out of source control via personal
+  preference). Note: nothing in `src/`, `tests/`, or runtime-generated
+  paths changed — the many references to `/etc/claude-code/CLAUDE.md`,
+  `~/.claude/CLAUDE.md`, `/workspace/CLAUDE.md`, and similar are
+  Claude Code's own runtime file paths and stay named as Claude Code
+  expects them.
+
 ---
 
 ## [0.4.0] — 2026-05-30
