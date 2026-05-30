@@ -71,38 +71,46 @@ scope.
 
 ### Docker-gated Tests
 
-The non-Docker punch-list is complete — 150 tests cover the pure
+The test suite is complete — 152 non-Docker tests cover the pure
 functions, the filesystem-touching helpers, and the CLI surface that
-doesn't need a Docker daemon. See `tests/README.md` for the conventions
-and `tests/{unit,integration,cli}/` for the test files. All pass under
-both `ash` (Alpine `/bin/sh`) and `bash --posix` (Arch `/usr/bin/sh`).
+doesn't need a Docker daemon (all pass under both `ash` and `bash
+--posix`); 31 Docker-gated tests under `tests/docker/` exercise the
+subcommands that actually build images and start containers. See
+`tests/README.md` for the conventions and `tests/docker/*.sh` for the
+test files. Run with `make test` and `make test-docker` respectively;
+the Docker layer exits 0 with a skip message when `docker` is absent
+on the host.
 
-What remains is the Docker layer — exercising the subcommands that
-actually build images and start containers. These need to run on a host
-that can build images, so they belong in a separate `tests/docker/`
-tree that the default `tests/run.sh` deliberately excludes. The
-mechanism for invoking them and skipping when `docker` is absent will
-be designed alongside the first Docker test.
+What the Docker layer covers:
 
-Candidates (in approximate order of value):
+- **`connie build-base`** — image creation at the expected tag,
+  `claude-user` user/uid, `DISABLE_AUTOUPDATER` baked in, entrypoint
+  path, Claude Code binary installed, idempotence.
+- **`connie build`** — per-project image creation, the
+  `_generate_override` → `extend.Dockerfile` → `docker build` chain,
+  `CONNIE_CONTEXT` reaching `/etc/claude-code/CLAUDE.md`, idempotence,
+  the auto-build-base branch.
+- **`connie clean`** — workspace image removal with base image
+  retention (`down --rmi local` semantics), idempotence.
+- **`connie run`** — full container lifecycle: starts as `claude-user`
+  at uid 1000, `/workspace` bind mount surfaces project files,
+  `/tmp` writable, root filesystem read-only, `/etc/claude-code/CLAUDE.md`
+  present, no `CONNIE_NO_DISPATCH` leak into the container env.
+- **Resource limits** — `mem_limit`, `pids_limit`, and `cpus` from the
+  merged config actually constrain the running container (verified by
+  reading the cgroup v2 hierarchy from inside).
+- **Context parity** — the managed-policy context Claude Code sees
+  inside the container reflects the same project config values that
+  `connie context` previews on the host.
+- **Auto-migration trigger** — a project with a legacy `.connie/`
+  layout (no XDG config) is migrated to XDG paths transparently before
+  the build proceeds, with the in-tree `.connie/` rmdir'd afterwards.
 
-- **`connie build-base`** — builds `connie/base:latest` from
-  `src/docker/base.Dockerfile`. Verify the image gets created, has the
-  expected entrypoint, and that `claude-user` exists in it.
-- **`connie build`** against an initialized project — exercises the
-  `_generate_override` → `extend.Dockerfile` → `docker build` chain.
-  Verify the image gets created and contains `CONNIE_CONTEXT` at
-  `/etc/claude-code/CLAUDE.md`.
-- **`connie run --cmd sh`** — full lifecycle exercise. Verify the
-  container starts, mounts `/workspace` and `~/.claude/` correctly,
-  runs as `claude-user`, has the documented filesystem constraints
-  (read-only root, `/tmp` writable, `/etc` read-only), and that
-  `CONNIE_NO_DISPATCH` is not in the container's environment.
-- **`connie clean`** — verify the workspace image is removed but the
-  base image is not (the `down --rmi local` semantics).
-- **The auto-migration trigger** — drop a fake `.connie/` directory in
-  a project root, run `connie run`, and verify migration happens before
-  the container starts.
+Isolation: Docker tests stage to `connie-test/base:harness-<test>-<pid>`
+via the `CONNIE_BASE_IMAGE` env-var override (parameterized through
+`extend.Dockerfile`'s leading `ARG BASE_IMAGE`), so they never touch
+the user's production `connie/base:latest`. A per-subshell trap
+removes the test images at exit.
 
 ### `connie update` Command
 
