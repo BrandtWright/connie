@@ -5,6 +5,35 @@ consideration — not committed to any release.
 
 ---
 
+## Release-Integration Punch List
+
+Items deferred until the project is ready for its first published
+release on a real Git remote. None of these can land until the remote
+URL is known and a GitHub repository exists; tracked here so they
+don't get forgotten at release time.
+
+- **GPG-signed release tags.** Switch from `git tag -a` to
+  `git tag -s`. Requires a maintainer GPG key with a verified
+  email matching the GitHub account; the key's public half goes into
+  GitHub settings so signatures show as "verified" on the tag page.
+  CI workflow may want a separate verification job.
+- **README badges** — CI status, license, latest release/version.
+  Need the real `github.com/<org>/<repo>` URL because the badge
+  endpoints embed it. shields.io is the standard provider.
+- **SBOM generation in CI.** Add a workflow step that runs `syft`
+  against the freshly built base image and uploads the SPDX or
+  CycloneDX output as a release artifact. Closes the supply-chain
+  story past the SHA-pinned installer: anyone downloading a release
+  can verify exactly what packages shipped.
+- **`.github/FUNDING.yml`.** Lists funding platforms (GitHub
+  Sponsors, Ko-fi, etc.) used by the maintainer. GitHub renders a
+  "Sponsor" button on the repo page when present.
+- **GitHub repo metadata** — description, topics, the "About"
+  sidebar's website/homepage field. Not files but worth checking off
+  at release time so the project's GitHub page isn't blank.
+
+---
+
 ## Features
 
 ### SSH Agent Forwarding
