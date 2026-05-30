@@ -150,8 +150,19 @@ _harness_run_test() {
 
         # Source connie's function definitions. The dispatch guard prevents
         # the CLI from firing.
+        #
+        # Per POSIX (and bash --posix), variable assignments before a
+        # "special builtin" like `.` persist in the current shell AND get
+        # exported — so `CONNIE_NO_DISPATCH=1 . connie` would leave
+        # CONNIE_NO_DISPATCH=1 in the environment, which would propagate to
+        # subsequent connie subprocess invocations in `exercise_connie`,
+        # causing those subprocesses to silently skip `_main`. Set and
+        # unset explicitly to keep the flag scoped to just the source step.
+        CONNIE_NO_DISPATCH=1
+        export CONNIE_NO_DISPATCH
         # shellcheck source=/dev/null
-        CONNIE_NO_DISPATCH=1 . "$_HARNESS_REPO_ROOT/src/connie"
+        . "$_HARNESS_REPO_ROOT/src/connie"
+        unset CONNIE_NO_DISPATCH
 
         # Source all helper files. They define fixtures, stimuli, and
         # assertion primitives.
