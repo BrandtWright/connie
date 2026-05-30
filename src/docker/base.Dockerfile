@@ -51,7 +51,25 @@ RUN addgroup -g 1000 claude-user \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 USER claude-user
-RUN curl -fsSL https://claude.ai/install.sh | bash
+
+# Install Claude Code. The installer is downloaded from the public URL
+# and its SHA256 is verified BEFORE execution — this closes the
+# `curl | bash` supply-chain hole. If Anthropic ships a new installer,
+# the build fails loudly here until the pin is refreshed.
+#
+# Updating the pin (when an Anthropic release breaks the build):
+#   1. Confirm the new installer is genuinely from Anthropic
+#      (compare the URL response on multiple networks, or fetch via
+#      the published Anthropic docs link, not from this Dockerfile).
+#   2. Compute the new SHA:  curl -fsSL https://claude.ai/install.sh | sha256sum
+#   3. Replace the value below.
+#   4. Note the change in docs/CHANGELOG.md under the next release.
+ARG CLAUDE_INSTALLER_SHA256=005ec1a937f32dfbb74f9e810287bcb12cba2d5cae4c9277aa8c6364adbf1787
+RUN curl -fsSL https://claude.ai/install.sh -o /tmp/install-claude.sh \
+    && echo "${CLAUDE_INSTALLER_SHA256}  /tmp/install-claude.sh" | sha256sum -c - \
+    && bash /tmp/install-claude.sh \
+    && rm /tmp/install-claude.sh
+
 ENV PATH="/home/claude-user/.local/bin:${PATH}"
 ENV DISABLE_AUTOUPDATER=1
 
