@@ -1,0 +1,20 @@
+# Dependabot configuration for connie.
+#
+# Only one ecosystem is managed: GitHub Actions used in
+# .github/workflows/. There are no language-package manifests in the
+# repo (the project's only runtime dependency is yq, installed by the
+# contributor outside the repo), so there's nothing else for dependabot
+# to bump.
+#
+# https://docs.github.com/en/code-security/dependabot/working-with-dependabot
+
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
