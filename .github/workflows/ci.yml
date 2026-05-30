@@ -1,0 +1,91 @@
+# CI for connie.
+#
+# Two jobs:
+#
+#   - lint-and-test: runs `make check`, `make lint`, and `make test` on
+#     every push and PR. These are the fast checks (a few seconds total)
+#     that gate merging. Runs under `dash` as well as the default shell
+#     to catch POSIX-sh portability regressions that `bash --posix`
+#     might let through.
+#
+#   - test-docker: runs `make test-docker` on a host with a real Docker
+#     daemon. Slower (~3 minutes including base image build) but
+#     verifies the full container lifecycle. Runs in parallel with the
+#     lint-and-test job; not a blocking gate for the lint half.
+#
+# Both jobs install dependencies fresh on each run rather than caching,
+# since the non-Docker job is dominated by `apt-get install` (a few
+# seconds) and the Docker job's wall time is dominated by `docker build`,
+# not dependency installation.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-test:
+    name: lint + non-Docker tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck dash
+          # yq v4 — the apt package on ubuntu is v3 (incompatible API).
+          # Install the v4 binary from the upstream release as the script does.
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          # markdownlint via npm (the cli wrapper, not markdownlint-cli2)
+          sudo npm install -g markdownlint-cli
+          # hadolint static binary
+          sudo wget -qO /usr/local/bin/hadolint \
+            https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+          sudo chmod +x /usr/local/bin/hadolint
+
+      - name: syntax check
+        run: make check
+
+      - name: lint
+        run: make lint
+
+      - name: tests (default shell)
+        run: make test
+
+      - name: tests (dash — POSIX-sh portability check)
+        # The harness sources src/connie under bash --posix on most hosts.
+        # Re-running under dash catches issues that `bash --posix` permits
+        # but a stricter POSIX implementation does not.
+        run: dash tests/run.sh
+
+  test-docker:
+    name: Docker-gated tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: docker info
+        # GitHub-hosted Ubuntu runners have docker pre-installed and
+        # running; this just verifies the daemon is reachable so a
+        # failure here points at the runner image, not the test layer.
+        run: docker info
+
+      - name: test-docker
+        run: make test-docker
