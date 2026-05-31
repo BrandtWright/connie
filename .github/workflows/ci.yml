@@ -34,7 +34,7 @@ jobs:
     name: lint + non-Docker tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: install dependencies
         run: |
@@ -74,7 +74,7 @@ jobs:
     name: Docker-gated tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: install dependencies
         run: |
