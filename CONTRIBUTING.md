@@ -5,9 +5,11 @@
 ## Development Setup
 
 connie is a self-hosting tool — once it is working you can use it to develop
-itself. From a local checkout of this repository:
+itself.
 
 ```sh
+git clone https://github.com/BrandtWright/connie
+cd connie
 make install PREFIX=~/.local       # install without sudo
 make install-dev                   # install + set up the pre-commit hook
 ```

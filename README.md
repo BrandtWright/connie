@@ -1,5 +1,9 @@
 # connie
 
+[![CI][ci-badge]][ci-link]
+[![License: MIT][license-badge]][license-link]
+[![Version][version-badge]][version-link]
+
 A CLI tool that runs [Claude Code][claude-code]
 in a constrained, reproducible container attached to a project directory.
 
@@ -42,9 +46,9 @@ memory or history leaks between projects.
 
 ## Installation
 
-From a local checkout of this repository:
-
 ```sh
+git clone https://github.com/BrandtWright/connie
+cd connie
 make install                        # installs to /usr/local (may need sudo)
 make install PREFIX=~/.local        # install without sudo
 ```
@@ -386,6 +390,12 @@ developer-owned file that describes the project's container needs.
 - [DESIGN.md][design-md] — architecture, security model, and design rationale
 - [CHANGELOG.md][changelog-md] — version history
 
+[ci-badge]: https://github.com/BrandtWright/connie/actions/workflows/ci.yml/badge.svg?branch=main
+[ci-link]: https://github.com/BrandtWright/connie/actions/workflows/ci.yml
+[license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg
+[license-link]: https://opensource.org/licenses/MIT
+[version-badge]: https://img.shields.io/github/v/tag/BrandtWright/connie?label=version&sort=semver
+[version-link]: https://github.com/BrandtWright/connie/releases
 [claude-code]: https://docs.anthropic.com/en/docs/claude-code
 [yq-install]: https://github.com/mikefarah/yq
 [configyml-ref]: #configyml-reference
