@@ -9,6 +9,22 @@ Versioning follows [Semantic Versioning][semver].
 
 ## [Unreleased]
 
+---
+
+## [0.4.1] — 2026-05-31
+
+### Added
+
+- **markdownlint `MD054` rule enabled** to mechanically enforce
+  reference-style links over inline. Configured with `inline: false`
+  and `url_inline: false` (the two banned variants); autolinks
+  (`<https://…>`) and the three reference variants (full, collapsed,
+  shortcut) stay allowed. CONTRIBUTING.md "Code Style" gained a
+  "Markdown links" subsection documenting the convention and the
+  rationale (line-wrap awkwardness, scattered URL maintenance).
+  Pre-commit hook catches any future inline `[text](url)` at commit
+  time.
+
 ### Changed
 
 - **Switched from `markdownlint-cli` to `markdownlint-cli2`** for the
@@ -24,6 +40,18 @@ Versioning follows [Semantic Versioning][semver].
   markdownlint-cli2` in place of `markdownlint-cli`; the project's
   own `config.yml` example in README + `src/config/project.yml`
   template comments updated accordingly.
+- **All inline markdown links converted to reference style.** 16
+  inline `[text](url)` links across AGENTS.md, CODE_OF_CONDUCT.md,
+  CONTRIBUTING.md, README.md, docs/CHANGELOG.md, and docs/DESIGN.md
+  rewritten as `[text][slug]` with definitions grouped at the bottom
+  of each file in the order they appear in the body. No content
+  change; readability + maintenance improvement only. Locked in by
+  the MD054 rule above.
+- **AGENTS.md H1 changed** from the bare-filename `# AGENTS.md` to
+  the descriptive `# connie — guidance for AI coding assistants`.
+  The bare-filename convention came from the CLAUDE.md heritage (a
+  Claude-Code-specific norm); a descriptive title matches the
+  pattern README / CONTRIBUTING / SECURITY already use.
 - **`CLAUDE.md` renamed to `AGENTS.md`** at the repo root. The file's
   content was 80% tool-agnostic engineering documentation
   (architecture, conventions, hard constraints, file responsibilities)
@@ -40,6 +68,18 @@ Versioning follows [Semantic Versioning][semver].
   `~/.claude/CLAUDE.md`, `/workspace/CLAUDE.md`, and similar are
   Claude Code's own runtime file paths and stay named as Claude Code
   expects them.
+  `make lint-md` target and the CI install step. Cli2 is by David
+  Anson (the author of the underlying `markdownlint` library itself);
+  cli (by Igor Shubovych) is in maintenance mode. The author-
+  maintained variant tracks library changes first, supports native
+  glob patterns (the Makefile target dropped its `find … | xargs …`
+  scaffolding for a direct `markdownlint-cli2 "**/*.md" "#.git"
+  "#node_modules"`), and adds SARIF output for future GitHub CI
+  annotations. Existing `.markdownlint.yaml` config is consumed
+  unchanged by both. Contributors should `npm install -g
+  markdownlint-cli2` in place of `markdownlint-cli`; the project's
+  own `config.yml` example in README + `src/config/project.yml`
+  template comments updated accordingly.
 
 ---
 
