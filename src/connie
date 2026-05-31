@@ -7,9 +7,10 @@
 # A flat ToC by section. Names only (line numbers drift); use your
 # editor's "go to symbol" or `grep -n '^name(' src/connie` to jump.
 #
-#   Utilities ──────────────────  _die _info _detail _require _require_yq _usage
+#   Utilities ──────────────────  _die _info _detail _debug _confirm _require
+#                                  _require_yq _usage
 #   Project slug + XDG paths ───  _project_slug _project_config _project_state_dir
-#   Project registry ───────────  _register_project
+#   Project registry ───────────  _register_project _unregister_project
 #   Project root detection ─────  _find_project_root
 #   Migration (.connie/ → XDG) ─  _migrate_project
 #   Config merging ─────────────  _merge_configs
@@ -24,7 +25,8 @@
 #   Validation / prepare ───────  _prepare
 #   Compose ────────────────────  _compose_project_name _run_compose
 #   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
-#                                  cmd_clean cmd_config cmd_context cmd_doctor
+#                                  cmd_clean cmd_remove cmd_config cmd_context
+#                                  cmd_doctor
 #   Doctor helpers ─────────────  _doctor_section _doctor_pass _doctor_warn
 #                                  _doctor_fail _doctor_check
 #   Main ───────────────────────  _main
@@ -100,6 +102,24 @@ _debug() {
     printf '[debug] %s\n' "$1" >&2
 }
 
+# Interactive y/N prompt. Returns 0 on yes, 1 on anything else
+# (including empty / Ctrl-D / "no"). Prompt goes to stderr (so a
+# pipeline capturing stdout doesn't see it); reads from stdin.
+#
+# In non-interactive contexts (stdin not a TTY), callers MUST set
+# their own bypass flag (e.g. cmd_remove's --yes) before calling
+# this; otherwise the prompt would silently hang waiting for input
+# that will never come. The convention this matches is `rm -i`:
+# interactive prompts only fire when there's a terminal to prompt to.
+_confirm() {
+    printf '%s [y/N] ' "$1" >&2
+    read -r _cf_answer || _cf_answer=""
+    case "$_cf_answer" in
+        y|Y|yes|YES) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 _require() {
     command -v "$1" >/dev/null 2>&1 || \
         _die "'$1' is required but not installed." \
@@ -130,6 +150,7 @@ Usage:
   $TOOL build      [dir]    Build the project container image without starting it
   $TOOL build-base          Build (or rebuild) the connie base image
   $TOOL clean      [dir]    Remove the locally built project container image
+  $TOOL remove     [dir]    Remove ALL connie-owned state for a project (inverse of init)
   $TOOL config     [dir]    Show project paths and effective Compose override
   $TOOL context    [dir]    Generate and show the Claude Code context file
   $TOOL doctor     [dir]    Diagnose required tools, install, base image, project
@@ -140,6 +161,12 @@ Options (run, build, config):
   --package <pkg>    Install an additional apk package (repeatable)
   --env KEY=VALUE    Set an additional environment variable (repeatable)
   --cmd <cmd>        Override the start command (default: claude)
+
+Options (remove):
+  --yes              Skip the y/N confirmation (required in non-TTY)
+  --keep-state       Preserve the state dir (keeps OAuth + history)
+  --keep-image       Skip Docker image + network removal
+  --dry-run          Print what would be removed; touch nothing
 
 Verbosity (any subcommand):
   -q, --quiet        Suppress info/detail output; only errors reach stderr
@@ -206,6 +233,15 @@ _register_project() {
     mkdir -p "$DATA_DIR"
     [ -f "$PROJECTS_FILE" ] || printf '{}' > "$PROJECTS_FILE"
     ROOT="$_rp_root" SLUG="$_rp_slug" yq -i '.[env(ROOT)] = env(SLUG)' "$PROJECTS_FILE"
+}
+
+# Inverse of _register_project: removes the path→slug entry from the
+# registry. No-op if the file or entry doesn't exist — safe to call
+# during `connie remove` against a project that was never registered.
+_unregister_project() {
+    _up_root="$1"
+    [ -f "$PROJECTS_FILE" ] || return 0
+    ROOT="$_up_root" yq -i 'del(.[env(ROOT)])' "$PROJECTS_FILE"
 }
 
 # ── Project root detection ────────────────────────────────────────────────────
@@ -949,6 +985,106 @@ cmd_clean() {
     _info "Done."
 }
 
+# Remove all connie-owned state for a project. The inverse of
+# `cmd_init` (which scaffolds) plus `cmd_clean` (which removes the
+# image). Five assets, removed in dependency order so a partial
+# failure leaves the registry pointing at recoverable state:
+#
+#   1. Docker image      (`connie-<slug>-workspace`)
+#   2. Docker network    (`connie-<slug>_default`)
+#   3. State dir         (`$STATE_DIR/<slug>/`     — Claude Code OAuth + history)
+#   4. Config dir        (`$CONFIG_DIR/projects/<slug>/`)
+#   5. Registry entry    (`$PROJECTS_FILE` → path→slug mapping)
+#
+# Project directory under /workspace is NEVER touched. The five
+# assets above are all connie-owned; the project's own source tree
+# is the user's.
+#
+# Flags:
+#   --yes          skip the y/N confirmation (required in non-TTY)
+#   --keep-state   preserve the state dir (keeps OAuth + history)
+#   --keep-image   skip Docker image + network removal
+#   --dry-run      print what would be removed; touch nothing
+cmd_remove() {
+    _project_root=$(_find_project_root "${1:-$PWD}")
+    _rm_slug=$(_project_slug "$_project_root")
+    _rm_config_dir="$CONFIG_DIR/projects/$_rm_slug"
+    _rm_state_dir="$STATE_DIR/$_rm_slug"
+    _rm_compose_proj=$(_compose_project_name "$_project_root")
+    _rm_image="${_rm_compose_proj}-workspace"
+    _rm_network="${_rm_compose_proj}_default"
+
+    # Build the description of what we'd remove. Used both for
+    # --dry-run output and the confirmation prompt so the user sees
+    # the same thing in both cases.
+    printf '\n' >&2
+    printf 'For project: %s (slug: %s)\n' "$_project_root" "$_rm_slug" >&2
+    printf '\n' >&2
+    if [ "$_ARG_KEEP_IMAGE" != "1" ]; then
+        printf '  - Docker image:    %s\n' "$_rm_image" >&2
+        printf '  - Docker network:  %s\n' "$_rm_network" >&2
+    fi
+    if [ "$_ARG_KEEP_STATE" != "1" ]; then
+        printf '  - State dir:       %s\n' "$_rm_state_dir" >&2
+        printf '                       (Claude Code OAuth tokens + conversation history)\n' >&2
+    fi
+    printf '  - Config dir:      %s\n' "$_rm_config_dir" >&2
+    printf '  - Registry entry:  %s\n' "$PROJECTS_FILE" >&2
+    printf '\n' >&2
+
+    if [ "$_ARG_DRY_RUN" = "1" ]; then
+        printf '(dry run — nothing removed; re-run without --dry-run to proceed)\n' >&2
+        return 0
+    fi
+
+    if [ "$_ARG_YES" != "1" ]; then
+        if [ ! -t 0 ]; then
+            _die "remove needs --yes when stdin isn't a terminal (non-interactive context)." \
+                 "Add --yes to confirm, or run interactively."
+        fi
+        _confirm "This is irreversible. Proceed?" || _die "Aborted."
+    fi
+
+    # ── 1 + 2: Docker image + network (skipped under --keep-image
+    # OR if docker isn't available — better to make best-effort
+    # removal than fail the whole command on a missing prerequisite).
+    if [ "$_ARG_KEEP_IMAGE" != "1" ]; then
+        if command -v docker >/dev/null 2>&1; then
+            _info "Removing Docker image and network"
+            docker compose -p "$_rm_compose_proj" \
+                -f "$LIB_DIR/docker/docker-compose.yml" \
+                down --rmi local >/dev/null 2>&1 || true
+            docker network rm "$_rm_network" >/dev/null 2>&1 || true
+        else
+            _detail "docker not on PATH — skipping image/network removal"
+        fi
+    fi
+
+    # ── 3: State dir. Contains OAuth + per-project history — the
+    # asset that earned the confirmation prompt above. Skipped under
+    # --keep-state (the "keep me logged in" escape hatch).
+    if [ "$_ARG_KEEP_STATE" != "1" ] && [ -d "$_rm_state_dir" ]; then
+        _info "Removing state dir: $_rm_state_dir"
+        rm -rf "$_rm_state_dir"
+    fi
+
+    # ── 4: Config dir. Recreatable via `connie init`, no
+    # irreversible loss.
+    if [ -d "$_rm_config_dir" ]; then
+        _info "Removing config dir: $_rm_config_dir"
+        rm -rf "$_rm_config_dir"
+    fi
+
+    # ── 5: Registry entry. Last so a mid-run failure above leaves
+    # the registry pointing at the (partial) state for diagnosis.
+    if [ -f "$PROJECTS_FILE" ]; then
+        _info "Removing registry entry"
+        _unregister_project "$_project_root"
+    fi
+
+    _info "Removed."
+}
+
 cmd_config() {
     _project_root=$(_find_project_root "${1:-$PWD}")
 
@@ -1192,6 +1328,11 @@ _main() {
     _ARG_PACKAGES=""
     _ARG_ENV=""
     _ARG_CMD=""
+    # Flags scoped to `remove` (see cmd_remove for semantics).
+    _ARG_YES=0
+    _ARG_KEEP_STATE=0
+    _ARG_KEEP_IMAGE=0
+    _ARG_DRY_RUN=0
     _SUBCOMMAND=""
     _TARGET_DIR=""
 
@@ -1207,7 +1348,7 @@ _main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            init|run|build|clean|config|context|doctor|help|version)
+            init|run|build|clean|remove|config|context|doctor|help|version)
                 _SUBCOMMAND="$1"
                 shift
                 ;;
@@ -1242,6 +1383,22 @@ _main() {
                 _ARG_CMD="$2"
                 shift 2
                 ;;
+            --yes)
+                _ARG_YES=1
+                shift
+                ;;
+            --keep-state)
+                _ARG_KEEP_STATE=1
+                shift
+                ;;
+            --keep-image)
+                _ARG_KEEP_IMAGE=1
+                shift
+                ;;
+            --dry-run)
+                _ARG_DRY_RUN=1
+                shift
+                ;;
             --version)
                 printf '%s %s\n' "$TOOL" "$VERSION"
                 exit 0
@@ -1264,6 +1421,7 @@ _main() {
         build-base)  cmd_build_base ;;
         run)         cmd_run        "${_TARGET_DIR:-}" ;;
         clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
+        remove)      cmd_remove     "${_TARGET_DIR:-}" ;;
         config)      cmd_config     "${_TARGET_DIR:-}" ;;
         context)     cmd_context    "${_TARGET_DIR:-}" ;;
         doctor)      cmd_doctor     "${_TARGET_DIR:-}" ;;
