@@ -45,8 +45,11 @@ jobs:
           sudo wget -qO /usr/local/bin/yq \
             https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
-          # markdownlint via npm (the cli wrapper, not markdownlint-cli2)
-          sudo npm install -g markdownlint-cli
+          # markdownlint-cli2 — author-maintained CLI for the markdownlint
+          # library. Newer than markdownlint-cli, gets active development,
+          # and supports native glob patterns + SARIF output for future CI
+          # annotation. Our `make lint-md` target invokes it directly.
+          sudo npm install -g markdownlint-cli2
           # hadolint static binary
           sudo wget -qO /usr/local/bin/hadolint \
             https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64

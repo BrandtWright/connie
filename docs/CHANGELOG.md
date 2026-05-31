@@ -11,6 +11,19 @@ Versioning follows [Semantic Versioning][semver].
 
 ### Changed
 
+- **Switched from `markdownlint-cli` to `markdownlint-cli2`** for the
+  `make lint-md` target and the CI install step. Cli2 is by David
+  Anson (the author of the underlying `markdownlint` library itself);
+  cli (by Igor Shubovych) is in maintenance mode. The author-
+  maintained variant tracks library changes first, supports native
+  glob patterns (the Makefile target dropped its `find … | xargs …`
+  scaffolding for a direct `markdownlint-cli2 "**/*.md" "#.git"
+  "#node_modules"`), and adds SARIF output for future GitHub CI
+  annotations. Existing `.markdownlint.yaml` config is consumed
+  unchanged by both. Contributors should `npm install -g
+  markdownlint-cli2` in place of `markdownlint-cli`; the project's
+  own `config.yml` example in README + `src/config/project.yml`
+  template comments updated accordingly.
 - **`CLAUDE.md` renamed to `AGENTS.md`** at the repo root. The file's
   content was 80% tool-agnostic engineering documentation
   (architecture, conventions, hard constraints, file responsibilities)

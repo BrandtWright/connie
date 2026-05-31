@@ -185,7 +185,7 @@ packages:
 # Note: the base image does not expose a standalone npm — add nodejs and
 # npm to packages: first if you need it here.
 build_commands:
-  - npm install -g markdownlint-cli   # also needs packages: [nodejs, npm]
+  - npm install -g markdownlint-cli2  # also needs packages: [nodejs, npm]
   - pip install black ruff            # also needs packages: [python3, py3-pip]
 
 # Environment variables injected at container runtime.

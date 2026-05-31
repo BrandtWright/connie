@@ -43,7 +43,7 @@ packages: []
 # add nodejs and npm to packages: first.
 #
 # build_commands:
-#   - npm install -g markdownlint-cli   # requires packages: [nodejs, npm]
+#   - npm install -g markdownlint-cli2  # requires packages: [nodejs, npm]
 #   - pip install black ruff            # requires packages: [python3, py3-pip]
 
 build_commands: []

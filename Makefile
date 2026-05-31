@@ -123,12 +123,11 @@ lint-sh:
 	@echo "    OK"
 
 lint-md:
-	@echo "==> markdownlint"
-	@find $(CURDIR) -type f -name "*.md" \
-	    -not -path "$(CURDIR)/.git/*" \
-	    -not -path "$(CURDIR)/node_modules/*" \
-	    -print0 \
-	  | xargs -0 markdownlint
+	@echo "==> markdownlint-cli2"
+	@cd $(CURDIR) && markdownlint-cli2 \
+	    "**/*.md" \
+	    "#.git" \
+	    "#node_modules"
 	@echo "    OK"
 
 lint-docker:
