@@ -9,6 +9,44 @@ Versioning follows [Semantic Versioning][semver].
 
 ## [Unreleased]
 
+### Added
+
+- **`connie remove [dir]`** — symmetric inverse of `connie init`.
+  Removes five connie-owned assets in dependency order (Docker
+  image → Docker network → state dir → config dir → registry
+  entry) so a partial failure leaves the registry pointing at
+  recoverable state. The project directory under `/workspace` is
+  never touched. Closes the long-standing gap where
+  `connie init` scaffolded state but nothing removed it once the
+  project no longer wanted to be managed.
+
+  Flags:
+  - `--yes` skips the y/N confirmation. Required in non-TTY
+    contexts (CI, scripts, piped stdin) — connie dies with a
+    clear hint rather than hang waiting for input that won't
+    come, matching `rm -i` semantics.
+  - `--keep-state` preserves the per-project state dir (OAuth
+    tokens + conversation history). Removes everything else.
+    Useful for the "log out but I might come back" case;
+    re-running `connie init` against the same path lands the
+    user with their Claude Code session intact.
+  - `--keep-image` skips the Docker image + network step.
+  - `--dry-run` prints what would be removed without touching
+    anything. Same output format as the confirmation prompt so
+    users see the same picture in both code paths.
+
+  `connie clean` is unchanged — it still removes only the
+  per-project image, leaving state and config in place. The split
+  is deliberate: `clean` is "free disk space, rebuild fresh";
+  `remove` is "I'm done with this project."
+
+  Implementation: new `_confirm` and `_unregister_project`
+  helpers (the latter is the inverse of `_register_project`).
+  13 new tests across `tests/integration/` and `tests/cli/`
+  covering each flag combination, the non-TTY refusal, the
+  sentinel-survival guarantee for the project directory, and
+  the graceful no-op against unregistered paths.
+
 ---
 
 ## [0.4.1] — 2026-05-31
