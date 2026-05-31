@@ -55,6 +55,20 @@ Specific rules:
   before staging any commit, or install the pre-commit hook with
   `make install-hooks` so it runs automatically.
 
+### Markdown links
+
+All links in markdown files use [reference style][md-reference-style] —
+`[text][slug]` in the body, with `[slug]: url` definitions grouped at
+the bottom of the file. Inline `[text](url)` links are disallowed and
+mechanically caught by markdownlint's [MD054][md054] rule.
+
+Why: inline links make line wrapping awkward (a long URL inside a
+sentence either pushes the line past 80 chars or forces an ugly
+break), and they scatter URL maintenance throughout the document —
+updating a URL means searching the body instead of editing one entry
+in a single bottom-of-file table. Autolinks (`<https://example.com>`)
+for bare URLs are still fine.
+
 ---
 
 ## Project Structure
@@ -159,3 +173,5 @@ format. Each entry should explain what changed and why, not just list the diff.
 
 [semver]: https://semver.org/
 [keep-a-changelog]: https://keepachangelog.com/
+[md-reference-style]: https://www.markdownguide.org/basic-syntax/#reference-style-links
+[md054]: https://github.com/DavidAnson/markdownlint/blob/main/doc/md054.md
