@@ -56,6 +56,39 @@ Versioning follows [Semantic Versioning][semver].
   registered yet" note goes to stderr. Takes no `[dir]` argument.
   6 new CLI tests in `tests/cli/list_test_cases.sh`.
 
+### Changed
+
+- **The test harness now fails a test when a `given`/`when` step exits
+  non-zero**, not just on a failed `expect`. Because the test subshell
+  runs with `set -e` disabled (it's the left operand of `||`), a broken
+  precondition or stimulus previously continued silently and later
+  assertions could pass against stale state — a false green. Steps are
+  now status-checked exactly like assertions.
+- **README documents `connie doctor` and the `-q`/`-v` verbosity flags**
+  (with their `CONNIE_QUIET`/`CONNIE_VERBOSE` env equivalents), which
+  had shipped without user-facing docs. The canonical test count now
+  lives only in `docs/DESIGN.md`; drift-prone figures were removed from
+  `CONTRIBUTING.md` and the PR template.
+
+### Fixed
+
+- **The generated Compose override now YAML-encodes every
+  user-controlled value** — `EXTRA_PACKAGES`, `BUILD_COMMANDS`,
+  `command`, `volumes`, and `ports`. Previously these were spliced in
+  with hand-written quoting, so a value containing a double quote (e.g.
+  `--cmd 'sh -c "…"'`) broke out of the YAML string and a value with a
+  space-then-`#` was silently truncated as a comment. Each is now
+  emitted through `yq`, which always produces a valid, fully-escaped
+  scalar.
+
+### Security
+
+- **`connie` refuses to mount the Docker socket** through a project
+  config's `volumes:` list. A `docker.sock` bind mount lets an
+  in-container process drive the host daemon and launch a privileged
+  container, escaping every other hardening measure; the entry is now
+  rejected with an actionable error before the container is built.
+
 ---
 
 ## [0.4.1] — 2026-05-31
@@ -115,18 +148,6 @@ Versioning follows [Semantic Versioning][semver].
   `~/.claude/CLAUDE.md`, `/workspace/CLAUDE.md`, and similar are
   Claude Code's own runtime file paths and stay named as Claude Code
   expects them.
-  `make lint-md` target and the CI install step. Cli2 is by David
-  Anson (the author of the underlying `markdownlint` library itself);
-  cli (by Igor Shubovych) is in maintenance mode. The author-
-  maintained variant tracks library changes first, supports native
-  glob patterns (the Makefile target dropped its `find … | xargs …`
-  scaffolding for a direct `markdownlint-cli2 "**/*.md" "#.git"
-  "#node_modules"`), and adds SARIF output for future GitHub CI
-  annotations. Existing `.markdownlint.yaml` config is consumed
-  unchanged by both. Contributors should `npm install -g
-  markdownlint-cli2` in place of `markdownlint-cli`; the project's
-  own `config.yml` example in README + `src/config/project.yml`
-  template comments updated accordingly.
 
 ---
 
