@@ -435,6 +435,28 @@ _build_vol_block() {
       - ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
     _bvb_extra=$(yq '.volumes | .[]' "$2" 2>/dev/null || true)
     if [ -n "$_bvb_extra" ]; then
+        # Reject mounting the Docker socket before emitting anything. A
+        # process that can write to docker.sock can start a privileged
+        # container and take over the host — it bypasses cap_drop,
+        # no-new-privileges, the read-only rootfs, every guarantee connie
+        # makes. Honoring such a mount would make the hardening theater,
+        # so fail loudly instead. The host path is the segment before the
+        # first ':'; a trailing '/docker.sock' (or a bare 'docker.sock')
+        # is the socket regardless of its directory.
+        _oldifs=$IFS
+        IFS='
+'
+        for _bvb_entry in $_bvb_extra; do
+            [ -n "$_bvb_entry" ] || continue
+            case "${_bvb_entry%%:*}" in
+                docker.sock|*/docker.sock)
+                    IFS=$_oldifs
+                    _die "Refusing to mount the Docker socket: $_bvb_entry" \
+                         "Mounting docker.sock grants full host control and defeats connie's container hardening. Remove this entry from the volumes: list in your project config."
+                    ;;
+            esac
+        done
+        IFS=$_oldifs
         _bvb_block=$(printf '%s\n%s' "$_bvb_block" \
             "$(printf '%s\n' "$_bvb_extra" | sed 's/^/      - /')")
     fi
