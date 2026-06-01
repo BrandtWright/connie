@@ -114,9 +114,12 @@ These are accepted risks documented for transparency, not bugs:
   pinned value in `src/docker/base.Dockerfile`. If Anthropic ships a
   new installer the build will fail loudly until the pin is updated;
   see the comment in `base.Dockerfile` for the update procedure.
-- Alpine base image: pinned to `alpine:3.20` (a release tag). Docker
-  Hub does not guarantee tag immutability, but Alpine has not in
-  practice rebuilt under existing tags.
+- Alpine base image: pinned by content-addressed digest (not just the
+  `alpine:3.20` tag) in `src/docker/base.Dockerfile`. Docker Hub does
+  not guarantee tag immutability, so the digest is what keeps a rebuild
+  reproducible — a re-push to `alpine:3.20` cannot silently change what
+  the base image starts from. See the update procedure in
+  `base.Dockerfile` for bumping it.
 - All other tooling (yq, hadolint, markdownlint, shellcheck) is
   installed by the contributor outside the container — not part of
   the runtime supply chain.

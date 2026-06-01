@@ -382,10 +382,14 @@ and during auto-migration. Even if Claude Code does not set restrictive
 permissions on `.credentials.json` itself, the parent directories prevent
 other local users on the same machine from traversing to it.
 
-File ownership stays with the user running connie. No privilege escalation
-is required at any layer, and the read-only container filesystem prevents a
-compromised in-container process from rewriting the credential file through
-any path other than the bind mount.
+File ownership stays with the user running connie, and no privilege
+escalation is required at any layer. The credential file itself lives on a
+writable bind mount, so a process inside the container running as
+`claude-user` can rewrite it — the read-only root filesystem does not
+prevent that. What the read-only root *does* guarantee is that writes
+cannot escape the three mounted paths; combined with the `0700` host
+directories above, which keep other local users from reading the token,
+that is the extent of the protection on the credential file.
 
 ---
 
