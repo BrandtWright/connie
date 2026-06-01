@@ -109,16 +109,37 @@ _humanize() {
     printf '%s' "${_hum_x% test case}"
 }
 
+# `given` and `when` set up state / perform the action under test. Unlike
+# `expect`, their job is not to assert — but a step that exits non-zero
+# means the precondition or stimulus itself failed, leaving the test
+# running against stale or empty state. Left unchecked that produces a
+# false green: the later `expect` lines pass against a half-built fixture.
+# So a non-zero step is recorded as a test failure here, exactly as a
+# failed `expect` would be. `set -e` is disabled inside the test subshell
+# (it runs as the left operand of `||`), so we must check `$?` explicitly
+# rather than rely on the shell aborting.
 given() {
     _description=$(_humanize "$1")
     "$@"
-    _emit_detail "given:  $_description"
+    _step_status=$?
+    if [ "$_step_status" = "0" ]; then
+        _emit_detail "given:  $_description"
+    else
+        _TEST_ASSERTIONS_FAILED=$((_TEST_ASSERTIONS_FAILED + 1))
+        _emit_detail "given:  $_description (FAIL: exit $_step_status)"
+    fi
 }
 
 when() {
     _description=$(_humanize "$1")
     "$@"
-    _emit_detail "when:   $_description"
+    _step_status=$?
+    if [ "$_step_status" = "0" ]; then
+        _emit_detail "when:   $_description"
+    else
+        _TEST_ASSERTIONS_FAILED=$((_TEST_ASSERTIONS_FAILED + 1))
+        _emit_detail "when:   $_description (FAIL: exit $_step_status)"
+    fi
 }
 
 expect() {
