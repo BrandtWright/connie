@@ -430,9 +430,11 @@ _build_env_block() {
 _build_vol_block() {
     # $1 = project_root, $2 = merged_file
     _bvb_state=$(_project_state_dir "$1")
-    _bvb_block="      - ${1}:/workspace:rw
-      - ${_bvb_state}/.claude:/home/claude-user/.claude
-      - ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
+    # Standard mounts (connie-controlled), one raw "host:container[:opts]"
+    # string per line. Config-supplied extras are appended after validation.
+    _bvb_mounts="${1}:/workspace:rw
+${_bvb_state}/.claude:/home/claude-user/.claude
+${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
     _bvb_extra=$(yq '.volumes | .[]' "$2" 2>/dev/null || true)
     if [ -n "$_bvb_extra" ]; then
         # Reject mounting the Docker socket before emitting anything. A
@@ -457,10 +459,16 @@ _build_vol_block() {
             esac
         done
         IFS=$_oldifs
-        _bvb_block=$(printf '%s\n%s' "$_bvb_block" \
-            "$(printf '%s\n' "$_bvb_extra" | sed 's/^/      - /')")
+        _bvb_mounts="${_bvb_mounts}
+${_bvb_extra}"
     fi
-    printf '%s' "$_bvb_block"
+    # Emit a YAML block sequence via yq so every mount string — including
+    # config-supplied paths — is quoted exactly when YAML requires it and
+    # can never break out of the override. yq emits at column 0; indent to
+    # the 6-space depth the override's `volumes:` key expects.
+    VOLS="$_bvb_mounts" yq -n -o=yaml \
+        'strenv(VOLS) | split("\n") | map(select(. != ""))' \
+        | sed 's/^/      /'
 }
 
 # Build the YAML ports section. Outputs nothing if no ports are configured.
@@ -468,7 +476,11 @@ _build_ports_section() {
     # $1 = merged_file
     _bps_ports=$(yq '.ports | .[]' "$1" 2>/dev/null || true)
     [ -n "$_bps_ports" ] || return 0
-    _bps_block=$(printf '%s\n' "$_bps_ports" | sed 's/^/      - "/' | sed 's/$/"/')
+    # Force double-quoted scalars via @json. Ports are conventionally quoted
+    # in Compose (an unquoted HH:MM-style value trips YAML's sexagesimal
+    # parsing), and @json escapes any value into a safe YAML string.
+    _bps_block=$(PORTS="$_bps_ports" yq -n \
+        'strenv(PORTS) | split("\n") | .[] | select(. != "") | "      - " + (. | @json)')
     printf '    ports:\n%s' "$_bps_block"
 }
 
@@ -498,8 +510,15 @@ _generate_override() {
     _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
     _final_cmd="${_override_cmd:-$_start_cmd}"
 
-    # Produce a YAML-safe value for BUILD_COMMANDS (yq quotes if needed)
-    _build_cmds_yaml=$(CMD="$_build_cmds" yq -n 'strenv(CMD)')
+    # Encode every user-controlled scalar as a JSON string (always a valid,
+    # fully-escaped YAML scalar) before splicing it into the override below.
+    # `-o=json` is the same treatment CONNIE_CONTEXT already gets, and is
+    # safer than bare `strenv`: yq's default plain output for a value like
+    # `a: b` or `x #y` would corrupt the surrounding mapping or be read as a
+    # comment when interpolated after `key:`.
+    _build_cmds_yaml=$(CMD="$_build_cmds" yq -n -o=json 'strenv(CMD)')
+    _final_packages_yaml=$(PKGS="$_final_packages" yq -n -o=json 'strenv(PKGS)')
+    _final_cmd_yaml=$(FCMD="$_final_cmd" yq -n -o=json 'strenv(FCMD)')
 
     # Generate the connie context and encode as a JSON string so the multi-line
     # value fits a single-line YAML build-arg slot. YAML parses double-quoted
@@ -522,7 +541,7 @@ services:
     build:
       args:
         BASE_IMAGE: "${BASE_IMAGE}"
-        EXTRA_PACKAGES: "${_final_packages}"
+        EXTRA_PACKAGES: ${_final_packages_yaml}
         BUILD_COMMANDS: ${_build_cmds_yaml}
         CONNIE_CONTEXT: ${_connie_ctx_yaml}
     environment:
@@ -539,7 +558,7 @@ ${_ports_section}
         soft: 4096
         hard: 8192
     working_dir: /workspace
-    command: "${_final_cmd}"
+    command: ${_final_cmd_yaml}
 YAML
 }
 

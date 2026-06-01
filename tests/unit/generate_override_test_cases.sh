@@ -55,6 +55,23 @@ a_cli_cmd_override() {
     override_cmd="bash"
 }
 
+# A start command containing characters that are special to YAML: double
+# quotes (which broke the old `command: "${...}"` interpolation) and a
+# ` #` sequence (read as a comment if emitted as a bare scalar).
+a_cli_cmd_override_with_yaml_breaking_characters() {
+    override_cmd='sh -c "echo hi # not-a-comment"'
+}
+
+a_merged_config_with_a_volume_path_that_needs_quoting() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.volumes = ["/weird path:/data:ro"]' "$merged_file"
+}
+
+a_merged_config_with_a_port_mapping() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.ports = ["8080:8080"]' "$merged_file"
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_override_is_generated() {
@@ -88,6 +105,16 @@ the_override_value_at_path_to_be() {
 
 the_override_build_arg_extra_packages_to_be() {
     the_override_value_at_path_to_be '.services.workspace.build.args.EXTRA_PACKAGES' "$1"
+}
+
+the_override_volumes_list_contains() {
+    _actual=$(yq '.services.workspace.volumes[]' "$override_output_file")
+    expect_contains "$_actual" "$1"
+}
+
+the_override_ports_list_contains() {
+    _actual=$(yq '.services.workspace.ports[]' "$override_output_file")
+    expect_contains "$_actual" "$1"
 }
 
 # ── Test cases ─────────────────────────────────────────────────────────────
@@ -179,6 +206,32 @@ generate_override_sets_memswap_limit_to_the_same_value_as_mem_limit_test_case() 
     _mem=$(yq '.services.workspace.mem_limit' "$override_output_file")
     _swap=$(yq '.services.workspace.memswap_limit' "$override_output_file")
     expect_equal "$_mem" "$_swap"
+}
+
+generate_override_stays_valid_yaml_when_the_command_has_quotes_and_a_hash_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given a_cli_cmd_override_with_yaml_breaking_characters
+    when the_override_is_generated
+    # Inseparable claim: the override remains parseable AND the command
+    # round-trips byte-for-byte. The old raw `command: "${...}"` splice
+    # would have produced invalid YAML for this value.
+    expect the_override_parses_as_yaml
+    expect the_override_value_at_path_to_be ".services.workspace.command" \
+        'sh -c "echo hi # not-a-comment"'
+}
+
+generate_override_quotes_a_volume_path_that_needs_it_and_stays_valid_test_case() {
+    given a_merged_config_with_a_volume_path_that_needs_quoting
+    when the_override_is_generated
+    expect the_override_parses_as_yaml
+    expect the_override_volumes_list_contains "/weird path:/data:ro"
+}
+
+generate_override_carries_a_configured_port_mapping_test_case() {
+    given a_merged_config_with_a_port_mapping
+    when the_override_is_generated
+    expect the_override_parses_as_yaml
+    expect the_override_ports_list_contains "8080:8080"
 }
 
 generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {
