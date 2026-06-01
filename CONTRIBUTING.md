@@ -97,7 +97,7 @@ connie/
 │   └── config/
 │       ├── defaults.yml             Compiled-in defaults
 │       └── project.yml              Default project config template
-├── tests/                           Shell-script test suite (183 tests)
+├── tests/                           Shell-script test suite
 │   ├── run.sh                       Entry point: non-Docker tests
 │   ├── run-docker.sh                Entry point: Docker-gated tests
 │   ├── harness.sh                   given/when/expect DSL
@@ -114,7 +114,7 @@ connie/
 
 1. Run `make check` (`sh -n src/connie`) to catch syntax errors
 2. Run `make lint` to catch bashisms and other issues
-3. Run `make test` — the non-Docker suite should still be 152/152
+3. Run `make test` — the non-Docker suite should stay all-green
 4. If you change anything in the build/run chain, run `make test-docker`
    on a host with docker
 5. Verify all config layers work (defaults, user config, project config, flags)

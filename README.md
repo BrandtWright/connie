@@ -108,6 +108,7 @@ and reused on every subsequent `connie run` for that project.
 | `connie list` | List the project workspaces connie knows about |
 | `connie config [dir]` | Show project paths and effective Compose override |
 | `connie context [dir]` | Generate and show the Claude Code context file |
+| `connie doctor [dir]` | Diagnose required tools, install, base image, and project state |
 | `connie help` | Show usage |
 | `connie version` | Show version |
 
@@ -126,6 +127,16 @@ Use `--cmd sh` to get a shell inside the container for debugging:
 ```sh
 connie run --cmd sh
 ```
+
+### Verbosity
+
+These flags apply to any subcommand and can also be set via environment
+variable (the CLI flag wins when both are set):
+
+| Flag | Env | Description |
+| --- | --- | --- |
+| `-q`, `--quiet` | `CONNIE_QUIET=1` | Suppress info/detail output; only errors reach stderr |
+| `-v`, `--verbose` | `CONNIE_VERBOSE=1` | Also emit `[debug]` lines (traces the `docker compose` calls) |
 
 ---
 

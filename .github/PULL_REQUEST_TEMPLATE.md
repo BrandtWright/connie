@@ -6,7 +6,7 @@ Thanks for the PR. A few things to check before submitting:
   - [ ] `make check` passes
   - [ ] `make lint` passes (or `make install-hooks` so it runs on
         every commit automatically)
-  - [ ] `make test` passes (152+ tests, all green)
+  - [ ] `make test` passes (all green)
   - [ ] If you changed anything in the build/run chain,
         `make test-docker` passes on a host with Docker
   - [ ] CHANGELOG entry added under `[Unreleased]` (Keep a Changelog)

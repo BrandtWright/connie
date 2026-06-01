@@ -580,7 +580,7 @@ initial preview.
 
 ## Test Architecture
 
-connie ships with 226 tests organised across four layers under `tests/`.
+connie ships with 253 tests organised across four layers under `tests/`.
 The harness is a roll-your-own POSIX shell harness — no external
 framework — written in the same `sh` discipline as `src/connie` so the
 test layer doesn't introduce a runtime dependency.
@@ -589,9 +589,9 @@ test layer doesn't introduce a runtime dependency.
 
 | Layer | Path | Tests | Purpose |
 | --- | --- | --- | --- |
-| Unit | `tests/unit/` | 68 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers, `_generate_connie_context`, `_compose_project_name`, etc. |
-| Integration | `tests/integration/` | 51 | Filesystem-touching helpers: `_migrate_project`, `_register_project`, `_find_project_root`, `cmd_init`, the context-emit functions. |
-| CLI | `tests/cli/` | 76 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, including the diagnostic case where a project isn't initialised. |
+| Unit | `tests/unit/` | 73 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers (including docker.sock rejection and YAML-safe value encoding), `_generate_connie_context`, `_compose_project_name`, etc. |
+| Integration | `tests/integration/` | 71 | In-process helpers that touch the environment but not Docker: `_migrate_project`, `_register_project`, `_find_project_root`, `cmd_init`, the context-emit functions, `_prepare` and `_run_compose` (via shell-function stubs for docker), `_confirm`, and the `_require_yq` v4 sniff. |
+| CLI | `tests/cli/` | 78 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, verbosity flag/env precedence, including the diagnostic case where a project isn't initialised. |
 | Docker | `tests/docker/` | 31 | End-to-end against real images and containers: `build-base`, `build`, `clean`, `run` lifecycle, cgroup-v2 resource-limit enforcement, host↔container context parity, `.connie/` → XDG auto-migration trigger. Gated on `docker` being on `$PATH`. |
 
 ### DSL
