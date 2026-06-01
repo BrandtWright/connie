@@ -47,6 +47,15 @@ Versioning follows [Semantic Versioning][semver].
   sentinel-survival guarantee for the project directory, and
   the graceful no-op against unregistered paths.
 
+- **`connie list`** — prints the project workspaces connie knows
+  about, one absolute path per line to stdout, sorted, reading the
+  registry (`projects.yml`) that `connie init`/`run` populate and
+  `connie remove` prunes. Output goes to stdout so it pipes cleanly
+  (e.g. `connie list | while read d; …`); an empty or absent registry
+  is not an error — stdout stays an empty list and the "nothing
+  registered yet" note goes to stderr. Takes no `[dir]` argument.
+  6 new CLI tests in `tests/cli/list_test_cases.sh`.
+
 ---
 
 ## [0.4.1] — 2026-05-31

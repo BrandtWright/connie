@@ -104,6 +104,8 @@ and reused on every subsequent `connie run` for that project.
 | `connie run [dir]` | Build (if needed) and start Claude Code |
 | `connie build [dir]` | Build the project container image without starting it |
 | `connie clean [dir]` | Remove the locally built project container image |
+| `connie remove [dir]` | Remove all connie-owned state for a project (inverse of init) |
+| `connie list` | List the project workspaces connie knows about |
 | `connie config [dir]` | Show project paths and effective Compose override |
 | `connie context [dir]` | Generate and show the Claude Code context file |
 | `connie help` | Show usage |

@@ -25,8 +25,8 @@
 #   Validation / prepare ───────  _prepare
 #   Compose ────────────────────  _compose_project_name _run_compose
 #   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
-#                                  cmd_clean cmd_remove cmd_config cmd_context
-#                                  cmd_doctor
+#                                  cmd_clean cmd_remove cmd_list cmd_config
+#                                  cmd_context cmd_doctor
 #   Doctor helpers ─────────────  _doctor_section _doctor_pass _doctor_warn
 #                                  _doctor_fail _doctor_check
 #   Main ───────────────────────  _main
@@ -151,6 +151,7 @@ Usage:
   $TOOL build-base          Build (or rebuild) the connie base image
   $TOOL clean      [dir]    Remove the locally built project container image
   $TOOL remove     [dir]    Remove ALL connie-owned state for a project (inverse of init)
+  $TOOL list                List the project workspaces connie knows about
   $TOOL config     [dir]    Show project paths and effective Compose override
   $TOOL context    [dir]    Generate and show the Claude Code context file
   $TOOL doctor     [dir]    Diagnose required tools, install, base image, project
@@ -1085,6 +1086,33 @@ cmd_remove() {
     _info "Removed."
 }
 
+# ── List ───────────────────────────────────────────────────────────────────
+#
+# `connie list` enumerates the workspaces connie knows about — every
+# project registered in $PROJECTS_FILE by `connie init`/`run`. Prints
+# one absolute project path per line to stdout, sorted, so the output
+# pipes cleanly (e.g. `connie list | while read d; do …; done`). The
+# registry is the single source of truth; a legacy .connie/ project that
+# was never migrated won't appear until its next `connie run` registers
+# it. Empty-state notes go to stderr, keeping stdout a clean list.
+cmd_list() {
+    _require_yq
+
+    # Empty or absent registry is not an error: keep stdout an empty,
+    # pipe-safe list and explain on stderr. Exit 0 either way.
+    _list_paths=""
+    [ -f "$PROJECTS_FILE" ] && \
+        _list_paths=$(yq 'keys | .[]' "$PROJECTS_FILE" 2>/dev/null | LC_ALL=C sort)
+
+    if [ -z "$_list_paths" ]; then
+        _info "No workspaces registered yet."
+        _detail "Run '$TOOL init [dir]' to initialize one."
+        return 0
+    fi
+
+    printf '%s\n' "$_list_paths"
+}
+
 cmd_config() {
     _project_root=$(_find_project_root "${1:-$PWD}")
 
@@ -1348,7 +1376,7 @@ _main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            init|run|build|clean|remove|config|context|doctor|help|version)
+            init|run|build|clean|remove|config|context|doctor|list|help|version)
                 _SUBCOMMAND="$1"
                 shift
                 ;;
@@ -1425,6 +1453,7 @@ _main() {
         config)      cmd_config     "${_TARGET_DIR:-}" ;;
         context)     cmd_context    "${_TARGET_DIR:-}" ;;
         doctor)      cmd_doctor     "${_TARGET_DIR:-}" ;;
+        list)        cmd_list       ;;
         version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
         help)
             # If we landed here because the first positional argument didn't

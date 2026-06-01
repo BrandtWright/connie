@@ -52,6 +52,16 @@ new keys with their defaults while preserving the user's existing values.
 
 Useful after a `connie` upgrade that adds new config options.
 
+### Richer `connie list` Output
+
+`connie list` currently prints one absolute project path per line — minimal
+and pipe-friendly by design. A future `--long`/`-l` (or `--format`) mode could
+add columns drawn from data connie already has: the slug, a `(stale)` marker
+when the registered path no longer exists on disk, a `(current)` marker for the
+workspace containing `$PWD`, and — at the cost of a `docker image inspect` per
+entry — whether the per-project image is built. Kept out of the default to
+preserve clean, scriptable output.
+
 ### Multiple Containers Per Project
 
 Allow `config.yml` to define a `services:` key describing a multi-container
