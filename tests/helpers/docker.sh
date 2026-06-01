@@ -82,7 +82,7 @@ a_unique_test_base_image_tag_and_a_legacy_dot_connie_project() {
     # `_prepare` would synthesize one from PROJECT_TEMPLATE — fine, but
     # then the test wouldn't be able to claim "the legacy config was
     # moved" since it could've been created from scratch.
-    cp "$_HARNESS_REPO_ROOT/src/config/project-template.yml" \
+    cp "$_HARNESS_REPO_ROOT/src/config/project.yml" \
        "$project_path/.connie/config.yml"
     _proj=$(_compose_project_name "$project_path")
     workspace_image="${_proj}-workspace"
