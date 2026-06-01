@@ -1,10 +1,7 @@
 # Code of Conduct
 
-This project follows the
-[Contributor Covenant, version 2.1][contributor-covenant].
+This project follows the [Contributor Covenant, version 2.1][contributor-covenant].
 
-The full text is canonical at
-<https://www.contributor-covenant.org/version/2/1/code_of_conduct/>.
 A summary, for convenience:
 
 - Treat everyone with respect.
@@ -14,11 +11,10 @@ A summary, for convenience:
 
 ## Reporting
 
-Concerns about behaviour in project spaces (issues, PRs, discussions)
-can be reported to the maintainer at <wright.brandt@gmail.com>.
-Reports will be handled discreetly. The maintainer may take any action
-they consider appropriate, up to and including blocking the reported
-account from project spaces.
+Concerns about behavior in project spaces (issues, PRs, discussions) can be
+reported to the maintainer. Reports will be handled discreetly. The maintainer
+may take any action they consider appropriate, up to and including blocking the
+reported account from project spaces.
 
 ## Scope
 
