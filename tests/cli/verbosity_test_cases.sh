@@ -58,6 +58,17 @@ the_user_runs_connie_init_with_connie_verbose_env() {
     CONNIE_VERBOSE=1 exercise_connie init "$target_path"
 }
 
+# Conflicting signals: env says quiet, CLI flag says verbose. The flag is
+# parsed after the env seed in _main, so the CLI must win.
+the_user_runs_connie_init_v_flag_overriding_connie_quiet_env() {
+    CONNIE_QUIET=1 exercise_connie -v init "$target_path"
+}
+
+# The mirror image: env says verbose, CLI flag says quiet — flag wins.
+the_user_runs_connie_init_q_flag_overriding_connie_verbose_env() {
+    CONNIE_VERBOSE=1 exercise_connie -q init "$target_path"
+}
+
 # Force a _die by pointing at a directory that doesn't exist. The
 # verbosity setting should NOT suppress the error message — gating
 # scripts on exit code is fine, but silent failures are not.
@@ -144,4 +155,18 @@ verbosity_connie_verbose_env_var_matches_v_flag_test_case() {
     when the_user_runs_connie_init_with_connie_verbose_env
     expect stderr_to_contain "==> Initializing"
     expect stderr_to_contain "    created"
+}
+
+verbosity_cli_v_flag_overrides_connie_quiet_env_test_case() {
+    given a_fresh_target_directory
+    when the_user_runs_connie_init_v_flag_overriding_connie_quiet_env
+    # CLI flag is parsed after the env seed, so -v wins: info still shows.
+    expect stderr_to_contain "==> Initializing"
+}
+
+verbosity_cli_q_flag_overrides_connie_verbose_env_test_case() {
+    given a_fresh_target_directory
+    when the_user_runs_connie_init_q_flag_overriding_connie_verbose_env
+    expect it_succeeds
+    expect stderr_to_be_empty
 }
