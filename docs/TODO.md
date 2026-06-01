@@ -110,7 +110,7 @@ scope.
 
 ### Docker-gated Tests
 
-The test suite is complete — 152 non-Docker tests cover the pure
+The test suite is complete — 195 non-Docker tests cover the pure
 functions, the filesystem-touching helpers, and the CLI surface that
 doesn't need a Docker daemon (all pass under both `ash` and `bash
 --posix`); 31 Docker-gated tests under `tests/docker/` exercise the
