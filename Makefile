@@ -113,12 +113,14 @@ check:
 lint: lint-sh lint-md lint-docker lint-yaml
 	@echo "==> Lint clean."
 
+# The set of shell scripts linted AND format-checked: every *.sh plus the
+# extensionless src/connie and scripts/pre-commit. Defined once so lint-sh
+# and SHFMT_FILES cannot drift apart and leave a script unchecked.
+SH_FIND := -type f \( -name "*.sh" -o -path "$(CURDIR)/src/connie" -o -path "$(CURDIR)/scripts/pre-commit" \) -not -path "$(CURDIR)/.git/*"
+
 lint-sh:
 	@echo "==> shellcheck (POSIX sh enforcement)"
-	@find $(CURDIR) -type f \
-	    \( -name "*.sh" -o -path "$(CURDIR)/src/connie" \) \
-	    -not -path "$(CURDIR)/.git/*" \
-	    -print0 \
+	@find $(CURDIR) $(SH_FIND) -print0 \
 	  | xargs -0 shellcheck -s sh
 	@echo "    OK"
 
@@ -147,12 +149,9 @@ lint-yaml:
 	@echo "    OK"
 
 # shfmt is not pre-installed everywhere; check for it and emit a helpful
-# install hint if missing. The same find/xargs pattern as lint-sh keeps
-# the file scope identical (every shell script in the repo, including
-# the bare `src/connie`).
-SHFMT_FILES = $(shell find $(CURDIR) -type f \
-    \( -name "*.sh" -o -path "$(CURDIR)/src/connie" \) \
-    -not -path "$(CURDIR)/.git/*")
+# install hint if missing. Uses the same SH_FIND expression as lint-sh so
+# the format-check and shellcheck scopes are identical by construction.
+SHFMT_FILES = $(shell find $(CURDIR) $(SH_FIND))
 
 format:
 	@command -v shfmt >/dev/null 2>&1 || { \
