@@ -114,6 +114,18 @@ Versioning follows [Semantic Versioning][semver].
   have been parsed as a flag by the unquoted `apk add` in the build;
   connie now rejects such tokens and the Dockerfile passes `--` as a
   backstop.
+- **Config `env:` keys can no longer inject Compose keys.** Only env
+  *values* were YAML-encoded; a key containing a newline could inject a
+  sibling key such as `privileged: true` onto the workspace service — a
+  full host escape. Both key and value are now `@json`-encoded, and env
+  keys containing a control character (from `.env` or `--env`) are
+  rejected outright.
+- **Volume and env guards now abort the run, not just warn.** These
+  validators run inside a command substitution, so their error previously
+  exited only the sub-shell — connie carried on and emitted an override
+  missing the rejected block (the socket guard never actually *stopped* a
+  run). The failure is now propagated, so a rejected value aborts `connie
+  config`/`build`/`run` with a non-zero status and no override emitted.
 
 ---
 
