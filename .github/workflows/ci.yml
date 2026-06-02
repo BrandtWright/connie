@@ -120,9 +120,15 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: "1"
           HOMEBREW_NO_INSTALL_CLEANUP: "1"
         run: |
-          # yq for the suite; dash to mirror the Linux POSIX-sh re-run on a
-          # BSD host (macOS /bin/sh is an old bash, dash is the strict check).
-          brew install yq dash
+          # dash mirrors the Linux POSIX-sh re-run on a BSD host (macOS
+          # /bin/sh is an old bash; dash is the strict check). Pin --formula:
+          # Homebrew also has a *cask* named `dash` (the Dash.app docs
+          # browser), and `brew install dash` is ambiguous — we want the
+          # POSIX shell, not a GUI app.
+          brew install --formula dash
+          # yq v4 ships preinstalled on GitHub's macOS runners; only install
+          # if it is somehow absent, to avoid a noisy "already installed".
+          command -v yq >/dev/null 2>&1 || brew install --formula yq
 
       - name: tool versions
         run: |
