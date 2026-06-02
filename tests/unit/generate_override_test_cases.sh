@@ -60,6 +60,19 @@ connie_max_pids_set_to_a_lone_dash() {
     export CONNIE_MAX_PIDS='-'
 }
 
+# A cpus value carrying a newline + extra YAML key — same injection class as
+# the memory case, but cpus had no rejection test.
+connie_cpus_set_to_a_yaml_injection_attempt() {
+    export CONNIE_CPUS='2.0
+    privileged: true'
+}
+
+# Docker's "unlimited" pids sentinel; the validator deliberately accepts a
+# leading-only minus so -1 works.
+connie_max_pids_set_to_unlimited() {
+    export CONNIE_MAX_PIDS='-1'
+}
+
 # A merged config whose .env KEY contains a U+0085 (NEL) control char —
 # @json leaves NEL unescaped and YAML treats it as a line break, so the key
 # must be rejected rather than emitted into an unparseable override.
@@ -329,6 +342,23 @@ generate_override_rejects_a_degenerate_max_pids_value_test_case() {
     # (`pids_limit: -`); reject it with a clean error instead.
     expect expect_not_equal "0" "$override_gen_status"
     expect expect_contains "$override_gen_stderr" "Invalid resources.max_pids"
+}
+
+generate_override_rejects_a_cpus_value_carrying_a_yaml_injection_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_cpus_set_to_a_yaml_injection_attempt
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid resources.cpus"
+}
+
+generate_override_accepts_max_pids_minus_one_as_unlimited_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_max_pids_set_to_unlimited
+    when the_override_is_generated
+    # Pins the documented "-1 = unlimited" behaviour against a tightening of
+    # the max_pids pattern that would forbid the leading minus.
+    expect the_override_value_at_path_to_be ".services.workspace.pids_limit" "-1"
 }
 
 generate_override_encodes_a_yaml_special_env_key_safely_test_case() {
