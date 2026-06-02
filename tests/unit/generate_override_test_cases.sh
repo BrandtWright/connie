@@ -135,6 +135,15 @@ connie_max_pids_set_to_a_negative_other_than_one() {
     export CONNIE_MAX_PIDS=-512
 }
 
+connie_max_pids_set_to_zero() {
+    export CONNIE_MAX_PIDS=0
+}
+
+# A --env flag with an empty name ("=value").
+a_cli_env_flag_with_an_empty_name() {
+    extra_env="=value"
+}
+
 a_cli_package_flag_for_an_additional_package() {
     extra_packages="vim"
 }
@@ -467,6 +476,23 @@ generate_override_rejects_a_negative_max_pids_other_than_minus_one_test_case() {
     # Only -1 (unlimited) is a valid negative; -512 is rejected.
     expect expect_not_equal "0" "$override_gen_status"
     expect expect_contains "$override_gen_stderr" "Invalid resources.max_pids"
+}
+
+generate_override_rejects_max_pids_zero_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_max_pids_set_to_zero
+    when the_override_generation_is_attempted
+    # 0 is degenerate (no processes); only positive or -1 is valid.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid resources.max_pids"
+}
+
+generate_override_rejects_an_empty_cli_env_name_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given a_cli_env_flag_with_an_empty_name
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Empty environment variable name"
 }
 
 generate_override_rejects_an_env_key_with_a_control_character_test_case() {

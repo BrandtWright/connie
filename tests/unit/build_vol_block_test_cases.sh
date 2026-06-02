@@ -155,6 +155,13 @@ a_project_with_comma_joined_unsafe_propagation() {
     printf 'unsafe_extra_mounts:\n  - /data:/d:rw,rshared\n' >"$merged_file"
 }
 
+# Whitespace around the option (the natural "rw, rshared" spelling) must not
+# slip past the propagation guard either.
+a_project_with_whitespace_padded_unsafe_propagation() {
+    a_project_with_no_extra_volumes
+    printf 'unsafe_extra_mounts:\n  - "/data:/d:rw, rshared"\n' >"$merged_file"
+}
+
 # The old 'volumes:' key was removed; a stale config using it must fail
 # loudly rather than silently dropping a mount the user still expects.
 a_project_using_the_removed_volumes_key() {
@@ -401,6 +408,14 @@ build_vol_block_refuses_comma_joined_unsafe_propagation_test_case() {
     given a_project_with_comma_joined_unsafe_propagation
     when the_volumes_block_build_is_attempted
     # rw,rshared must be rejected too (the canonical multi-option spelling).
+    expect it_rejects_the_mount
+    expect the_error_mentions_unsafe_propagation
+}
+
+build_vol_block_refuses_whitespace_padded_unsafe_propagation_test_case() {
+    given a_project_with_whitespace_padded_unsafe_propagation
+    when the_volumes_block_build_is_attempted
+    # "rw, rshared" (space after comma) must be caught despite the whitespace.
     expect it_rejects_the_mount
     expect the_error_mentions_unsafe_propagation
 }
