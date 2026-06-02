@@ -18,6 +18,12 @@ Versioning follows [Semantic Versioning][semver].
   checks (`make check` / `lint` / `format-check`) run once on Linux since
   they are OS-independent. macOS is intentionally excluded from the Docker
   matrix (its runners cannot run Linux containers).
+- **Release automation** (`.github/workflows/release.yml`). Pushing a
+  SemVer tag (e.g. `v0.5.0`) verifies the tag matches `src/connie`'s
+  `VERSION`, runs a syntax + test sanity gate, extracts that version's
+  CHANGELOG section as the notes, and publishes a GitHub Release. Pre-1.0
+  (`0.x`) tags are published as pre-releases, since connie is not yet
+  API-stable.
 - **A test that asserts the base `docker-compose.yml` hardening**
   (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`, nosuid `/tmp`
   tmpfs, `init`). The whole posture is merged on top of this base file, so
