@@ -98,6 +98,15 @@ volumes:
 EOF
 }
 
+# Leading whitespace on the host source must not dodge the guard.
+a_project_mounting_the_socket_dir_with_leading_space() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - " /var/run:/x"
+EOF
+}
+
 # Mounting host root exposes the socket (and everything else).
 a_project_mounting_host_root() {
     a_project_with_no_extra_volumes
@@ -253,6 +262,12 @@ build_vol_block_normalizes_a_dotdot_socket_dir_and_refuses_it_test_case() {
 
 build_vol_block_refuses_mounting_the_docker_data_root_test_case() {
     given a_project_mounting_the_docker_data_root
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_refuses_a_socket_dir_with_leading_whitespace_test_case() {
+    given a_project_mounting_the_socket_dir_with_leading_space
     when the_volumes_block_build_is_attempted
     expect it_rejects_the_mount
 }

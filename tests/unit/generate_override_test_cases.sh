@@ -60,25 +60,38 @@ connie_max_pids_set_to_a_lone_dash() {
     export CONNIE_MAX_PIDS='-'
 }
 
-# A merged config whose .env KEY embeds a newline crafted to inject a
-# sibling compose key (privileged: true) onto the workspace service.
-a_merged_config_with_an_injecting_env_key() {
+# A merged config whose .env KEY contains a U+0085 (NEL) control char —
+# @json leaves NEL unescaped and YAML treats it as a line break, so the key
+# must be rejected rather than emitted into an unparseable override.
+a_merged_config_with_a_control_char_env_key() {
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path"
     merged_file="$WORKSPACE/merged.yml"
-    cat >"$merged_file" <<'YML'
-packages: []
-build_commands: []
-start_cmd: claude
-resources: {memory: 4g, cpus: "2.0", max_pids: 512}
-env:
-  ? "X: y\n    privileged: true\n    z"
-  : "v"
-YML
+    K=$(printf 'BAD\xc2\x85KEY') yq -n '
+        {"packages": [], "build_commands": [], "start_cmd": "claude",
+         "resources": {"memory": "4g", "cpus": "2.0", "max_pids": 512},
+         "env": {(strenv(K)): "v"}}' >"$merged_file"
     extra_packages=""
     extra_env=""
     override_cmd=""
     unset CONNIE_MEMORY CONNIE_CPUS CONNIE_MAX_PIDS CONNIE_CMD
+}
+
+# A merged config whose .env KEY embeds a newline crafted to inject a
+# sibling compose key (privileged: true) onto the workspace service.
+# An env key with YAML-special chars (colon-space, hash) but NO control
+# character. It cannot inject a sibling key (that needs a line break, which
+# is a control char and rejected separately), but a raw splice would still
+# corrupt the mapping — so the @json key encoding must keep the override
+# valid with the whole thing contained as one key.
+a_merged_config_mounting_the_docker_socket() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.volumes = ["/var/run/docker.sock:/var/run/docker.sock"]' "$merged_file"
+}
+
+a_merged_config_with_a_yaml_special_env_key() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.env = {"X: y # privileged: true": "v"}' "$merged_file"
 }
 
 a_cli_package_flag_for_an_additional_package() {
@@ -311,13 +324,30 @@ generate_override_rejects_a_degenerate_max_pids_value_test_case() {
     expect expect_contains "$override_gen_stderr" "Invalid resources.max_pids"
 }
 
-generate_override_does_not_let_an_env_key_inject_a_compose_key_test_case() {
-    given a_merged_config_with_an_injecting_env_key
+generate_override_encodes_a_yaml_special_env_key_safely_test_case() {
+    given a_merged_config_with_a_yaml_special_env_key
     when the_override_is_generated
-    # The env key is JSON-encoded, so the crafted newline cannot inject a
-    # sibling key: the override stays valid AND privileged is not set.
+    # @json on the key keeps the override valid and contains the whole
+    # string as one key — nothing injected onto the workspace service.
     expect the_override_parses_as_yaml
     expect the_override_value_at_path_to_be ".services.workspace.privileged" "null"
+}
+
+generate_override_rejects_an_env_key_with_a_control_character_test_case() {
+    given a_merged_config_with_a_control_char_env_key
+    when the_override_generation_is_attempted
+    # A NEL in the key would emit an unparseable override; reject it cleanly.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "control character"
+}
+
+generate_override_aborts_when_a_volume_exposes_the_docker_socket_test_case() {
+    given a_merged_config_mounting_the_docker_socket
+    when the_override_generation_is_attempted
+    # _build_vol_block _dies inside a command substitution; _generate_override
+    # must propagate that and abort, not silently drop the volumes block.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Docker daemon"
 }
 
 generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {

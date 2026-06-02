@@ -283,7 +283,13 @@ directory that contains it (`/var/run`, `/run`), or host root — since reaching
 `docker.sock` would let a container process take over the host and bypass every
 other constraint here. This guard runs wherever the Compose override is
 generated (`connie config`/`build`/`run`); the read-only `connie context`
-preview does not generate an override and so does not evaluate it.
+preview does not generate an override and so does not evaluate it. The check is
+lexical — it normalizes `.`, `..`, and `//` and rejects the socket, its
+conventional directories (`/var/run`, `/run`), the daemon data root
+(`/var/lib/docker`), and host root, but it does not resolve symlinks. Since
+`volumes:` is trusted developer input that is acceptable; as a backstop, any
+directory that actually contains a live `docker.sock` at generation time is also
+rejected.
 
 ### Resource Limits
 
