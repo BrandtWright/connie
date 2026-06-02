@@ -363,7 +363,7 @@ generate_override_aborts_when_a_volume_exposes_the_docker_socket_test_case() {
     # _build_vol_block _dies inside a command substitution; _generate_override
     # must propagate that and abort, not silently drop the volumes block.
     expect expect_not_equal "0" "$override_gen_status"
-    expect expect_contains "$override_gen_stderr" "Docker daemon"
+    expect expect_contains "$override_gen_stderr" "docker socket"
 }
 
 generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {

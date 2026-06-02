@@ -489,6 +489,74 @@ _normalize_abs_path() {
     printf '%s' "${_nap_out:-/}"
 }
 
+# Reject a config-supplied volume entry that would defeat the container
+# hardening. volumes: is trusted developer input, but connie guards the
+# catastrophic mistakes — the same intent as the original docker.sock check,
+# widened to the whole class. Both the host source and the container target
+# are normalized first so equivalent spellings (//, ., ..) cannot evade the
+# comparison. Rejects: the daemon socket (by source name, by the source
+# being a unix socket, or by the target re-exposing it), the daemon data
+# root, the kernel/device trees, host root, mounts that shadow connie's own
+# standard mounts, and unsafe mount propagation.
+_reject_unsafe_mount() {
+    _rum_entry="$1"
+    # Source = first ':'-field; target = second; opts = the rest. Trim
+    # surrounding whitespace before normalizing (Docker reads it literally,
+    # but keep the guard's view aligned with the real path).
+    _rum_src=${_rum_entry%%:*}
+    _rum_src=${_rum_src#"${_rum_src%%[![:space:]]*}"}
+    _rum_src=${_rum_src%"${_rum_src##*[![:space:]]}"}
+    _rum_src=$(_normalize_abs_path "$_rum_src")
+    _rum_rest=${_rum_entry#*:}
+    _rum_tgt=${_rum_rest%%:*}
+    _rum_tgt=${_rum_tgt#"${_rum_tgt%%[![:space:]]*}"}
+    _rum_tgt=${_rum_tgt%"${_rum_tgt##*[![:space:]]}"}
+    _rum_tgt=$(_normalize_abs_path "$_rum_tgt")
+    _rum_opts=""
+    case "$_rum_rest" in *:*) _rum_opts=${_rum_rest#*:} ;; esac
+
+    # 1. Sensitive host SOURCE: daemon socket/data, kernel/device trees, root.
+    case "$_rum_src" in
+        / | /var | /var/lib | /var/lib/docker | /var/lib/docker/* | \
+            /var/lib/containerd | /var/lib/containerd/* | \
+            /var/run | /var/run/* | /run | /run/* | \
+            /proc | /proc/* | /sys | /sys/* | /dev | /dev/* | /boot | /boot/* | \
+            docker.sock | */docker.sock)
+            _die "Refusing to mount a sensitive host path: $_rum_entry" \
+                "Mounting the docker socket/data, the kernel or device trees (/proc, /sys, /dev), or host root grants host control and defeats connie's hardening. Remove this entry from the volumes: list."
+            ;;
+    esac
+    # 2. Host SOURCE that is itself a unix socket (any name) — likely a
+    #    Docker/podman daemon API socket reachable from the container.
+    if [ -S "$_rum_src" ] || [ -S "$_rum_src/docker.sock" ]; then
+        _die "Refusing to mount a unix socket (possible daemon API): $_rum_entry" \
+            "A unix-socket bind mount can reach a host daemon and defeat connie's hardening. Remove this entry from the volumes: list."
+    fi
+    # 3. Container TARGET that re-exposes the daemon socket — catches a
+    #    renamed host socket mapped onto the conventional in-container path.
+    case "$_rum_tgt" in
+        /var/run/docker.sock | /run/docker.sock | /var/run | /run)
+            _die "Refusing a mount whose container target re-exposes the Docker socket: $_rum_entry" \
+                "Mapping any source onto $_rum_tgt reaches the daemon. Remove this entry from the volumes: list."
+            ;;
+    esac
+    # 4. Container TARGET that shadows a connie-managed standard mount.
+    case "$_rum_tgt" in
+        / | /home | /home/claude-user | /workspace | \
+            /home/claude-user/.claude | /home/claude-user/.claude.json)
+            _die "Refusing a mount that shadows a standard connie mount: $_rum_entry" \
+                "Target $_rum_tgt would override connie's /workspace or ~/.claude mounts. Use a different container path."
+            ;;
+    esac
+    # 5. Unsafe mount propagation (host mount-namespace manipulation).
+    case ":$_rum_opts:" in
+        *:rshared:* | *:shared:* | *:rslave:* | *:slave:*)
+            _die "Refusing a mount with unsafe propagation: $_rum_entry" \
+                "Only ro/rw/z/Z are supported; shared/rshared/slave/rslave can manipulate the host mount namespace."
+            ;;
+    esac
+}
+
 _build_vol_block() {
     # $1 = project_root, $2 = merged_file
     _bvb_state=$(_project_state_dir "$1")
@@ -509,42 +577,14 @@ ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
 
     _bvb_extra=$(yq '.volumes | .[]' "$2" 2>/dev/null || true)
     if [ -n "$_bvb_extra" ]; then
-        # Refuse any mount that exposes the Docker daemon socket. Reaching
-        # docker.sock lets a container process start a privileged container
-        # and take over the host, bypassing cap_drop, no-new-privileges, and
-        # the read-only rootfs. Matching only a host segment ending in
-        # /docker.sock is not enough: mounting the socket's *directory*
-        # (/var/run, /run), the daemon data root (/var/lib/docker), or host
-        # root re-exposes the daemon. The host path is normalized first so
-        # equivalent spellings (/var//run, /var/run/../run) cannot evade the
-        # comparison. Reject the socket itself, any ancestor of the
-        # conventional socket path, the data root, host root, and — for
-        # non-standard setups like rootless docker — any directory that
-        # actually contains a docker.sock here.
+        # Validate every config-supplied mount against the dangerous-mount
+        # guard (see _reject_unsafe_mount) before appending it.
         _oldifs=$IFS
         IFS='
 '
         for _bvb_entry in $_bvb_extra; do
             [ -n "$_bvb_entry" ] || continue
-            _bvb_host=${_bvb_entry%%:*}
-            # Strip surrounding whitespace so a leading space can't dodge the
-            # absolute-path normalization (Docker treats it literally anyway,
-            # but keep the guard's view aligned with the real source).
-            _bvb_host=${_bvb_host#"${_bvb_host%%[![:space:]]*}"}
-            _bvb_host=${_bvb_host%"${_bvb_host##*[![:space:]]}"}
-            _bvb_host=$(_normalize_abs_path "$_bvb_host")
-            case "$_bvb_host" in
-                docker.sock | */docker.sock | / | /var | /var/run | /run | /var/lib/docker)
-                    IFS=$_oldifs
-                    _die "Refusing to mount a path that exposes the Docker daemon: $_bvb_entry" \
-                        "Mounting the docker socket — or a directory that contains it (e.g. /var/run, /run, /var/lib/docker, /) — grants full host control and defeats connie's hardening. Remove this entry from the volumes: list."
-                    ;;
-            esac
-            if [ -S "$_bvb_host/docker.sock" ]; then
-                IFS=$_oldifs
-                _die "Refusing to mount a directory that contains the Docker socket: $_bvb_entry" \
-                    "$_bvb_host/docker.sock exists on this host; mounting its directory exposes the socket and defeats connie's hardening."
-            fi
+            _reject_unsafe_mount "$_bvb_entry"
         done
         IFS=$_oldifs
         _bvb_mounts="${_bvb_mounts}

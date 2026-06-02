@@ -107,6 +107,47 @@ volumes:
 EOF
 }
 
+# Kernel/device/daemon-data escape mounts — catastrophic and unrelated to
+# the socket; the guard must reject this whole class, not just docker.sock.
+a_project_mounting_proc() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /proc:/host/proc:rw\n' >"$merged_file"
+}
+
+a_project_mounting_a_raw_device() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /dev/mem:/m:rw\n' >"$merged_file"
+}
+
+a_project_mounting_a_daemon_data_root_child() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /var/lib/docker/volumes:/v:rw\n' >"$merged_file"
+}
+
+# A non-docker.sock-named source mapped onto the conventional in-container
+# socket path — the container-TARGET bypass.
+a_project_remapping_a_renamed_socket_to_the_conventional_target() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /home/me/api.sock:/var/run/docker.sock\n' >"$merged_file"
+}
+
+# An extra mount whose target shadows a connie standard mount.
+a_project_shadowing_the_workspace_mount() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /elsewhere:/workspace:rw\n' >"$merged_file"
+}
+
+a_project_shadowing_the_claude_state_mount() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /attacker:/home/claude-user/.claude:rw\n' >"$merged_file"
+}
+
+# Unsafe mount propagation can manipulate the host mount namespace.
+a_project_with_unsafe_mount_propagation() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /data:/d:rshared\n' >"$merged_file"
+}
+
 # Mounting host root exposes the socket (and everything else).
 a_project_mounting_host_root() {
     a_project_with_no_extra_volumes
@@ -177,11 +218,27 @@ it_rejects_the_mount() {
 }
 
 the_error_explains_the_docker_socket_refusal() {
-    expect_contains "$vol_stderr" "Docker daemon"
+    expect_contains "$vol_stderr" "docker socket"
 }
 
 the_error_explains_the_unsupported_entry() {
     expect_contains "$vol_stderr" "Unsupported volume entry"
+}
+
+the_error_mentions_a_sensitive_path() {
+    expect_contains "$vol_stderr" "sensitive host path"
+}
+
+the_error_mentions_target_reexposes_socket() {
+    expect_contains "$vol_stderr" "re-exposes the Docker socket"
+}
+
+the_error_mentions_shadowing() {
+    expect_contains "$vol_stderr" "shadows a standard"
+}
+
+the_error_mentions_unsafe_propagation() {
+    expect_contains "$vol_stderr" "unsafe propagation"
 }
 
 # Re-parse the emitted block (indented items are valid under a volumes: key)
@@ -270,6 +327,56 @@ build_vol_block_refuses_a_socket_dir_with_leading_whitespace_test_case() {
     given a_project_mounting_the_socket_dir_with_leading_space
     when the_volumes_block_build_is_attempted
     expect it_rejects_the_mount
+}
+
+build_vol_block_refuses_mounting_the_proc_tree_test_case() {
+    given a_project_mounting_proc
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_mentions_a_sensitive_path
+}
+
+build_vol_block_refuses_mounting_a_raw_device_test_case() {
+    given a_project_mounting_a_raw_device
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_mentions_a_sensitive_path
+}
+
+build_vol_block_refuses_mounting_a_daemon_data_root_child_test_case() {
+    given a_project_mounting_a_daemon_data_root_child
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_refuses_a_renamed_socket_on_the_conventional_target_test_case() {
+    given a_project_remapping_a_renamed_socket_to_the_conventional_target
+    when the_volumes_block_build_is_attempted
+    # The host name is not docker.sock, so the source check passes; the
+    # container-target check must catch it re-exposing the socket path.
+    expect it_rejects_the_mount
+    expect the_error_mentions_target_reexposes_socket
+}
+
+build_vol_block_refuses_shadowing_the_workspace_mount_test_case() {
+    given a_project_shadowing_the_workspace_mount
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_mentions_shadowing
+}
+
+build_vol_block_refuses_shadowing_the_claude_state_mount_test_case() {
+    given a_project_shadowing_the_claude_state_mount
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_mentions_shadowing
+}
+
+build_vol_block_refuses_unsafe_mount_propagation_test_case() {
+    given a_project_with_unsafe_mount_propagation
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_mentions_unsafe_propagation
 }
 
 build_vol_block_rejects_long_syntax_volume_entries_test_case() {
