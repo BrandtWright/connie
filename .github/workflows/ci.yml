@@ -1,22 +1,33 @@
 # CI for connie.
 #
-# Two jobs:
+# Three jobs:
 #
-#   - lint-and-test: runs `make check`, `make lint`, and `make test` on
-#     every push and PR. These are the fast checks (a few seconds total)
-#     that gate merging. Runs under `dash` as well as the default shell
-#     to catch POSIX-sh portability regressions that `bash --posix`
-#     might let through.
+#   - lint: static checks (`make check`, `make lint`, `make format-check`).
+#     These are OS-independent — shellcheck/shfmt/markdownlint/hadolint give
+#     the same verdict everywhere — so they run once, on ubuntu-latest, and
+#     gate merging.
 #
-#   - test-docker: runs `make test-docker` on a host with a real Docker
-#     daemon. Slower (~3 minutes including base image build) but
-#     verifies the full container lifecycle. Runs in parallel with the
-#     lint-and-test job; not a blocking gate for the lint half.
+#   - test: the non-Docker suite (`make test` + a dash re-run) across a
+#     platform matrix. connie is a POSIX-sh CLI that runs on the user's
+#     *host*, so the userland it shells out to matters:
+#       * ubuntu-latest      — x86_64, GNU coreutils (the common case)
+#       * ubuntu-24.04-arm   — arm64, GNU coreutils
+#       * macos-latest       — arm64, BSD coreutils + an old /bin/sh
+#     The GNU-vs-BSD split is the real signal here (different sed/grep/
+#     mktemp/find semantics); arm64 covers Apple Silicon and arm servers.
+#     `fail-fast: false` so one platform's failure still lets the others
+#     report — useful when a BSD-only regression surfaces.
 #
-# Both jobs install dependencies fresh on each run rather than caching,
-# since the non-Docker job is dominated by `apt-get install` (a few
-# seconds) and the Docker job's wall time is dominated by `docker build`,
-# not dependency installation.
+#   - test-docker: the full container lifecycle (`make test-docker`) on
+#     both x86_64 and arm64 Linux, so the Alpine base image, the Claude
+#     install, and the runtime hardening are all exercised natively on
+#     each architecture. macOS is absent here on purpose: GitHub's macOS
+#     runners cannot run Linux containers, and connie's containers are
+#     always Linux regardless of host.
+#
+# Dependencies are installed fresh each run rather than cached: the
+# non-Docker jobs are dominated by a few seconds of package installs, and
+# the Docker job's wall time is dominated by `docker build`, not installs.
 
 name: ci
 
@@ -29,9 +40,15 @@ on:
 permissions:
   contents: read
 
+# Cancel superseded runs on the same ref — avoids spending (pricier) macOS
+# and arm64 minutes on commits that a newer push has already obsoleted.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-and-test:
-    name: lint + non-Docker tests
+  lint:
+    name: lint (static checks)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -39,18 +56,16 @@ jobs:
       - name: install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck dash
+          sudo apt-get install -y shellcheck
           # yq v4 — the apt package on ubuntu is v3 (incompatible API).
           # Install the v4 binary from the upstream release as the script does.
           sudo wget -qO /usr/local/bin/yq \
             https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
           # markdownlint-cli2 — author-maintained CLI for the markdownlint
-          # library. Newer than markdownlint-cli, gets active development,
-          # and supports native glob patterns + SARIF output for future CI
-          # annotation. Our `make lint-md` target invokes it directly.
+          # library; our `make lint-md` target invokes it directly.
           sudo npm install -g markdownlint-cli2
-          # hadolint static binary
+          # hadolint static binary (Dockerfile linter).
           sudo wget -qO /usr/local/bin/hadolint \
             https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
           sudo chmod +x /usr/local/bin/hadolint
@@ -72,18 +87,63 @@ jobs:
         # this is a real gate here.
         run: make format-check
 
+  test:
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # Ubuntu's /bin/sh is already dash, but install it explicitly so
+          # the dash step below does not depend on that staying true.
+          sudo apt-get install -y dash
+          # yq v4 binary, architecture-aware (amd64 vs arm64 runner).
+          case "$(uname -m)" in
+            x86_64)        yq_asset=yq_linux_amd64 ;;
+            aarch64|arm64) yq_asset=yq_linux_arm64 ;;
+            *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+          esac
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/latest/download/${yq_asset}"
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: install dependencies (macOS)
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          # yq for the suite; dash to mirror the Linux POSIX-sh re-run on a
+          # BSD host (macOS /bin/sh is an old bash, dash is the strict check).
+          brew install yq dash
+
+      - name: tool versions
+        run: |
+          yq --version
+          sh --version 2>/dev/null || true
+
       - name: tests (default shell)
         run: make test
 
       - name: tests (dash — POSIX-sh portability check)
-        # The harness sources src/connie under bash --posix on most hosts.
-        # Re-running under dash catches issues that `bash --posix` permits
-        # but a stricter POSIX implementation does not.
+        # Re-run under dash to catch constructs a more permissive /bin/sh
+        # (bash --posix on Linux, an old bash on macOS) would let through.
         run: dash tests/run.sh
 
   test-docker:
-    name: Docker-gated tests
-    runs-on: ubuntu-latest
+    name: Docker tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
     steps:
       - uses: actions/checkout@v5
 
@@ -91,14 +151,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
+          case "$(uname -m)" in
+            x86_64)        yq_asset=yq_linux_amd64 ;;
+            aarch64|arm64) yq_asset=yq_linux_arm64 ;;
+            *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+          esac
           sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            "https://github.com/mikefarah/yq/releases/latest/download/${yq_asset}"
           sudo chmod +x /usr/local/bin/yq
 
       - name: docker info
-        # GitHub-hosted Ubuntu runners have docker pre-installed and
-        # running; this just verifies the daemon is reachable so a
-        # failure here points at the runner image, not the test layer.
+        # GitHub-hosted Ubuntu runners (x86_64 and arm64) ship Docker
+        # pre-installed and running; this verifies the daemon is reachable
+        # so a failure here points at the runner image, not the test layer.
         run: docker info
 
       - name: test-docker

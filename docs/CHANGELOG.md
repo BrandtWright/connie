@@ -11,6 +11,13 @@ Versioning follows [Semantic Versioning][semver].
 
 ### Added
 
+- **A CI platform matrix.** The non-Docker test suite now runs on x86_64
+  Linux, arm64 Linux (`ubuntu-24.04-arm`), and arm64 macOS
+  (`macos-latest`) — covering both the GNU/BSD coreutils split and arm64
+  — and the Docker suite runs on both x86_64 and arm64 Linux. Static
+  checks (`make check` / `lint` / `format-check`) run once on Linux since
+  they are OS-independent. macOS is intentionally excluded from the Docker
+  matrix (its runners cannot run Linux containers).
 - **A test that asserts the base `docker-compose.yml` hardening**
   (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`, nosuid `/tmp`
   tmpfs, `init`). The whole posture is merged on top of this base file, so
@@ -95,6 +102,13 @@ Versioning follows [Semantic Versioning][semver].
 
 ### Fixed
 
+- **connie now runs on a macOS host.** Both `src/connie` (override
+  generation) and the test harness called `mktemp` / `mktemp -d` with no
+  template, which GNU and busybox accept but BSD/macOS `mktemp` rejects —
+  so connie failed at runtime on macOS and the suite could not even start
+  there. Both now pass an explicit `XXXXXX` template (via a new `_mktemp`
+  helper in connie), which works on GNU, BSD, and busybox alike. The new
+  macOS CI leg guards against regressions.
 - **The generated Compose override now YAML-encodes every
   user-controlled value** — `EXTRA_PACKAGES`, `BUILD_COMMANDS`,
   `command`, `volumes`, and `ports`. Previously these were spliced in

@@ -126,6 +126,15 @@ _require() {
             "Run '$TOOL doctor' for a full check of prerequisites."
 }
 
+# Portable temp-file creation. BSD/macOS mktemp requires a template (or -t),
+# rejecting a bare `mktemp`; GNU and busybox accept the bare form but also
+# honour a template. We always pass one so connie runs on a macOS host, not
+# only on Linux. $TMPDIR is respected when set (macOS points it at a per-user
+# directory), falling back to /tmp.
+_mktemp() {
+    mktemp "${TMPDIR:-/tmp}/connie.XXXXXX"
+}
+
 _require_yq() {
     _require yq
     # eval-all is a yq v4 (mikefarah) command; earlier versions and the Python
@@ -352,7 +361,7 @@ _merge_configs() {
     [ -f "$DEFAULTS_FILE" ] ||
         _die "defaults.yml not found at $DEFAULTS_FILE" \
             "Reinstall connie: make install PREFIX=~/.local (or 'connie doctor' to verify the install)"
-    _mc_work=$(mktemp)
+    _mc_work=$(_mktemp)
 
     printf '{}' >"$_mc_work"
 
@@ -362,7 +371,7 @@ _merge_configs() {
         "$USER_CONFIG" \
         "$(_project_config "$_mc_root")"; do
         [ -f "$_mc_cfg" ] || continue
-        _mc_tmp=$(mktemp)
+        _mc_tmp=$(_mktemp)
         # shellcheck disable=SC2016 # $item is a yq variable, not a shell var
         yq eval-all '. as $item ireduce ({}; . * $item)' \
             "$_mc_work" "$_mc_cfg" >"$_mc_tmp" ||
@@ -1224,8 +1233,8 @@ INITEOF
 cmd_build() {
     _project_root=$(_find_project_root "${1:-$PWD}")
     _info "Building project container for $_project_root"
-    _merged=$(mktemp)
-    _override=$(mktemp)
+    _merged=$(_mktemp)
+    _override=$(_mktemp)
     # EXIT trap fires on every termination path (normal exit, _die,
     # uncaught signal that propagates via the INT/TERM handlers below).
     # The signal handlers print a friendly "Interrupted." / "Terminated."
@@ -1244,8 +1253,8 @@ cmd_build() {
 cmd_run() {
     _project_root=$(_find_project_root "${1:-$PWD}")
     _info "Starting Claude Code for $_project_root"
-    _merged=$(mktemp)
-    _override=$(mktemp)
+    _merged=$(_mktemp)
+    _override=$(_mktemp)
     # See cmd_build for the EXIT/INT/TERM trap rationale.
     trap 'rm -f "$_merged" "$_override"' EXIT
     trap '_info "Interrupted. Cleaning up."; exit 130' INT
@@ -1426,7 +1435,7 @@ cmd_config() {
     _info "State:    $(_project_state_dir "$_project_root")"
     printf '\n' >&2
 
-    _merged=$(mktemp)
+    _merged=$(_mktemp)
     trap 'rm -f "$_merged"' EXIT
     _merge_configs "$_project_root" >"$_merged"
     _generate_override "$_project_root" "$_merged" \
@@ -1440,7 +1449,7 @@ cmd_context() {
 
     _require_project_config "$_project_root"
 
-    _merged=$(mktemp)
+    _merged=$(_mktemp)
     trap 'rm -f "$_merged"' EXIT
     _merge_configs "$_project_root" >"$_merged"
 

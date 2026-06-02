@@ -54,7 +54,10 @@ _harness_find_tests() {
 # derived globals (CONFIG_DIR, STATE_DIR, etc.) are computed from these
 # at sourcing time, so the harness must export them BEFORE sourcing connie.
 _harness_setup_workspace() {
-    WORKSPACE=$(mktemp -d 2>/dev/null) || {
+    # An explicit XXXXXX template is required for portability: BSD/macOS
+    # mktemp rejects a bare `mktemp -d` (it wants a template or -t), whereas
+    # GNU and busybox accept both. The template form works everywhere.
+    WORKSPACE=$(mktemp -d "${TMPDIR:-/tmp}/connie-ws.XXXXXX" 2>/dev/null) || {
         printf 'harness: mktemp -d failed\n' >&2
         exit 99
     }
@@ -353,4 +356,5 @@ _harness_print_summary() {
 
 # ── One-time harness init ──────────────────────────────────────────────────
 
-_HARNESS_TMP=$(mktemp -d) || exit 99
+# Explicit template for BSD/macOS portability (see _harness_setup_workspace).
+_HARNESS_TMP=$(mktemp -d "${TMPDIR:-/tmp}/connie-harness.XXXXXX") || exit 99
