@@ -63,6 +63,12 @@ Versioning follows [Semantic Versioning][semver].
 
 ### Changed
 
+- **Added `.editorconfig`** (editor-agnostic mirror of `.vscode/settings.json`:
+  LF, final newline, trim trailing whitespace, 4-space indent; 2-space YAML;
+  tab Makefile), and **stopped documenting exact test counts** in
+  `docs/DESIGN.md` — the Test Architecture section keeps the layer/purpose
+  table, but the per-layer numbers (which repeatedly went stale) are gone;
+  `make test` is the source of truth.
 - **The test harness now fails a test when a `given`/`when` step exits
   non-zero**, not just on a failed `expect`. Because the test subshell
   runs with `set -e` disabled (it's the left operand of `||`), a broken
