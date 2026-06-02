@@ -568,6 +568,19 @@ _generate_override() {
     _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
     _final_cmd="${_override_cmd:-$_start_cmd}"
 
+    # Package tokens are passed unquoted to `apk add` during the build, so a
+    # token starting with '-' would be parsed as an apk flag (e.g.
+    # --allow-untrusted). Reject them here; extend.Dockerfile also passes
+    # `--` as a backstop. Intentional word-split on the space-joined list.
+    # shellcheck disable=SC2086
+    for _pkg in $_final_packages; do
+        case "$_pkg" in
+            -*)
+                _die "Invalid package name: '$_pkg'" \
+                    "Package names cannot start with '-' (it would be read as an apk flag). Check packages: / --package." ;;
+        esac
+    done
+
     # Encode every user-controlled scalar as a JSON string (always a valid,
     # fully-escaped YAML scalar) before splicing it into the override below.
     # `-o=json` is the same treatment CONNIE_CONTEXT already gets, and is

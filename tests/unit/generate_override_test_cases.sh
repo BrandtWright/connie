@@ -62,6 +62,11 @@ a_cli_cmd_override() {
     override_cmd="bash"
 }
 
+# A package token that would be read as an apk flag if passed through.
+a_cli_package_flag_that_looks_like_an_apk_flag() {
+    extra_packages="--allow-untrusted"
+}
+
 # A start command containing characters that are special to YAML: double
 # quotes (which broke the old `command: "${...}"` interpolation) and a
 # ` #` sequence (read as a comment if emitted as a bare scalar).
@@ -259,6 +264,14 @@ generate_override_rejects_a_resource_value_carrying_a_yaml_injection_test_case()
     # a sibling compose key (e.g. privileged: true). Validation rejects it.
     expect expect_not_equal "0" "$override_gen_status"
     expect expect_contains "$override_gen_stderr" "Invalid resources.memory"
+}
+
+generate_override_rejects_a_package_name_that_looks_like_an_apk_flag_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given a_cli_package_flag_that_looks_like_an_apk_flag
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid package name"
 }
 
 generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {

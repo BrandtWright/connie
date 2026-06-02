@@ -31,8 +31,11 @@ ARG BUILD_COMMANDS
 ARG CONNIE_CONTEXT
 
 USER root
+# `--` stops apk option parsing so a package token cannot inject an apk flag
+# (e.g. --allow-untrusted); connie also rejects leading-dash package names
+# before this runs. $EXTRA_PACKAGES stays unquoted to word-split the list.
 RUN if [ -n "$EXTRA_PACKAGES" ]; then \
-        apk add --no-cache $EXTRA_PACKAGES; \
+        apk add --no-cache -- $EXTRA_PACKAGES; \
     fi
 
 RUN if [ -n "$CONNIE_CONTEXT" ]; then \
