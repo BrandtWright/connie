@@ -55,14 +55,21 @@ jobs:
       - name: extract release notes from CHANGELOG
         run: |
           ver="${GITHUB_REF_NAME#v}"
-          # Print the body between this version's heading and the next one.
+          # Print the body between this version's heading and the next one,
+          # trimming leading/trailing blank lines and the trailing '---'
+          # rule that separates CHANGELOG sections.
           awk -v ver="$ver" '
             $0 ~ "^## \\[" ver "\\]" { grab = 1; next }
-            grab && /^## \[/        { exit }
-            grab                    { print }
+            grab && /^## \[/         { exit }
+            grab                     { buf[n++] = $0 }
+            END {
+              end = n - 1
+              while (end >= 0 && (buf[end] ~ /^[[:space:]]*$/ || buf[end] ~ /^---[[:space:]]*$/)) end--
+              start = 0
+              while (start <= end && buf[start] ~ /^[[:space:]]*$/) start++
+              for (i = start; i <= end; i++) print buf[i]
+            }
           ' docs/CHANGELOG.md > release-notes.md
-          # Drop leading blank lines so the notes start at the first heading.
-          sed -i -e '/./,$!d' release-notes.md
           if [ ! -s release-notes.md ]; then
             echo "::error::no CHANGELOG section found for [$ver]"
             exit 1
