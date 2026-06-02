@@ -30,7 +30,7 @@ a_yq_without_eval_all_support() {
 # subshell so the exit is captured as a status, and merge stderr to assert
 # the message.
 require_yq_is_checked() {
-    rq_stderr=$( { _require_yq >/dev/null; } 2>&1 )
+    rq_stderr=$({ _require_yq >/dev/null; } 2>&1)
     rq_status=$?
 }
 

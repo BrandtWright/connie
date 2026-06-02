@@ -32,9 +32,9 @@ _harness_total=0
 _harness_passed=0
 _harness_failed=0
 _harness_failed_names=""
-_harness_mode=tap                    # tap | pretty
-_harness_verbose=0                   # 0 | 1
-_harness_filter=""                   # substring match against test name
+_harness_mode=tap  # tap | pretty
+_harness_verbose=0 # 0 | 1
+_harness_filter="" # substring match against test name
 
 # ── Test discovery ─────────────────────────────────────────────────────────
 
@@ -86,7 +86,7 @@ _harness_setup_workspace() {
     export XDG_CONFIG_DIRS="$WORKSPACE/etc/xdg"
 
     mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" \
-             "$XDG_DATA_HOME" "$XDG_CONFIG_DIRS"
+        "$XDG_DATA_HOME" "$XDG_CONFIG_DIRS"
 }
 
 # ── DSL: given / when / expect ─────────────────────────────────────────────
@@ -155,7 +155,7 @@ expect() {
 }
 
 _emit_detail() {
-    printf '%s\n' "$1" >> "$TEST_DETAIL"
+    printf '%s\n' "$1" >>"$TEST_DETAIL"
 }
 
 # ── Test execution ─────────────────────────────────────────────────────────
@@ -178,7 +178,7 @@ _harness_run_test() {
     _test_stdout="$_artifact_dir/stdout"
     _test_stderr="$_artifact_dir/stderr"
     _test_detail="$_artifact_dir/detail"
-    : > "$_test_detail"
+    : >"$_test_detail"
 
     _status=0
     (
@@ -226,8 +226,8 @@ _harness_run_test() {
 
         # Exit non-zero if any expect inside this test failed.
         [ "$_TEST_ASSERTIONS_FAILED" = "0" ]
-    ) >"$_artifact_dir/test_run_stdout" 2>"$_artifact_dir/test_run_stderr" \
-        || _status=$?
+    ) >"$_artifact_dir/test_run_stdout" 2>"$_artifact_dir/test_run_stderr" ||
+        _status=$?
 
     if [ "$_status" = "0" ]; then
         _harness_passed=$((_harness_passed + 1))
@@ -270,7 +270,8 @@ _emit_file_header() {
 }
 
 _emit_pass() {
-    _name="$1"; _detail="$2"
+    _name="$1"
+    _detail="$2"
     case "$_harness_mode" in
         tap)
             printf 'ok %d - %s\n' "$_harness_total" "$_name"
@@ -288,7 +289,9 @@ _emit_pass() {
 }
 
 _emit_fail() {
-    _name="$1"; _detail="$2"; _stderr="$3"
+    _name="$1"
+    _detail="$2"
+    _stderr="$3"
     case "$_harness_mode" in
         tap)
             printf 'not ok %d - %s\n' "$_harness_total" "$_name"
@@ -307,7 +310,8 @@ _emit_fail() {
 
 # Print test detail and (optional) stderr as a TAP-version-13 YAML block.
 _emit_yaml_block() {
-    _detail="$1"; _stderr="${2:-}"
+    _detail="$1"
+    _stderr="${2:-}"
     printf '  ---\n'
     [ -s "$_detail" ] && sed 's/^/  /' "$_detail"
     if [ -n "$_stderr" ] && [ -s "$_stderr" ]; then

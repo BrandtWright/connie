@@ -52,12 +52,15 @@ while [ $# -gt 0 ]; do
             _harness_mode=pretty
             shift
             ;;
-        -v|--verbose)
+        -v | --verbose)
             _harness_verbose=1
             shift
             ;;
-        -f|--filter)
-            [ $# -ge 2 ] || { printf 'error: -f requires a substring\n' >&2; exit 2; }
+        -f | --filter)
+            [ $# -ge 2 ] || {
+                printf 'error: -f requires a substring\n' >&2
+                exit 2
+            }
             _harness_filter="$2"
             shift 2
             ;;

@@ -83,7 +83,7 @@ stderr_to_be_empty() {
         return 0
     fi
     _assertion_failure "stderr to be empty" "(nothing)" \
-                       "stderr was" "$(cat "$TEST_STDERR")"
+        "stderr was" "$(cat "$TEST_STDERR")"
 }
 
 # ── Test cases ─────────────────────────────────────────────────────────────

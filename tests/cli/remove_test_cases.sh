@@ -34,7 +34,7 @@ a_fresh_initialized_project_with_a_sentinel_file() {
     a_fresh_initialized_project
     # Drop a sentinel inside the project to assert it survives.
     # `connie remove` MUST NOT touch the project directory.
-    printf 'do-not-delete-me' > "$project_path/SENTINEL"
+    printf 'do-not-delete-me' >"$project_path/SENTINEL"
 }
 
 an_uninitialized_target_directory() {
@@ -79,7 +79,7 @@ the_state_dir_to_no_longer_exist() {
         return 0
     fi
     _assertion_failure "state dir to be absent" "$_state_dir" \
-                       "actual" "directory still present"
+        "actual" "directory still present"
 }
 
 the_state_dir_to_still_exist() {
@@ -88,7 +88,7 @@ the_state_dir_to_still_exist() {
         return 0
     fi
     _assertion_failure "state dir to be present" "$_state_dir" \
-                       "actual" "no such directory"
+        "actual" "no such directory"
 }
 
 the_config_dir_to_no_longer_exist() {
@@ -97,7 +97,7 @@ the_config_dir_to_no_longer_exist() {
         return 0
     fi
     _assertion_failure "config dir to be absent" "$_config_dir" \
-                       "actual" "directory still present"
+        "actual" "directory still present"
 }
 
 the_registry_entry_to_be_absent() {
@@ -107,8 +107,8 @@ the_registry_entry_to_be_absent() {
 }
 
 the_project_directory_to_be_untouched() {
-    if [ -f "$project_path/SENTINEL" ] && \
-       [ "$(cat "$project_path/SENTINEL")" = "do-not-delete-me" ]; then
+    if [ -f "$project_path/SENTINEL" ] &&
+        [ "$(cat "$project_path/SENTINEL")" = "do-not-delete-me" ]; then
         return 0
     fi
     _assertion_failure \
@@ -193,7 +193,7 @@ remove_without_yes_in_a_non_tty_context_dies_with_a_hint_test_case() {
     when the_user_runs_connie_remove_without_yes_in_non_tty
     expect it_fails
     expect stderr_to_contain "non-interactive"
-    expect stderr_to_contain "\\-\\-yes"
+    expect stderr_to_contain '\-\-yes'
     # State dir wasn't touched because we never got past the
     # confirmation check.
     expect the_state_dir_to_still_exist

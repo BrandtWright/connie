@@ -22,7 +22,7 @@ a_project_with_a_top_level_claude_md() {
     main_md_content="# Project instructions
 
 This project uses 4-space indentation."
-    printf '%s' "$main_md_content" > "$project_path/CLAUDE.md"
+    printf '%s' "$main_md_content" >"$project_path/CLAUDE.md"
 }
 
 a_project_with_a_dot_claude_directory_claude_md() {
@@ -31,14 +31,14 @@ a_project_with_a_dot_claude_directory_claude_md() {
     alt_md_content="# Project instructions (alternate location)
 
 This came from .claude/CLAUDE.md."
-    printf '%s' "$alt_md_content" > "$project_path/.claude/CLAUDE.md"
+    printf '%s' "$alt_md_content" >"$project_path/.claude/CLAUDE.md"
 }
 
 a_project_with_both_claude_md_locations() {
     a_project_with_a_top_level_claude_md
     mkdir -p "$project_path/.claude"
     alt_md_content="# Alternate-location notes"
-    printf '%s' "$alt_md_content" > "$project_path/.claude/CLAUDE.md"
+    printf '%s' "$alt_md_content" >"$project_path/.claude/CLAUDE.md"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ the_output_does_not_contain_the_workspace_claude_md_marker() {
     case "$emitted" in
         *"<!-- source: /workspace/CLAUDE.md -->"*)
             _assertion_failure "workspace marker absence" "no /workspace/CLAUDE.md marker" \
-                               "actual" "marker present"
+                "actual" "marker present"
             return 1
             ;;
     esac
@@ -75,7 +75,7 @@ the_output_does_not_contain_the_dot_claude_marker() {
     case "$emitted" in
         *"<!-- source: /workspace/.claude/CLAUDE.md -->"*)
             _assertion_failure "dot-claude marker absence" "no /workspace/.claude/CLAUDE.md marker" \
-                               "actual" "marker present"
+                "actual" "marker present"
             return 1
             ;;
     esac
@@ -94,12 +94,12 @@ the_main_marker_precedes_the_alt_marker() {
     _alt_pos=$(printf '%s' "$emitted" | grep -n "source: /workspace/.claude" | head -1 | cut -d: -f1)
     if [ -z "$_main_pos" ] || [ -z "$_alt_pos" ]; then
         _assertion_failure "both markers present" "main and alt markers found" \
-                           "actual" "main=$_main_pos alt=$_alt_pos"
+            "actual" "main=$_main_pos alt=$_alt_pos"
         return 1
     fi
     if [ "$_main_pos" -ge "$_alt_pos" ]; then
         _assertion_failure "marker ordering" "main marker before alt marker" \
-                           "actual" "main at line $_main_pos, alt at line $_alt_pos"
+            "actual" "main at line $_main_pos, alt at line $_alt_pos"
         return 1
     fi
 }

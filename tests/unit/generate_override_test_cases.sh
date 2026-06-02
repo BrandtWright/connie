@@ -78,7 +78,7 @@ the_override_is_generated() {
     override_output_file="$WORKSPACE/override.yml"
     _generate_override "$project_path" "$merged_file" \
         "$extra_packages" "$extra_env" "$override_cmd" \
-        > "$override_output_file"
+        >"$override_output_file"
 }
 
 # ── Assertions ─────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ the_override_parses_as_yaml() {
         return 0
     fi
     _assertion_failure "valid YAML" "parseable by yq" \
-                       "yq error" "$(yq 'null' "$override_output_file" 2>&1)"
+        "yq error" "$(yq 'null' "$override_output_file" 2>&1)"
 }
 
 the_override_has_a_workspace_service() {

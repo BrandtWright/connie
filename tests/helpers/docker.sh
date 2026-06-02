@@ -64,7 +64,7 @@ a_unique_test_base_image_tag_and_an_initialized_project() {
 # tests can verify the /workspace bind mount surfaces it inside the
 # container. Composes with the initialized-project fixture above.
 a_sentinel_file_in_the_workspace() {
-    printf 'sentinel-content' > "$project_path/SENTINEL"
+    printf 'sentinel-content' >"$project_path/SENTINEL"
 }
 
 # Variant that skips `connie init` and instead pre-creates a legacy
@@ -83,7 +83,7 @@ a_unique_test_base_image_tag_and_a_legacy_dot_connie_project() {
     # then the test wouldn't be able to claim "the legacy config was
     # moved" since it could've been created from scratch.
     cp "$_HARNESS_REPO_ROOT/src/config/project.yml" \
-       "$project_path/.connie/config.yml"
+        "$project_path/.connie/config.yml"
     _proj=$(_compose_project_name "$project_path")
     workspace_image="${_proj}-workspace"
     workspace_network="${_proj}_default"
@@ -140,7 +140,7 @@ the_image_exists() {
         return 0
     fi
     _assertion_failure "image to exist" "$test_base_image" \
-                       "actual" "no such image (docker image inspect failed)"
+        "actual" "no such image (docker image inspect failed)"
     return 1
 }
 
@@ -154,8 +154,8 @@ the_image_to_have_env_var() {
     _name="$1"
     _expected="$2"
     _actual=$(docker image inspect "$test_base_image" \
-        --format "{{range .Config.Env}}{{println .}}{{end}}" \
-        | grep "^${_name}=" | sed "s/^${_name}=//")
+        --format "{{range .Config.Env}}{{println .}}{{end}}" |
+        grep "^${_name}=" | sed "s/^${_name}=//")
     expect_equal "$_expected" "$_actual"
 }
 
@@ -183,7 +183,7 @@ the_image_contains_file() {
         return 0
     fi
     _assertion_failure "file to exist in image" "$_path" \
-                       "actual" "no such file in container filesystem"
+        "actual" "no such file in container filesystem"
     return 1
 }
 
@@ -194,7 +194,7 @@ the_image_contains_directory() {
         return 0
     fi
     _assertion_failure "directory to exist in image" "$_path" \
-                       "actual" "no such directory in container filesystem"
+        "actual" "no such directory in container filesystem"
     return 1
 }
 
@@ -209,7 +209,7 @@ the_workspace_image_exists() {
         return 0
     fi
     _assertion_failure "image to exist" "$workspace_image" \
-                       "actual" "no such image (docker image inspect failed)"
+        "actual" "no such image (docker image inspect failed)"
     return 1
 }
 
@@ -219,7 +219,7 @@ the_workspace_image_contains_file() {
         return 0
     fi
     _assertion_failure "file to exist in workspace image" "$_path" \
-                       "actual" "no such file in container filesystem"
+        "actual" "no such file in container filesystem"
     return 1
 }
 
@@ -231,7 +231,7 @@ the_workspace_image_file_to_contain() {
         *"$_expected"*) return 0 ;;
     esac
     _assertion_failure "file to contain" "$_expected (in $_path)" \
-                       "actual contents" "$_actual"
+        "actual contents" "$_actual"
     return 1
 }
 
@@ -240,7 +240,7 @@ the_workspace_image_no_longer_exists() {
         return 0
     fi
     _assertion_failure "image to be absent" "$workspace_image" \
-                       "actual" "image still present (cleanup did not run)"
+        "actual" "image still present (cleanup did not run)"
     return 1
 }
 
@@ -255,7 +255,7 @@ the_xdg_config_to_exist_for_the_project() {
         return 0
     fi
     _assertion_failure "XDG config to exist" "$_path" \
-                       "actual" "no such file"
+        "actual" "no such file"
     return 1
 }
 
@@ -264,6 +264,6 @@ the_legacy_dot_connie_directory_to_be_removed() {
         return 0
     fi
     _assertion_failure "legacy .connie/ to be absent" "$project_path/.connie" \
-                       "actual" "directory still present (rmdir skipped — non-empty?)"
+        "actual" "directory still present (rmdir skipped — non-empty?)"
     return 1
 }

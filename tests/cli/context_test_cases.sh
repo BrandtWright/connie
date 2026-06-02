@@ -25,7 +25,7 @@ an_initialized_project_with_a_workspace_claude_md() {
     project_claude_md_content="# Project-scope guidance
 
 This project uses POSIX shell. No bashisms."
-    printf '%s' "$project_claude_md_content" > "$project_path/CLAUDE.md"
+    printf '%s' "$project_claude_md_content" >"$project_path/CLAUDE.md"
 }
 
 an_initialized_project_with_a_claude_local_md() {
@@ -33,7 +33,7 @@ an_initialized_project_with_a_claude_local_md() {
     local_claude_md_content="# Personal notes
 
 Sandbox URL: http://localhost:8080"
-    printf '%s' "$local_claude_md_content" > "$project_path/CLAUDE.local.md"
+    printf '%s' "$local_claude_md_content" >"$project_path/CLAUDE.local.md"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -90,14 +90,14 @@ the_scope_headers_appear_in_load_order() {
     _h4=$(grep -n "Scope 4/4" "$TEST_STDOUT" | head -1 | cut -d: -f1)
     if [ -z "$_h1" ] || [ -z "$_h2" ] || [ -z "$_h3" ] || [ -z "$_h4" ]; then
         _assertion_failure "all four scope headers present" "lines 1<2<3<4" \
-                           "actual" "h1=$_h1 h2=$_h2 h3=$_h3 h4=$_h4"
+            "actual" "h1=$_h1 h2=$_h2 h3=$_h3 h4=$_h4"
         return 1
     fi
     if [ "$_h1" -lt "$_h2" ] && [ "$_h2" -lt "$_h3" ] && [ "$_h3" -lt "$_h4" ]; then
         return 0
     fi
     _assertion_failure "scope ordering" "1<2<3<4" \
-                       "actual lines" "1@$_h1 2@$_h2 3@$_h3 4@$_h4"
+        "actual lines" "1@$_h1 2@$_h2 3@$_h3 4@$_h4"
     return 1
 }
 

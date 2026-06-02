@@ -14,12 +14,12 @@ a_project_with_no_extra_volumes() {
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path"
     merged_file="$WORKSPACE/merged.yml"
-    printf 'volumes: []\n' > "$merged_file"
+    printf 'volumes: []\n' >"$merged_file"
 }
 
 a_project_with_one_extra_volume() {
     a_project_with_no_extra_volumes
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 volumes:
   - /data:/data:ro
 EOF
@@ -27,7 +27,7 @@ EOF
 
 a_project_with_multiple_extra_volumes() {
     a_project_with_no_extra_volumes
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 volumes:
   - /data:/data:ro
   - /cache:/cache:rw
@@ -36,7 +36,7 @@ EOF
 
 a_project_mounting_the_docker_socket() {
     a_project_with_no_extra_volumes
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 volumes:
   - /var/run/docker.sock:/var/run/docker.sock
 EOF
@@ -46,7 +46,7 @@ EOF
 # rejection keys on the socket filename, not the conventional directory.
 a_project_mounting_the_docker_socket_from_a_custom_path() {
     a_project_with_no_extra_volumes
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 volumes:
   - /home/me/run/docker.sock:/var/run/docker.sock:rw
 EOF
@@ -62,7 +62,7 @@ the_volumes_block_is_built() {
 # a subshell so the exit is captured as a status rather than aborting the
 # test, and merge its stderr into a variable so the message can be checked.
 the_volumes_block_build_is_attempted() {
-    vol_stderr=$( { _build_vol_block "$project_path" "$merged_file" >/dev/null; } 2>&1 )
+    vol_stderr=$({ _build_vol_block "$project_path" "$merged_file" >/dev/null; } 2>&1)
     vol_status=$?
 }
 

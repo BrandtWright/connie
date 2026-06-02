@@ -28,7 +28,7 @@ only_the_system_wide_source_present() {
     system_md_content="# System-wide Claude Code policy
 
 Distinctive marker: org-wide-rules"
-    printf '%s' "$system_md_content" > "$CONNIE_ETC_CLAUDE_MD"
+    printf '%s' "$system_md_content" >"$CONNIE_ETC_CLAUDE_MD"
     rm -f "$HOME/.claude/CLAUDE.md"
 }
 
@@ -38,15 +38,15 @@ only_the_user_source_present() {
     user_md_content="# Personal Claude Code preferences
 
 Distinctive marker: my-own-rules"
-    printf '%s' "$user_md_content" > "$HOME/.claude/CLAUDE.md"
+    printf '%s' "$user_md_content" >"$HOME/.claude/CLAUDE.md"
 }
 
 both_host_sources_present() {
     system_md_content="# System-wide policy"
     user_md_content="# Personal preferences"
-    printf '%s' "$system_md_content" > "$CONNIE_ETC_CLAUDE_MD"
+    printf '%s' "$system_md_content" >"$CONNIE_ETC_CLAUDE_MD"
     mkdir -p "$HOME/.claude"
-    printf '%s' "$user_md_content" > "$HOME/.claude/CLAUDE.md"
+    printf '%s' "$user_md_content" >"$HOME/.claude/CLAUDE.md"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ the_output_does_not_contain_the_system_wide_source_marker() {
     case "$emitted" in
         *"<!-- source: /etc/claude-code/CLAUDE.md"*)
             _assertion_failure "system-wide marker absence" "no system-wide marker" \
-                               "actual" "output contained the system-wide marker"
+                "actual" "output contained the system-wide marker"
             return 1
             ;;
     esac
@@ -83,7 +83,7 @@ the_output_does_not_contain_the_user_source_marker() {
     case "$emitted" in
         *"<!-- source: ~/.claude/CLAUDE.md"*)
             _assertion_failure "user marker absence" "no user-source marker" \
-                               "actual" "output contained the user marker"
+                "actual" "output contained the user marker"
             return 1
             ;;
     esac
@@ -102,12 +102,12 @@ the_system_wide_marker_precedes_the_user_marker() {
     _user_pos=$(printf '%s' "$emitted" | grep -n "(user)" | head -1 | cut -d: -f1)
     if [ -z "$_etc_pos" ] || [ -z "$_user_pos" ]; then
         _assertion_failure "both markers present" "etc and user markers found" \
-                           "actual" "etc=$_etc_pos user=$_user_pos"
+            "actual" "etc=$_etc_pos user=$_user_pos"
         return 1
     fi
     if [ "$_etc_pos" -ge "$_user_pos" ]; then
         _assertion_failure "ordering" "etc marker before user marker" \
-                           "actual" "etc at line $_etc_pos, user at line $_user_pos"
+            "actual" "etc at line $_etc_pos, user at line $_user_pos"
         return 1
     fi
 }

@@ -115,24 +115,24 @@ _confirm() {
     printf '%s [y/N] ' "$1" >&2
     read -r _cf_answer || _cf_answer=""
     case "$_cf_answer" in
-        y|Y|yes|YES) return 0 ;;
+        y | Y | yes | YES) return 0 ;;
         *) return 1 ;;
     esac
 }
 
 _require() {
-    command -v "$1" >/dev/null 2>&1 || \
+    command -v "$1" >/dev/null 2>&1 ||
         _die "'$1' is required but not installed." \
-             "Run '$TOOL doctor' for a full check of prerequisites."
+            "Run '$TOOL doctor' for a full check of prerequisites."
 }
 
 _require_yq() {
     _require yq
     # eval-all is a yq v4 (mikefarah) command; earlier versions and the Python
     # yq fork do not have it and will produce cryptic errors throughout.
-    yq eval-all 'null' /dev/null >/dev/null 2>&1 || \
+    yq eval-all 'null' /dev/null >/dev/null 2>&1 ||
         _die "'yq' v4 (github.com/mikefarah/yq) is required, but the installed 'yq' does not support 'eval-all'." \
-             "Install yq v4: https://github.com/mikefarah/yq#install"
+            "Install yq v4: https://github.com/mikefarah/yq#install"
 }
 
 _usage() {
@@ -232,7 +232,7 @@ _register_project() {
     _rp_root="$1"
     _rp_slug="$2"
     mkdir -p "$DATA_DIR"
-    [ -f "$PROJECTS_FILE" ] || printf '{}' > "$PROJECTS_FILE"
+    [ -f "$PROJECTS_FILE" ] || printf '{}' >"$PROJECTS_FILE"
     ROOT="$_rp_root" SLUG="$_rp_slug" yq -i '.[env(ROOT)] = env(SLUG)' "$PROJECTS_FILE"
 }
 
@@ -315,7 +315,7 @@ _migrate_project() {
         mv "$_mp_old/.claude.json" "$_mp_state_dir/.claude.json"
         _detail "moved   .claude.json →  $STATE_DIR/$_mp_slug/"
     else
-        printf '{}' > "$_mp_state_dir/.claude.json"
+        printf '{}' >"$_mp_state_dir/.claude.json"
     fi
 
     rm -f "$_mp_old/override.yml"
@@ -333,25 +333,27 @@ _migrate_project() {
 
 _merge_configs() {
     _mc_root="$1"
-    [ -f "$DEFAULTS_FILE" ] || \
+    [ -f "$DEFAULTS_FILE" ] ||
         _die "defaults.yml not found at $DEFAULTS_FILE" \
-             "Reinstall connie: make install PREFIX=~/.local (or 'connie doctor' to verify the install)"
+            "Reinstall connie: make install PREFIX=~/.local (or 'connie doctor' to verify the install)"
     _mc_work=$(mktemp)
 
-    printf '{}' > "$_mc_work"
+    printf '{}' >"$_mc_work"
 
     for _mc_cfg in \
         "$DEFAULTS_FILE" \
         "$SYSTEM_CONFIG" \
         "$USER_CONFIG" \
-        "$(_project_config "$_mc_root")"
-    do
+        "$(_project_config "$_mc_root")"; do
         [ -f "$_mc_cfg" ] || continue
         _mc_tmp=$(mktemp)
         # shellcheck disable=SC2016 # $item is a yq variable, not a shell var
         yq eval-all '. as $item ireduce ({}; . * $item)' \
-            "$_mc_work" "$_mc_cfg" > "$_mc_tmp" \
-            || { rm -f "$_mc_work" "$_mc_tmp"; return 1; }
+            "$_mc_work" "$_mc_cfg" >"$_mc_tmp" ||
+            {
+                rm -f "$_mc_work" "$_mc_tmp"
+                return 1
+            }
         mv "$_mc_tmp" "$_mc_work"
     done
 
@@ -369,12 +371,13 @@ _merge_configs() {
 _build_fwd_env_obj() {
     _bfe_term="${TERM:-xterm-256color}"
     case "${COLORTERM:-}" in
-        truecolor|24bit) _bfe_force_color=3 ;;
+        truecolor | 24bit) _bfe_force_color=3 ;;
         *)
             case "$_bfe_term" in
-                *256color*|*truecolor*) _bfe_force_color=2 ;;
+                *256color* | *truecolor*) _bfe_force_color=2 ;;
                 *) _bfe_force_color=1 ;;
-            esac ;;
+            esac
+            ;;
     esac
     if [ -n "${COLORTERM:-}" ]; then
         FT="$_bfe_term" FC="$COLORTERM" FF="$_bfe_force_color" \
@@ -389,7 +392,10 @@ _build_fwd_env_obj() {
 # Values are encoded via yq so special characters are escaped safely.
 _build_cli_env_obj() {
     _bce_obj="{}"
-    [ -n "$1" ] || { printf '%s' "$_bce_obj"; return; }
+    [ -n "$1" ] || {
+        printf '%s' "$_bce_obj"
+        return
+    }
     _oldifs=$IFS
     # $1 is newline-delimited — see --env accumulation in argument parsing.
     IFS='
@@ -397,8 +403,14 @@ _build_cli_env_obj() {
     for _pair in $1; do
         [ -n "$_pair" ] || continue
         case "$_pair" in
-            *=*) _k=${_pair%%=*}; _v=${_pair#*=} ;;
-            *)   _k=$_pair;       _v="" ;;
+            *=*)
+                _k=${_pair%%=*}
+                _v=${_pair#*=}
+                ;;
+            *)
+                _k=$_pair
+                _v=""
+                ;;
         esac
         _bce_obj=$(BASE="$_bce_obj" K="$_k" V="$_v" \
             yq -n -o=json 'env(BASE) * {strenv(K): strenv(V)}')
@@ -451,10 +463,10 @@ ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
         for _bvb_entry in $_bvb_extra; do
             [ -n "$_bvb_entry" ] || continue
             case "${_bvb_entry%%:*}" in
-                docker.sock|*/docker.sock)
+                docker.sock | */docker.sock)
                     IFS=$_oldifs
                     _die "Refusing to mount the Docker socket: $_bvb_entry" \
-                         "Mounting docker.sock grants full host control and defeats connie's container hardening. Remove this entry from the volumes: list in your project config."
+                        "Mounting docker.sock grants full host control and defeats connie's container hardening. Remove this entry from the volumes: list in your project config."
                     ;;
             esac
         done
@@ -467,8 +479,8 @@ ${_bvb_extra}"
     # can never break out of the override. yq emits at column 0; indent to
     # the 6-space depth the override's `volumes:` key expects.
     VOLS="$_bvb_mounts" yq -n -o=yaml \
-        'strenv(VOLS) | split("\n") | map(select(. != ""))' \
-        | sed 's/^/      /'
+        'strenv(VOLS) | split("\n") | map(select(. != ""))' |
+        sed 's/^/      /'
 }
 
 # Build the YAML ports section. Outputs nothing if no ports are configured.
@@ -734,7 +746,7 @@ _write_user_context() {
     _wuc_root="$1"
     _wuc_dest="$(_project_state_dir "$_wuc_root")/.claude/CLAUDE.md"
     rm -f "$_wuc_dest"
-    _emit_user_context > "$_wuc_dest"
+    _emit_user_context >"$_wuc_dest"
     [ -s "$_wuc_dest" ] || rm -f "$_wuc_dest"
 }
 
@@ -808,9 +820,9 @@ _prepare() {
     fi
 
     _prep_config=$(_project_config "$_prep_root")
-    [ -f "$_prep_config" ] || \
+    [ -f "$_prep_config" ] ||
         _die "No project config found for $_prep_root." \
-             "Run '$TOOL init $_prep_root' to scaffold one, or '$TOOL doctor $_prep_root' to diagnose."
+            "Run '$TOOL init $_prep_root' to scaffold one, or '$TOOL doctor $_prep_root' to diagnose."
 
     _require docker
 
@@ -834,10 +846,10 @@ _prepare() {
     # file that Claude Code writes inside .claude/ from other local users.
     chmod 700 "$_prep_state" "$_prep_state/.claude"
     if [ ! -f "$_prep_state/.claude.json" ] || [ ! -s "$_prep_state/.claude.json" ]; then
-        printf '{}' > "$_prep_state/.claude.json"
+        printf '{}' >"$_prep_state/.claude.json"
     fi
 
-    _merge_configs "$_prep_root" > "$_prep_out"
+    _merge_configs "$_prep_root" >"$_prep_out"
 }
 
 # ── Compose project name ─────────────────────────────────────────────────────
@@ -870,9 +882,9 @@ cmd_build_base() {
     _require docker
 
     _base_dockerfile="$LIB_DIR/docker/base.Dockerfile"
-    [ -f "$_base_dockerfile" ] || \
+    [ -f "$_base_dockerfile" ] ||
         _die "base.Dockerfile not found at $_base_dockerfile." \
-             "Reinstall connie: make install PREFIX=~/.local"
+            "Reinstall connie: make install PREFIX=~/.local"
 
     _info "Building connie base image ($BASE_IMAGE)..."
     _detail "Alpine 3.20 + bash + curl + git + coreutils + Claude Code (includes Node.js)"
@@ -922,7 +934,7 @@ cmd_init() {
     fi
     chmod 700 "$_init_state_dir/.claude"
     if [ ! -f "$_init_state_dir/.claude.json" ] || [ ! -s "$_init_state_dir/.claude.json" ]; then
-        printf '{}' > "$_init_state_dir/.claude.json"
+        printf '{}' >"$_init_state_dir/.claude.json"
         _detail "created  $STATE_DIR/$_init_slug/.claude.json"
     else
         _detail "exists   $STATE_DIR/$_init_slug/.claude.json (skipped)"
@@ -934,8 +946,8 @@ cmd_init() {
     # The blank-line separator before the "NOTE" line is part of the
     # _detail message and should respect the same verbosity gate, not
     # leak through as a stray newline in -q mode.
-    if [ "$_VERBOSITY" -ge 1 ] \
-        && ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
+    if [ "$_VERBOSITY" -ge 1 ] &&
+        ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
         printf '\n' >&2
         _detail "NOTE: Base image not found. It will be built automatically on first 'connie run'."
     fi
@@ -976,7 +988,7 @@ cmd_build() {
     trap '_info "Terminated. Cleaning up."; exit 143' TERM
     _prepare "$_project_root" "$_merged"
     _generate_override "$_project_root" "$_merged" \
-        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
+        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" >"$_override"
     _run_compose "$_project_root" "$_override" build workspace
 }
 
@@ -993,7 +1005,7 @@ cmd_run() {
     # _generate_override embeds the connie (managed-policy) context as a build
     # arg; user-level context is assembled fresh from host files at run time.
     _generate_override "$_project_root" "$_merged" \
-        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" > "$_override"
+        "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" >"$_override"
     _write_user_context "$_project_root"
     _run_compose "$_project_root" "$_override" build workspace
     # Auto-detect non-interactive contexts (CI, output-redirected, piped
@@ -1013,9 +1025,9 @@ cmd_clean() {
 
     _require_yq
 
-    [ -f "$(_project_config "$_project_root")" ] || \
+    [ -f "$(_project_config "$_project_root")" ] ||
         _die "No project config found for $_project_root." \
-             "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
+            "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _require docker
 
@@ -1082,7 +1094,7 @@ cmd_remove() {
     if [ "$_ARG_YES" != "1" ]; then
         if [ ! -t 0 ]; then
             _die "remove needs --yes when stdin isn't a terminal (non-interactive context)." \
-                 "Add --yes to confirm, or run interactively."
+                "Add --yes to confirm, or run interactively."
         fi
         _confirm "This is irreversible. Proceed?" || _die "Aborted."
     fi
@@ -1142,7 +1154,7 @@ cmd_list() {
     # Empty or absent registry is not an error: keep stdout an empty,
     # pipe-safe list and explain on stderr. Exit 0 either way.
     _list_paths=""
-    [ -f "$PROJECTS_FILE" ] && \
+    [ -f "$PROJECTS_FILE" ] &&
         _list_paths=$(yq 'keys | .[]' "$PROJECTS_FILE" 2>/dev/null | LC_ALL=C sort)
 
     if [ -z "$_list_paths" ]; then
@@ -1160,9 +1172,9 @@ cmd_config() {
     _require_yq
 
     _cfg=$(_project_config "$_project_root")
-    [ -f "$_cfg" ] || \
+    [ -f "$_cfg" ] ||
         _die "No project config found for $_project_root." \
-             "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
+            "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _info "Project:  $_project_root"
     _info "Config:   $_cfg"
@@ -1171,7 +1183,7 @@ cmd_config() {
 
     _merged=$(mktemp)
     trap 'rm -f "$_merged"' EXIT
-    _merge_configs "$_project_root" > "$_merged"
+    _merge_configs "$_project_root" >"$_merged"
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD"
 }
@@ -1182,13 +1194,13 @@ cmd_context() {
     _require_yq
 
     _cfg=$(_project_config "$_project_root")
-    [ -f "$_cfg" ] || \
+    [ -f "$_cfg" ] ||
         _die "No project config found for $_project_root." \
-             "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
+            "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _merged=$(mktemp)
     trap 'rm -f "$_merged"' EXIT
-    _merge_configs "$_project_root" > "$_merged"
+    _merge_configs "$_project_root" >"$_merged"
 
     _ctx_preview_header "$_project_root"
 
@@ -1331,7 +1343,7 @@ cmd_doctor() {
         _doctor_pass "base image $BASE_IMAGE present"
     else
         _doctor_warn "base image $BASE_IMAGE not built yet" \
-                     "Run 'connie build-base' (or let 'connie run' build it on first use)"
+            "Run 'connie build-base' (or let 'connie run' build it on first use)"
     fi
 
     # Per-project section, only meaningful when the target exists.
@@ -1351,7 +1363,7 @@ cmd_doctor() {
                 yq eval-all 'null' "$_doc_config_path"
         else
             _doctor_warn "no project config yet" \
-                         "Run 'connie init $_doc_target' to scaffold one"
+                "Run 'connie init $_doc_target' to scaffold one"
         fi
         if [ -d "$_doc_state_path" ]; then
             # 0700 is the documented permission (defense-in-depth on
@@ -1360,15 +1372,15 @@ cmd_doctor() {
             # formats differ between GNU coreutils and BSD; `ls -ld`
             # parsing trips shellcheck SC2012.
             if find "$_doc_state_path" -maxdepth 0 -type d -perm 700 \
-                   2>/dev/null | grep -q .; then
+                2>/dev/null | grep -q .; then
                 _doctor_pass "state dir mode 700: $_doc_state_path"
             else
                 _doctor_warn "state dir not mode 700: $_doc_state_path" \
-                             "Run 'chmod 700 \"$_doc_state_path\"' to harden"
+                    "Run 'chmod 700 \"$_doc_state_path\"' to harden"
             fi
         else
             _doctor_warn "no state dir yet (created on first 'connie init' or 'connie run')" \
-                         "$_doc_state_path"
+                "$_doc_state_path"
         fi
     fi
 
@@ -1417,7 +1429,7 @@ _main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            init|run|build|clean|remove|config|context|doctor|list|help|version)
+            init | run | build | clean | remove | config | context | doctor | list | help | version)
                 _SUBCOMMAND="$1"
                 shift
                 ;;
@@ -1425,11 +1437,11 @@ _main() {
                 _SUBCOMMAND="build-base"
                 shift
                 ;;
-            -q|--quiet)
+            -q | --quiet)
                 _VERBOSITY=0
                 shift
                 ;;
-            -v|--verbose)
+            -v | --verbose)
                 _VERBOSITY=2
                 shift
                 ;;
@@ -1476,7 +1488,7 @@ _main() {
                 _die "Unknown flag: $1" "Run '$TOOL help' for usage."
                 ;;
             *)
-                [ -z "$_TARGET_DIR" ] || \
+                [ -z "$_TARGET_DIR" ] ||
                     _die "Unexpected argument: $1" "Run '$TOOL help' for usage."
                 _TARGET_DIR="$1"
                 shift
@@ -1485,23 +1497,23 @@ _main() {
     done
 
     case "${_SUBCOMMAND:-help}" in
-        init)        cmd_init       "${_TARGET_DIR:-}" ;;
-        build)       cmd_build      "${_TARGET_DIR:-}" ;;
-        build-base)  cmd_build_base ;;
-        run)         cmd_run        "${_TARGET_DIR:-}" ;;
-        clean)       cmd_clean      "${_TARGET_DIR:-}" ;;
-        remove)      cmd_remove     "${_TARGET_DIR:-}" ;;
-        config)      cmd_config     "${_TARGET_DIR:-}" ;;
-        context)     cmd_context    "${_TARGET_DIR:-}" ;;
-        doctor)      cmd_doctor     "${_TARGET_DIR:-}" ;;
-        list)        cmd_list       ;;
-        version)     printf '%s %s\n' "$TOOL" "$VERSION" ;;
+        init) cmd_init "${_TARGET_DIR:-}" ;;
+        build) cmd_build "${_TARGET_DIR:-}" ;;
+        build-base) cmd_build_base ;;
+        run) cmd_run "${_TARGET_DIR:-}" ;;
+        clean) cmd_clean "${_TARGET_DIR:-}" ;;
+        remove) cmd_remove "${_TARGET_DIR:-}" ;;
+        config) cmd_config "${_TARGET_DIR:-}" ;;
+        context) cmd_context "${_TARGET_DIR:-}" ;;
+        doctor) cmd_doctor "${_TARGET_DIR:-}" ;;
+        list) cmd_list ;;
+        version) printf '%s %s\n' "$TOOL" "$VERSION" ;;
         help)
             # If we landed here because the first positional argument didn't
             # match any known subcommand, surface the error rather than
             # silently showing usage — the user almost certainly typo'd a
             # command name.
-            [ -z "$_TARGET_DIR" ] || \
+            [ -z "$_TARGET_DIR" ] ||
                 _die "Unknown command: $_TARGET_DIR" "Run '$TOOL help' for usage."
             _usage
             ;;

@@ -21,16 +21,16 @@ _require() {
 }
 
 cleanup() {
-    printf '\033[?12h'  # restore cursor blink
-    printf '\033[?25h'  # show cursor
+    printf '\033[?12h' # restore cursor blink
+    printf '\033[?25h' # show cursor
 }
 trap cleanup EXIT INT TERM
 
 _require git
 _require entr
 
-printf '\033[?25l'  # hide cursor
-printf '\033[?12l'  # disable cursor blink
+printf '\033[?25l' # hide cursor
+printf '\033[?12l' # disable cursor blink
 
 cd "$REPO_ROOT"
 # shellcheck disable=SC2016 # the single quotes are intentional — sh -c receives

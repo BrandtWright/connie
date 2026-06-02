@@ -16,7 +16,7 @@ an_empty_registry() {
     # A registry file that exists but maps nothing — distinct from the
     # no-file case below, exercising the empty-`keys` branch of cmd_list.
     mkdir -p "$DATA_DIR"
-    printf '{}' > "$PROJECTS_FILE"
+    printf '{}' >"$PROJECTS_FILE"
 }
 
 no_registry_file() {

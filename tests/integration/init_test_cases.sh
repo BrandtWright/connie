@@ -27,7 +27,7 @@ the_project_has_already_been_initialized_once() {
 
 the_config_file_has_been_edited_with_custom_content() {
     custom_config_content="# user-edited content that init should never overwrite"
-    printf '%s\n' "$custom_config_content" > "$(_project_config "$project_path")"
+    printf '%s\n' "$custom_config_content" >"$(_project_config "$project_path")"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────

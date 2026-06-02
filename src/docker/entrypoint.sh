@@ -25,13 +25,13 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime}"
 
 # Pre-create the directories so tools don't fail on first write.
 mkdir -p "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" \
-          "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
+    "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
 
 # Redirect git global config to /tmp — the root filesystem is read-only.
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/tmp/.gitconfig}"
 
 # Configure git identity from environment variables if provided.
-[ -n "${GIT_USER_NAME:-}"  ] && git config --global user.name  "$GIT_USER_NAME"
+[ -n "${GIT_USER_NAME:-}" ] && git config --global user.name "$GIT_USER_NAME"
 [ -n "${GIT_USER_EMAIL:-}" ] && git config --global user.email "$GIT_USER_EMAIL"
 
 # Mark /workspace as safe so git doesn't refuse to operate on it.

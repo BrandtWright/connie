@@ -30,7 +30,7 @@ a_legacy_project_with_a_dot_connie_config_yml() {
     legacy_dot_connie="$project_path/.connie"
     mkdir -p "$legacy_dot_connie"
     legacy_config_content="# legacy project config — preserved across migration"
-    printf '%s' "$legacy_config_content" > "$legacy_dot_connie/config.yml"
+    printf '%s' "$legacy_config_content" >"$legacy_dot_connie/config.yml"
 }
 
 a_legacy_project_with_no_dot_connie_config_yml() {
@@ -43,23 +43,23 @@ a_legacy_dot_connie_with_a_populated_claude_directory() {
     a_legacy_project_with_no_dot_connie_config_yml
     mkdir -p "$legacy_dot_connie/.claude"
     legacy_session_content="session state from before migration"
-    printf '%s' "$legacy_session_content" > "$legacy_dot_connie/.claude/session-marker"
+    printf '%s' "$legacy_session_content" >"$legacy_dot_connie/.claude/session-marker"
 }
 
 a_legacy_dot_connie_with_a_claude_json_file() {
     a_legacy_project_with_no_dot_connie_config_yml
     legacy_claude_json_content='{"oauth_token": "legacy-token-value"}'
-    printf '%s' "$legacy_claude_json_content" > "$legacy_dot_connie/.claude.json"
+    printf '%s' "$legacy_claude_json_content" >"$legacy_dot_connie/.claude.json"
 }
 
 a_legacy_dot_connie_with_a_stale_override_yml() {
     a_legacy_project_with_no_dot_connie_config_yml
-    printf 'services: {}\n' > "$legacy_dot_connie/override.yml"
+    printf 'services: {}\n' >"$legacy_dot_connie/override.yml"
 }
 
 a_legacy_dot_connie_with_an_unexpected_file() {
     a_legacy_project_with_no_dot_connie_config_yml
-    printf 'mystery contents\n' > "$legacy_dot_connie/unexpected-file"
+    printf 'mystery contents\n' >"$legacy_dot_connie/unexpected-file"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ the_legacy_dot_connie_directory_was_removed() {
         return 0
     fi
     _assertion_failure "directory removed" "$legacy_dot_connie absent" \
-                       "actual" "$legacy_dot_connie still exists"
+        "actual" "$legacy_dot_connie still exists"
     return 1
 }
 
@@ -128,7 +128,7 @@ the_legacy_override_yml_was_removed() {
         return 0
     fi
     _assertion_failure "legacy override.yml removed" "absent" \
-                       "actual" "still present at $legacy_dot_connie/override.yml"
+        "actual" "still present at $legacy_dot_connie/override.yml"
     return 1
 }
 

@@ -12,12 +12,12 @@
 
 a_merged_config_with_no_ports() {
     merged_file="$WORKSPACE/merged.yml"
-    printf 'ports: []\n' > "$merged_file"
+    printf 'ports: []\n' >"$merged_file"
 }
 
 a_merged_config_with_one_port() {
     merged_file="$WORKSPACE/merged.yml"
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 ports:
   - "8080:8080"
 EOF
@@ -25,7 +25,7 @@ EOF
 
 a_merged_config_with_multiple_ports() {
     merged_file="$WORKSPACE/merged.yml"
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 ports:
   - "8080:8080"
   - "9090:9090"

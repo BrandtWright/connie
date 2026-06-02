@@ -19,16 +19,16 @@ a_recording_stub_docker() {
     DOCKER_ARGS_FILE="$WORKSPACE/docker-args"
     # shellcheck disable=SC2317 # invoked indirectly by _run_compose via PATH shadowing
     docker() {
-        : > "$DOCKER_ARGS_FILE"
+        : >"$DOCKER_ARGS_FILE"
         for _a in "$@"; do
-            printf '%s\n' "$_a" >> "$DOCKER_ARGS_FILE"
+            printf '%s\n' "$_a" >>"$DOCKER_ARGS_FILE"
         done
     }
 
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path"
     override_file="$WORKSPACE/override.yml"
-    : > "$override_file"
+    : >"$override_file"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────

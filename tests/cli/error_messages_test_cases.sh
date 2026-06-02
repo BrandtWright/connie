@@ -151,7 +151,7 @@ stderr_not_to_contain() {
     _pattern="$1"
     if grep -E -q -- "$_pattern" "$TEST_STDERR" 2>/dev/null; then
         _assertion_failure "stderr to NOT match pattern" "$_pattern" \
-                           "stderr was" "$(cat "$TEST_STDERR")"
+            "stderr was" "$(cat "$TEST_STDERR")"
         return 1
     fi
     return 0
@@ -168,6 +168,6 @@ exit_status_to_be() {
     fi
     # shellcheck disable=SC2154
     _assertion_failure "exit status to be" "$_expected" \
-                       "actual" "$actual_exit_status"
+        "actual" "$actual_exit_status"
     return 1
 }

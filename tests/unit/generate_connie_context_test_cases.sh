@@ -23,7 +23,7 @@
 
 a_minimal_merged_config() {
     merged_file="$WORKSPACE/merged.yml"
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 start_cmd: claude
 resources:
   memory: 4g
@@ -124,7 +124,7 @@ the_output_does_not_mention_project_packages() {
     case "$generated" in
         *"Project packages"*)
             _assertion_failure "packages section absence" "no packages line" \
-                               "actual" "output contained 'Project packages'"
+                "actual" "output contained 'Project packages'"
             return 1
             ;;
     esac
@@ -140,7 +140,7 @@ the_output_does_not_have_a_build_commands_section() {
     case "$generated" in
         *"Build-time setup commands"*)
             _assertion_failure "build commands section absence" "no build-time section" \
-                               "actual" "output contained 'Build-time setup commands'"
+                "actual" "output contained 'Build-time setup commands'"
             return 1
             ;;
     esac
@@ -155,7 +155,7 @@ the_output_does_not_have_an_additional_mounts_section() {
     case "$generated" in
         *"Additional Mounts"*)
             _assertion_failure "additional mounts absence" "no additional mounts section" \
-                               "actual" "output contained 'Additional Mounts'"
+                "actual" "output contained 'Additional Mounts'"
             return 1
             ;;
     esac
@@ -174,7 +174,7 @@ the_output_does_not_have_an_exposed_ports_section() {
     case "$generated" in
         *"## Exposed Ports"*)
             _assertion_failure "exposed ports absence" "no '## Exposed Ports' header" \
-                               "actual" "output contained '## Exposed Ports'"
+                "actual" "output contained '## Exposed Ports'"
             return 1
             ;;
     esac
@@ -190,7 +190,7 @@ the_output_does_not_have_an_environment_variables_section() {
     case "$generated" in
         *"Environment Variables"*)
             _assertion_failure "env vars section absence" "no environment variables section" \
-                               "actual" "output contained 'Environment Variables'"
+                "actual" "output contained 'Environment Variables'"
             return 1
             ;;
     esac

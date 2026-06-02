@@ -42,7 +42,7 @@ a_legacy_dot_connie_project() {
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path/.connie"
     cp "$_HARNESS_REPO_ROOT/src/config/project.yml" \
-       "$project_path/.connie/config.yml"
+        "$project_path/.connie/config.yml"
     prep_out="$WORKSPACE/merged.yml"
 }
 
@@ -50,7 +50,7 @@ a_legacy_dot_connie_project() {
 # prove _prepare leaves an existing (authenticated) config untouched.
 an_existing_non_empty_claude_json() {
     _json="$(_project_state_dir "$project_path")/.claude.json"
-    printf '{"oauth":"keep-me"}' > "$_json"
+    printf '{"oauth":"keep-me"}' >"$_json"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ the_project_is_prepared() {
 # subshell so the exit becomes a captured status rather than aborting the
 # test, and merge stderr so the message can be asserted.
 prepare_is_attempted() {
-    prep_stderr=$( { _prepare "$project_path" "$prep_out" >/dev/null; } 2>&1 )
+    prep_stderr=$({ _prepare "$project_path" "$prep_out" >/dev/null; } 2>&1)
     prep_status=$?
 }
 

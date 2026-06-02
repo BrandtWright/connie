@@ -29,7 +29,7 @@ a_project_with_a_claude_local_md() {
 
 Sandbox URL: http://localhost:8080
 Test data live in fixtures/."
-    printf '%s' "$local_md_content" > "$project_path/CLAUDE.local.md"
+    printf '%s' "$local_md_content" >"$project_path/CLAUDE.local.md"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────

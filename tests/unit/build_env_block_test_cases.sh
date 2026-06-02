@@ -25,14 +25,14 @@ a_known_host_terminal_environment() {
 a_merged_config_with_no_env_vars() {
     a_known_host_terminal_environment
     merged_file="$WORKSPACE/merged.yml"
-    printf 'env: {}\n' > "$merged_file"
+    printf 'env: {}\n' >"$merged_file"
     cli_env_input=""
 }
 
 a_merged_config_with_two_env_vars() {
     a_known_host_terminal_environment
     merged_file="$WORKSPACE/merged.yml"
-    cat > "$merged_file" <<EOF
+    cat >"$merged_file" <<EOF
 env:
   APP_ENV: development
   LOG_LEVEL: debug
@@ -72,7 +72,7 @@ every_line_is_indented_six_spaces() {
         return 0
     fi
     _assertion_failure "all lines indented 6 spaces" "leading: '      '" \
-                       "first non-conforming line" "$_bad"
+        "first non-conforming line" "$_bad"
 }
 
 # ── Test cases ─────────────────────────────────────────────────────────────
@@ -113,7 +113,7 @@ build_env_block_emits_an_empty_map_placeholder_when_no_env_vars_anywhere_test_ca
     unset TERM
     unset COLORTERM
     merged_file="$WORKSPACE/merged.yml"
-    printf 'env: {}\n' > "$merged_file"
+    printf 'env: {}\n' >"$merged_file"
     cli_env_input=""
     when the_env_block_is_built
     # Even with TERM unset, the function defaults it to xterm-256color

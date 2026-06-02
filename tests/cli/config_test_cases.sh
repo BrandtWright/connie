@@ -37,7 +37,7 @@ the_stdout_is_parseable_yaml() {
         return 0
     fi
     _assertion_failure "valid YAML on stdout" "parseable by yq" \
-                       "yq error" "$(yq 'null' "$TEST_STDOUT" 2>&1)"
+        "yq error" "$(yq 'null' "$TEST_STDOUT" 2>&1)"
 }
 
 the_stdout_contains_a_workspace_service() {

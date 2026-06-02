@@ -28,7 +28,7 @@ a_project_path_in_the_workspace() {
 
 a_user_config_that_overrides_memory() {
     mkdir -p "$XDG_CONFIG_HOME/connie"
-    cat > "$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
 resources:
   memory: 8g
 EOF
@@ -37,7 +37,7 @@ EOF
 a_project_config_that_overrides_memory() {
     _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
     mkdir -p "$_cfg_dir"
-    cat > "$_cfg_dir/config.yml" <<EOF
+    cat >"$_cfg_dir/config.yml" <<EOF
 resources:
   memory: 16g
 EOF
@@ -46,7 +46,7 @@ EOF
 a_project_config_with_a_custom_package_list() {
     _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
     mkdir -p "$_cfg_dir"
-    cat > "$_cfg_dir/config.yml" <<EOF
+    cat >"$_cfg_dir/config.yml" <<EOF
 packages:
   - vim
   - htop
@@ -55,13 +55,13 @@ EOF
 
 a_user_config_that_sets_only_cpus_and_a_project_config_that_sets_only_memory() {
     mkdir -p "$XDG_CONFIG_HOME/connie"
-    cat > "$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
 resources:
   cpus: "4.0"
 EOF
     _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
     mkdir -p "$_cfg_dir"
-    cat > "$_cfg_dir/config.yml" <<EOF
+    cat >"$_cfg_dir/config.yml" <<EOF
 resources:
   memory: 8g
 EOF
@@ -69,14 +69,14 @@ EOF
 
 a_user_config_with_one_package_list_and_a_project_config_with_another() {
     mkdir -p "$XDG_CONFIG_HOME/connie"
-    cat > "$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
 packages:
   - shellcheck
   - markdownlint
 EOF
     _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
     mkdir -p "$_cfg_dir"
-    cat > "$_cfg_dir/config.yml" <<EOF
+    cat >"$_cfg_dir/config.yml" <<EOF
 packages:
   - vim
 EOF
@@ -100,7 +100,7 @@ the_configs_are_merged() {
 }
 
 the_configs_are_merged_capturing_the_exit_status() {
-    merged_output=$(_merge_configs "$project_path" 2>"$TEST_STDERR") || \
+    merged_output=$(_merge_configs "$project_path" 2>"$TEST_STDERR") ||
         merge_exit_status=$?
     merge_exit_status=${merge_exit_status:-0}
 }
@@ -129,7 +129,7 @@ merge_to_fail_with_a_useful_error() {
     expect_not_equal "0" "$merge_exit_status"
     grep -F "defaults.yml not found" "$TEST_STDERR" >/dev/null && return 0
     _assertion_failure "stderr to mention defaults.yml" "defaults.yml not found" \
-                       "stderr was" "$(cat "$TEST_STDERR")"
+        "stderr was" "$(cat "$TEST_STDERR")"
 }
 
 # ── Test cases ─────────────────────────────────────────────────────────────

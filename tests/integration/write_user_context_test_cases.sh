@@ -39,18 +39,18 @@ a_project_with_a_pre_created_state_directory() {
 
 a_system_wide_claude_md_with_distinctive_content() {
     system_md_content="# System-wide: org-wide marker"
-    printf '%s' "$system_md_content" > "$CONNIE_ETC_CLAUDE_MD"
+    printf '%s' "$system_md_content" >"$CONNIE_ETC_CLAUDE_MD"
 }
 
 a_user_level_claude_md_with_distinctive_content() {
     mkdir -p "$HOME/.claude"
     user_md_content="# User-level: my marker"
-    printf '%s' "$user_md_content" > "$HOME/.claude/CLAUDE.md"
+    printf '%s' "$user_md_content" >"$HOME/.claude/CLAUDE.md"
 }
 
 a_pre_existing_destination_file_with_stale_content() {
     stale_content="# stale leftover from a previous run"
-    printf '%s' "$stale_content" > "$destination"
+    printf '%s' "$stale_content" >"$destination"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ the_destination_file_was_not_created() {
         return 0
     fi
     _assertion_failure "destination absent" "no file at $destination" \
-                       "actual" "file present, $(wc -c < "$destination") bytes"
+        "actual" "file present, $(wc -c <"$destination") bytes"
     return 1
 }
 
@@ -98,7 +98,7 @@ the_destination_no_longer_contains_the_stale_content() {
     case "$(cat "$destination")" in
         *"stale leftover"*)
             _assertion_failure "stale content gone" "no stale fragments" \
-                               "actual" "stale fragment present in $destination"
+                "actual" "stale fragment present in $destination"
             return 1
             ;;
     esac

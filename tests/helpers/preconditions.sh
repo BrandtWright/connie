@@ -29,7 +29,7 @@ _assertion_failure() {
         printf '%s\n' "$_expected_value" | sed 's/^/  /'
         printf 'actual:   %s\n' "$_actual_label"
         printf '%s\n' "$_actual_value" | sed 's/^/  /'
-    } >> "$TEST_DETAIL"
+    } >>"$TEST_DETAIL"
     return 1
 }
 
@@ -108,7 +108,7 @@ expect_to_match_snapshot() {
     # have matching shape).
     if [ "${UPDATE_SNAPSHOTS:-0}" = "1" ]; then
         mkdir -p "$(dirname "$_snapshot")"
-        printf '%s\n' "$_actual_value" > "$_snapshot"
+        printf '%s\n' "$_actual_value" >"$_snapshot"
         return 0
     fi
 
@@ -120,7 +120,7 @@ expect_to_match_snapshot() {
     fi
 
     _actual_tmp=$(mktemp)
-    printf '%s\n' "$_actual_value" > "$_actual_tmp"
+    printf '%s\n' "$_actual_value" >"$_actual_tmp"
     if diff -q "$_snapshot" "$_actual_tmp" >/dev/null 2>&1; then
         rm -f "$_actual_tmp"
         return 0
@@ -137,13 +137,13 @@ expect_to_match_snapshot() {
 it_succeeds() {
     [ "${actual_exit_status:-1}" = "0" ] && return 0
     _assertion_failure "exit status to be" "0" \
-                       "exit status was" "${actual_exit_status:-unset}"
+        "exit status was" "${actual_exit_status:-unset}"
 }
 
 it_fails() {
     [ "${actual_exit_status:-0}" != "0" ] && return 0
     _assertion_failure "exit status to be" "non-zero" \
-                       "exit status was" "${actual_exit_status:-unset}"
+        "exit status was" "${actual_exit_status:-unset}"
 }
 
 it_logs_to_stderr() {
@@ -164,14 +164,14 @@ stderr_to_contain() {
     _pattern="$1"
     grep -E -q -- "$_pattern" "$TEST_STDERR" && return 0
     _assertion_failure "stderr to match pattern" "$_pattern" \
-                       "stderr was" "$(cat "$TEST_STDERR")"
+        "stderr was" "$(cat "$TEST_STDERR")"
 }
 
 stdout_to_contain() {
     _pattern="$1"
     grep -E -q -- "$_pattern" "$TEST_STDOUT" && return 0
     _assertion_failure "stdout to match pattern" "$_pattern" \
-                       "stdout was" "$(cat "$TEST_STDOUT")"
+        "stdout was" "$(cat "$TEST_STDOUT")"
 }
 
 # ── Stimuli: running connie ────────────────────────────────────────────────
