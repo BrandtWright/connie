@@ -49,6 +49,14 @@ compose_base_injects_an_init_process_test_case() {
     expect expect_equal "true" "$compose_value"
 }
 
+compose_base_pins_the_non_root_user_test_case() {
+    given a_path_to_the_base_compose_file
+    when the_compose_value_at '.services.workspace.user'
+    # Non-root enforced at the compose layer, not only via the image USER —
+    # holds regardless of the base image built from.
+    expect expect_equal "1000:1000" "$compose_value"
+}
+
 compose_base_mounts_tmp_as_a_nosuid_tmpfs_test_case() {
     given a_path_to_the_base_compose_file
     when the_compose_value_at '.services.workspace.tmpfs | join(" ")'

@@ -35,6 +35,14 @@ services:
     security_opt:
       - no-new-privileges:true
 
+    # ── User ──────────────────────────────────────────────────────────────────
+    # Pin non-root at the compose layer, not only via the image's USER
+    # directive. Non-root is the most important hardening measure, so it
+    # should be enforced here (the fixed, tested base) and hold regardless of
+    # the base image built from (e.g. a custom $CONNIE_BASE_IMAGE). uid/gid
+    # 1000 is claude-user, created in base.Dockerfile.
+    user: "1000:1000"
+
     # ── Runtime ───────────────────────────────────────────────────────────────
     stdin_open: true
     tty: true
