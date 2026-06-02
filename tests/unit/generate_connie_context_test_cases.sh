@@ -32,7 +32,7 @@ resources:
 packages: []
 build_commands: []
 env: {}
-volumes: []
+unsafe_extra_mounts: []
 ports: []
 EOF
     project_root="$WORKSPACE/project"
@@ -50,7 +50,7 @@ a_merged_config_with_build_commands() {
 
 a_merged_config_with_extra_volumes() {
     a_minimal_merged_config
-    yq -i '.volumes = ["/data:/data:ro"]' "$merged_file"
+    yq -i '.unsafe_extra_mounts = ["/data:/data:ro"]' "$merged_file"
 }
 
 a_merged_config_with_exposed_ports() {
@@ -73,7 +73,7 @@ a_fully_populated_merged_config() {
     yq -i '
         .packages = ["python3", "py3-pip"] |
         .build_commands = ["pip install black"] |
-        .volumes = ["/data:/data:ro"] |
+        .unsafe_extra_mounts = ["/data:/data:ro"] |
         .ports = ["8080:8080"] |
         .env = {"APP_ENV": "test"} |
         .resources.memory = "8g" |

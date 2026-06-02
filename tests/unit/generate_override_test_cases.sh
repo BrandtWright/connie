@@ -99,7 +99,7 @@ a_merged_config_with_a_control_char_env_key() {
 # valid with the whole thing contained as one key.
 a_merged_config_mounting_the_docker_socket() {
     a_project_with_a_merged_config_at_defaults
-    yq -i '.volumes = ["/var/run/docker.sock:/var/run/docker.sock"]' "$merged_file"
+    yq -i '.unsafe_extra_mounts = ["/var/run/docker.sock:/var/run/docker.sock"]' "$merged_file"
 }
 
 a_merged_config_with_a_yaml_special_env_key() {
@@ -136,7 +136,7 @@ a_cli_cmd_override_with_yaml_breaking_characters() {
 
 a_merged_config_with_a_volume_path_that_needs_quoting() {
     a_project_with_a_merged_config_at_defaults
-    yq -i '.volumes = ["/weird path:/data:ro"]' "$merged_file"
+    yq -i '.unsafe_extra_mounts = ["/weird path:/data:ro"]' "$merged_file"
 }
 
 a_merged_config_with_a_port_mapping() {

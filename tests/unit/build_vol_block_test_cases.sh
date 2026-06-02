@@ -14,13 +14,13 @@ a_project_with_no_extra_volumes() {
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path"
     merged_file="$WORKSPACE/merged.yml"
-    printf 'volumes: []\n' >"$merged_file"
+    printf 'unsafe_extra_mounts: []\n' >"$merged_file"
 }
 
 a_project_with_one_extra_volume() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /data:/data:ro
 EOF
 }
@@ -28,7 +28,7 @@ EOF
 a_project_with_multiple_extra_volumes() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /data:/data:ro
   - /cache:/cache:rw
 EOF
@@ -37,7 +37,7 @@ EOF
 a_project_mounting_the_docker_socket() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /var/run/docker.sock:/var/run/docker.sock
 EOF
 }
@@ -47,7 +47,7 @@ EOF
 a_project_mounting_the_docker_socket_from_a_custom_path() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /home/me/run/docker.sock:/var/run/docker.sock:rw
 EOF
 }
@@ -57,7 +57,7 @@ EOF
 a_project_mounting_the_socket_parent_directory() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /var/run:/var/run
 EOF
 }
@@ -66,7 +66,7 @@ EOF
 a_project_mounting_run_with_a_trailing_slash() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /run/:/run
 EOF
 }
@@ -76,7 +76,7 @@ EOF
 a_project_mounting_the_socket_dir_via_double_slash() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /var//run:/var/run
 EOF
 }
@@ -84,7 +84,7 @@ EOF
 a_project_mounting_the_socket_dir_via_dotdot() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /var/run/../run:/var/run
 EOF
 }
@@ -93,7 +93,7 @@ EOF
 a_project_mounting_the_docker_data_root() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /var/lib/docker:/var/lib/docker
 EOF
 }
@@ -102,7 +102,7 @@ EOF
 a_project_mounting_the_socket_dir_with_leading_space() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - " /var/run:/x"
 EOF
 }
@@ -111,48 +111,55 @@ EOF
 # the socket; the guard must reject this whole class, not just docker.sock.
 a_project_mounting_proc() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /proc:/host/proc:rw\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /proc:/host/proc:rw\n' >"$merged_file"
 }
 
 a_project_mounting_a_raw_device() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /dev/mem:/m:rw\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /dev/mem:/m:rw\n' >"$merged_file"
 }
 
 a_project_mounting_a_daemon_data_root_child() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /var/lib/docker/volumes:/v:rw\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /var/lib/docker/volumes:/v:rw\n' >"$merged_file"
 }
 
 # A non-docker.sock-named source mapped onto the conventional in-container
 # socket path — the container-TARGET bypass.
 a_project_remapping_a_renamed_socket_to_the_conventional_target() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /home/me/api.sock:/var/run/docker.sock\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /home/me/api.sock:/var/run/docker.sock\n' >"$merged_file"
 }
 
 # An extra mount whose target shadows a connie standard mount.
 a_project_shadowing_the_workspace_mount() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /elsewhere:/workspace:rw\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /elsewhere:/workspace:rw\n' >"$merged_file"
 }
 
 a_project_shadowing_the_claude_state_mount() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /attacker:/home/claude-user/.claude:rw\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /attacker:/home/claude-user/.claude:rw\n' >"$merged_file"
 }
 
 # Unsafe mount propagation can manipulate the host mount namespace.
 a_project_with_unsafe_mount_propagation() {
     a_project_with_no_extra_volumes
-    printf 'volumes:\n  - /data:/d:rshared\n' >"$merged_file"
+    printf 'unsafe_extra_mounts:\n  - /data:/d:rshared\n' >"$merged_file"
+}
+
+# The old 'volumes:' key was removed; a stale config using it must fail
+# loudly rather than silently dropping a mount the user still expects.
+a_project_using_the_removed_volumes_key() {
+    a_project_with_no_extra_volumes
+    printf 'volumes:\n  - /data:/data:ro\n' >"$merged_file"
 }
 
 # Mounting host root exposes the socket (and everything else).
 a_project_mounting_host_root() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - /:/host:ro
 EOF
 }
@@ -162,7 +169,7 @@ EOF
 a_project_with_a_long_syntax_volume() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - type: bind
     source: /var/run/docker.sock
     target: /var/run/docker.sock
@@ -174,7 +181,7 @@ EOF
 a_project_with_a_volume_path_needing_quoting() {
     a_project_with_no_extra_volumes
     cat >"$merged_file" <<EOF
-volumes:
+unsafe_extra_mounts:
   - "/weird path:/data:ro"
 EOF
 }
@@ -222,7 +229,7 @@ the_error_explains_the_docker_socket_refusal() {
 }
 
 the_error_explains_the_unsupported_entry() {
-    expect_contains "$vol_stderr" "Unsupported volume entry"
+    expect_contains "$vol_stderr" "Unsupported entry in unsafe_extra_mounts"
 }
 
 the_error_mentions_a_sensitive_path() {
@@ -239,6 +246,10 @@ the_error_mentions_shadowing() {
 
 the_error_mentions_unsafe_propagation() {
     expect_contains "$vol_stderr" "unsafe propagation"
+}
+
+the_error_mentions_the_removed_volumes_key() {
+    expect_contains "$vol_stderr" "has been removed"
 }
 
 # Re-parse the emitted block (indented items are valid under a volumes: key)
@@ -377,6 +388,14 @@ build_vol_block_refuses_unsafe_mount_propagation_test_case() {
     when the_volumes_block_build_is_attempted
     expect it_rejects_the_mount
     expect the_error_mentions_unsafe_propagation
+}
+
+build_vol_block_rejects_the_removed_volumes_key_test_case() {
+    given a_project_using_the_removed_volumes_key
+    when the_volumes_block_build_is_attempted
+    # Migration: the old key must error loudly, not silently drop the mount.
+    expect it_rejects_the_mount
+    expect the_error_mentions_the_removed_volumes_key
 }
 
 build_vol_block_rejects_long_syntax_volume_entries_test_case() {

@@ -461,7 +461,8 @@ _build_env_block() {
     printf '%s' "$_bee_block"
 }
 
-# Build the YAML volumes block: standard mounts first, then extras from config.
+# Build the YAML volumes block: standard mounts first, then any opt-in
+# unsafe_extra_mounts from config.
 # Lexically normalize an ABSOLUTE path (collapse //, resolve . and ..) with
 # no filesystem access, so path-equivalent spellings of the socket directory
 # (/var//run, /var/run/., /var/run/../run, //var/run) all compare equal to
@@ -489,9 +490,9 @@ _normalize_abs_path() {
     printf '%s' "${_nap_out:-/}"
 }
 
-# Reject a config-supplied volume entry that would defeat the container
-# hardening. volumes: is trusted developer input, but connie guards the
-# catastrophic mistakes — the same intent as the original docker.sock check,
+# Reject an `unsafe_extra_mounts:` entry that would defeat the container
+# hardening. Extra mounts are trusted developer opt-in, but connie guards
+# the catastrophic mistakes — the same intent as the original docker.sock check,
 # widened to the whole class. Both the host source and the container target
 # are normalized first so equivalent spellings (//, ., ..) cannot evade the
 # comparison. Rejects: the daemon socket (by source name, by the source
@@ -523,21 +524,21 @@ _reject_unsafe_mount() {
             /proc | /proc/* | /sys | /sys/* | /dev | /dev/* | /boot | /boot/* | \
             docker.sock | */docker.sock)
             _die "Refusing to mount a sensitive host path: $_rum_entry" \
-                "Mounting the docker socket/data, the kernel or device trees (/proc, /sys, /dev), or host root grants host control and defeats connie's hardening. Remove this entry from the volumes: list."
+                "Mounting the docker socket/data, the kernel or device trees (/proc, /sys, /dev), or host root grants host control and defeats connie's hardening. Remove this entry from the unsafe_extra_mounts: list."
             ;;
     esac
     # 2. Host SOURCE that is itself a unix socket (any name) — likely a
     #    Docker/podman daemon API socket reachable from the container.
     if [ -S "$_rum_src" ] || [ -S "$_rum_src/docker.sock" ]; then
         _die "Refusing to mount a unix socket (possible daemon API): $_rum_entry" \
-            "A unix-socket bind mount can reach a host daemon and defeat connie's hardening. Remove this entry from the volumes: list."
+            "A unix-socket bind mount can reach a host daemon and defeat connie's hardening. Remove this entry from the unsafe_extra_mounts: list."
     fi
     # 3. Container TARGET that re-exposes the daemon socket — catches a
     #    renamed host socket mapped onto the conventional in-container path.
     case "$_rum_tgt" in
         /var/run/docker.sock | /run/docker.sock | /var/run | /run)
             _die "Refusing a mount whose container target re-exposes the Docker socket: $_rum_entry" \
-                "Mapping any source onto $_rum_tgt reaches the daemon. Remove this entry from the volumes: list."
+                "Mapping any source onto $_rum_tgt reaches the daemon. Remove this entry from the unsafe_extra_mounts: list."
             ;;
     esac
     # 4. Container TARGET that shadows a connie-managed standard mount.
@@ -565,17 +566,28 @@ _build_vol_block() {
     _bvb_mounts="${1}:/workspace:rw
 ${_bvb_state}/.claude:/home/claude-user/.claude
 ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
-    # Reject long-syntax (mapping) volume entries up front. connie supports
-    # only short-syntax "host:container[:opts]" strings; yq '.volumes | .[]'
-    # would otherwise flatten a {type,source,target} mapping into separate
-    # lines that get re-emitted as bogus mounts AND slip past the socket
-    # guard below (the host segment of such a line parses as "source").
-    _bvb_badcount=$(yq '[.volumes // [] | .[] | select(tag != "!!str")] | length' "$2" 2>/dev/null || printf 0)
+    # Extra mounts are an explicit, advanced opt-in under the
+    # `unsafe_extra_mounts:` config key (not the default `volumes:` — extra
+    # host mounts are the one config lever that can hand the container a host
+    # resource, so they require a deliberately-named key). The old `volumes:`
+    # key was removed; fail loudly if a stale config still uses it rather
+    # than silently dropping a mount the user still expects.
+    if [ "$(yq '.volumes != null' "$2" 2>/dev/null || printf false)" = "true" ]; then
+        _die "The 'volumes:' config key has been removed." \
+            "Extra host mounts are now an explicit opt-in: rename it to 'unsafe_extra_mounts:'. See the README and SECURITY.md — these are trusted, lightly-guarded mounts, so only add what you must."
+    fi
+
+    # Reject long-syntax (mapping) entries up front. connie supports only
+    # short-syntax "host:container[:opts]" strings; yq '… | .[]' would
+    # otherwise flatten a {type,source,target} mapping into separate lines
+    # that get re-emitted as bogus mounts AND slip past the socket guard
+    # below (the host segment of such a line parses as "source").
+    _bvb_badcount=$(yq '[.unsafe_extra_mounts // [] | .[] | select(tag != "!!str")] | length' "$2" 2>/dev/null || printf 0)
     [ "${_bvb_badcount:-0}" = "0" ] ||
-        _die "Unsupported volume entry in project config." \
+        _die "Unsupported entry in unsafe_extra_mounts." \
             "connie supports only short-syntax string mounts ('host:container[:opts]'). Rewrite any long-syntax (type:/source:/target:) entries."
 
-    _bvb_extra=$(yq '.volumes | .[]' "$2" 2>/dev/null || true)
+    _bvb_extra=$(yq '.unsafe_extra_mounts | .[]' "$2" 2>/dev/null || true)
     if [ -n "$_bvb_extra" ]; then
         # Validate every config-supplied mount against the dangerous-mount
         # guard (see _reject_unsafe_mount) before appending it.
@@ -770,7 +782,7 @@ _generate_connie_context() {
     _gcc_max_pids=$(yq '.resources.max_pids' "$_gcc_merged")
     _gcc_pkgs=$(yq '.packages | .[]' "$_gcc_merged" 2>/dev/null || true)
     _gcc_cmds=$(yq '.build_commands | .[]' "$_gcc_merged" 2>/dev/null || true)
-    _gcc_vols=$(yq '.volumes | .[]' "$_gcc_merged" 2>/dev/null || true)
+    _gcc_vols=$(yq '.unsafe_extra_mounts | .[]' "$_gcc_merged" 2>/dev/null || true)
     _gcc_ports=$(yq '.ports | .[]' "$_gcc_merged" 2>/dev/null || true)
     _gcc_env=$(yq '.env | to_entries | .[] | .key + ": " + (.value | tostring)' \
         "$_gcc_merged" 2>/dev/null || true)

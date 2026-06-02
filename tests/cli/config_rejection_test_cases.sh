@@ -19,13 +19,13 @@ an_initialized_project() {
 
 a_project_whose_config_mounts_the_docker_socket() {
     an_initialized_project
-    yq -i '.volumes = ["/var/run/docker.sock:/var/run/docker.sock"]' \
+    yq -i '.unsafe_extra_mounts = ["/var/run/docker.sock:/var/run/docker.sock"]' \
         "$(_project_config "$project_path")"
 }
 
 a_project_whose_config_mounts_a_kernel_tree() {
     an_initialized_project
-    yq -i '.volumes = ["/proc:/host/proc:rw"]' "$(_project_config "$project_path")"
+    yq -i '.unsafe_extra_mounts = ["/proc:/host/proc:rw"]' "$(_project_config "$project_path")"
 }
 
 a_project_whose_config_has_a_control_char_env_key() {

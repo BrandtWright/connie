@@ -16,5 +16,8 @@ resources:
 packages: []
 build_commands: []
 env: {}
-volumes: []
 ports: []
+# Advanced opt-in: extra host bind mounts beyond the project dir and Claude
+# Code state. Defaults to none — the only writable host path is your project.
+# See SECURITY.md before using; these are trusted, lightly-guarded mounts.
+unsafe_extra_mounts: []

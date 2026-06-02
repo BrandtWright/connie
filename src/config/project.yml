@@ -58,18 +58,25 @@ build_commands: []
 
 env: {}
 
-# ── Volumes ───────────────────────────────────────────────────────────────────
-# Additional volume mounts beyond the standard mounts.
-# Standard mounts (always present, not configured here):
+# ── Mounts ────────────────────────────────────────────────────────────────────
+# By default the ONLY writable host path inside the container is your project
+# (mounted at /workspace), plus this project's Claude Code state:
 #   [project root]                            → /workspace           (read/write)
 #   ~/.local/state/connie/<slug>/.claude/     → ~/.claude/           (read/write)
 #   ~/.local/state/connie/<slug>/.claude.json → ~/.claude.json       (read/write)
 #
-# Format: host_path:container_path[:options]
+# ADVANCED / opt-in: to mount additional host paths (a shared dataset, a
+# sibling repo, a cache dir), use `unsafe_extra_mounts:`. It is deliberately
+# named: an extra host mount is the one config key that can hand the container
+# a host resource, so adding one widens your trust surface. connie still
+# refuses the catastrophic cases (the Docker socket, /proc, /sys, /dev, the
+# daemon data root, host root, mounts that shadow the standard mounts, unsafe
+# propagation), but the guard is best-effort — see SECURITY.md. Only add what
+# you must, and prefer `:ro`.
 #
-# volumes: []
-
-volumes: []
+# Format: host_path:container_path[:options]
+# unsafe_extra_mounts:
+#   - /data/shared:/data:ro
 
 # ── Ports ─────────────────────────────────────────────────────────────────────
 # Port mappings exposed from the container to your host.
