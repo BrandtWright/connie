@@ -130,9 +130,11 @@ _require() {
 # rejecting a bare `mktemp`; GNU and busybox accept the bare form but also
 # honour a template. We always pass one so connie runs on a macOS host, not
 # only on Linux. $TMPDIR is respected when set (macOS points it at a per-user
-# directory), falling back to /tmp.
+# directory), falling back to /tmp; its trailing slash is stripped so the
+# resulting path has no '//'.
 _mktemp() {
-    mktemp "${TMPDIR:-/tmp}/connie.XXXXXX"
+    _mt_base="${TMPDIR:-/tmp}"
+    mktemp "${_mt_base%/}/connie.XXXXXX"
 }
 
 _require_yq() {

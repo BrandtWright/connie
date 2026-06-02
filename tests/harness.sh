@@ -57,7 +57,14 @@ _harness_setup_workspace() {
     # An explicit XXXXXX template is required for portability: BSD/macOS
     # mktemp rejects a bare `mktemp -d` (it wants a template or -t), whereas
     # GNU and busybox accept both. The template form works everywhere.
-    WORKSPACE=$(mktemp -d "${TMPDIR:-/tmp}/connie-ws.XXXXXX" 2>/dev/null) || {
+    #
+    # Strip any trailing slash from the tmp base first: macOS sets $TMPDIR
+    # with a trailing '/', so a naive "$TMPDIR/connie-ws.XXXXXX" yields a
+    # '//' in WORKSPACE. connie normalizes that away in the paths it returns,
+    # so tests that build an expected path by string-concatenating $WORKSPACE
+    # would otherwise mismatch connie's normalized output.
+    _ws_base="${TMPDIR:-/tmp}"
+    WORKSPACE=$(mktemp -d "${_ws_base%/}/connie-ws.XXXXXX" 2>/dev/null) || {
         printf 'harness: mktemp -d failed\n' >&2
         exit 99
     }
@@ -356,5 +363,7 @@ _harness_print_summary() {
 
 # ── One-time harness init ──────────────────────────────────────────────────
 
-# Explicit template for BSD/macOS portability (see _harness_setup_workspace).
-_HARNESS_TMP=$(mktemp -d "${TMPDIR:-/tmp}/connie-harness.XXXXXX") || exit 99
+# Explicit template + trailing-slash strip for BSD/macOS portability
+# (see _harness_setup_workspace).
+_HARNESS_BASE="${TMPDIR:-/tmp}"
+_HARNESS_TMP=$(mktemp -d "${_HARNESS_BASE%/}/connie-harness.XXXXXX") || exit 99
