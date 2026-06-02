@@ -453,7 +453,7 @@ ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
     # lines that get re-emitted as bogus mounts AND slip past the socket
     # guard below (the host segment of such a line parses as "source").
     _bvb_badcount=$(yq '[.volumes // [] | .[] | select(tag != "!!str")] | length' "$2" 2>/dev/null || printf 0)
-    [ "${_bvb_badcount:-0}" = "0" ] || \
+    [ "${_bvb_badcount:-0}" = "0" ] ||
         _die "Unsupported volume entry in project config." \
             "connie supports only short-syntax string mounts ('host:container[:opts]'). Rewrite any long-syntax (type:/source:/target:) entries."
 
@@ -551,17 +551,20 @@ _generate_override() {
     case "$_memory" in
         '' | *[!0-9bkmgBKMG]*)
             _die "Invalid resources.memory / CONNIE_MEMORY: '$_memory'" \
-                "Expected a byte size like 4g, 512m, or a plain integer." ;;
+                "Expected a byte size like 4g, 512m, or a plain integer."
+            ;;
     esac
     case "$_cpus" in
         '' | *[!0-9.]*)
             _die "Invalid resources.cpus / CONNIE_CPUS: '$_cpus'" \
-                "Expected a number like 2 or 2.0." ;;
+                "Expected a number like 2 or 2.0."
+            ;;
     esac
     case "$_max_pids" in
         '' | *[!0-9-]*)
             _die "Invalid resources.max_pids / CONNIE_MAX_PIDS: '$_max_pids'" \
-                "Expected an integer (use -1 for unlimited)." ;;
+                "Expected an integer (use -1 for unlimited)."
+            ;;
     esac
 
     # Apply CLI overrides
@@ -577,7 +580,8 @@ _generate_override() {
         case "$_pkg" in
             -*)
                 _die "Invalid package name: '$_pkg'" \
-                    "Package names cannot start with '-' (it would be read as an apk flag). Check packages: / --package." ;;
+                    "Package names cannot start with '-' (it would be read as an apk flag). Check packages: / --package."
+                ;;
         esac
     done
 
