@@ -447,6 +447,19 @@ _build_env_block() {
         _die "Invalid environment variable name." \
             "Env keys (config .env or via --env) must match [A-Za-z0-9_][A-Za-z0-9_.-]* — letters, digits, underscore, dot, or dash."
     fi
+    # Reject an empty config .env key (the allowlist above can't see it: a
+    # lone empty key collapses to an empty string after command substitution).
+    if [ "$(yq '[.env // {} | keys | .[] | select(. == "")] | length' "$2" 2>/dev/null || printf 0)" != "0" ]; then
+        _die "Empty environment variable name in config .env." \
+            "Give every .env entry a non-empty name."
+    fi
+    # Reject non-scalar env VALUES (a map/sequence value is not a valid
+    # Compose environment value and would otherwise be emitted as inline JSON
+    # that docker compose rejects at run time).
+    if [ "$(yq '[.env // {} | .[] | select((tag == "!!map") or (tag == "!!seq"))] | length' "$2" 2>/dev/null || printf 0)" != "0" ]; then
+        _die "Non-scalar value in config .env." \
+            "Env values must be scalars (string/number/bool), not maps or lists."
+    fi
     # JSON-encode BOTH key and value. Encoding only the value left the key
     # raw: a config .env key containing a newline could inject a sibling
     # compose key (e.g. `privileged: true`) onto the workspace service — a
@@ -635,6 +648,23 @@ _generate_override() {
     _extra_env="$4"
     _override_cmd="$5"
 
+    # Reject wrong-typed config keys up front so a type mistake fails with a
+    # clear connie error instead of a silent drop or a raw yq error emitted
+    # mid-pipeline. Each major key must be its expected YAML type (or absent).
+    for _got in 'env !!map' 'packages !!seq' 'build_commands !!seq' \
+        'ports !!seq' 'unsafe_extra_mounts !!seq'; do
+        _gt_key=${_got% *}
+        _gt_want=${_got#* }
+        _gt_tag=$(yq ".${_gt_key} | tag" "$_merged_file" 2>/dev/null || printf '!!null')
+        case "$_gt_tag" in
+            '!!null' | "$_gt_want") : ;;
+            *)
+                _die "Invalid type for '${_gt_key}:' in project config (got ${_gt_tag#!!}, expected ${_gt_want#!!})." \
+                    "Fix the config so '${_gt_key}:' is a ${_gt_want#!!}."
+                ;;
+        esac
+    done
+
     # Extract values from merged config.
     # No // fallbacks needed — defaults.yml guarantees all keys are present.
     _packages=$(yq '.packages | join(" ")' "$_merged_file")
@@ -676,9 +706,10 @@ _generate_override() {
             ;;
     esac
     case "$_max_pids" in
-        '' | - | *[!0-9-]* | ?*-*)
+        -1) : ;; # the only valid negative: Docker's "unlimited" sentinel
+        '' | *[!0-9]*)
             _die "Invalid resources.max_pids / CONNIE_MAX_PIDS: '$_max_pids'" \
-                "Expected an integer (use -1 for unlimited)."
+                "Expected a positive integer, or -1 for unlimited."
             ;;
     esac
 

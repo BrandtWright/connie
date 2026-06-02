@@ -110,6 +110,31 @@ a_merged_config_with_an_invalid_env_name() {
     yq -i '.env = {"BAD NAME: x": "v"}' "$merged_file"
 }
 
+a_merged_config_with_an_empty_env_name() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.env = {"": "v"}' "$merged_file"
+}
+
+a_merged_config_with_a_non_scalar_env_value() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.env = {"X": {"a": 1}}' "$merged_file"
+}
+
+# Wrong YAML types for keys that connie expects to be a map / list.
+a_merged_config_with_env_set_to_a_string() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.env = "iamastring"' "$merged_file"
+}
+
+a_merged_config_with_packages_set_to_a_string() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.packages = "git curl"' "$merged_file"
+}
+
+connie_max_pids_set_to_a_negative_other_than_one() {
+    export CONNIE_MAX_PIDS=-512
+}
+
 a_cli_package_flag_for_an_additional_package() {
     extra_packages="vim"
 }
@@ -401,6 +426,43 @@ generate_override_rejects_an_env_key_with_an_invalid_name_test_case() {
     # the override; nothing is injected onto the workspace service.
     expect expect_not_equal "0" "$override_gen_status"
     expect expect_contains "$override_gen_stderr" "environment variable name"
+}
+
+generate_override_rejects_an_empty_env_name_test_case() {
+    given a_merged_config_with_an_empty_env_name
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Empty environment variable name"
+}
+
+generate_override_rejects_a_non_scalar_env_value_test_case() {
+    given a_merged_config_with_a_non_scalar_env_value
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Non-scalar value"
+}
+
+generate_override_rejects_a_wrong_typed_env_key_test_case() {
+    given a_merged_config_with_env_set_to_a_string
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid type for 'env:'"
+}
+
+generate_override_rejects_a_wrong_typed_packages_key_test_case() {
+    given a_merged_config_with_packages_set_to_a_string
+    when the_override_generation_is_attempted
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid type for 'packages:'"
+}
+
+generate_override_rejects_a_negative_max_pids_other_than_minus_one_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_max_pids_set_to_a_negative_other_than_one
+    when the_override_generation_is_attempted
+    # Only -1 (unlimited) is a valid negative; -512 is rejected.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid resources.max_pids"
 }
 
 generate_override_rejects_an_env_key_with_a_control_character_test_case() {
