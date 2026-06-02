@@ -54,6 +54,33 @@ connie_memory_set_to_a_yaml_injection_attempt() {
     privileged: true'
 }
 
+# A structurally-degenerate (but charset-valid) max_pids that would emit
+# invalid YAML (`pids_limit: -`) if not rejected.
+connie_max_pids_set_to_a_lone_dash() {
+    export CONNIE_MAX_PIDS='-'
+}
+
+# A merged config whose .env KEY embeds a newline crafted to inject a
+# sibling compose key (privileged: true) onto the workspace service.
+a_merged_config_with_an_injecting_env_key() {
+    project_path="$WORKSPACE/project"
+    mkdir -p "$project_path"
+    merged_file="$WORKSPACE/merged.yml"
+    cat >"$merged_file" <<'YML'
+packages: []
+build_commands: []
+start_cmd: claude
+resources: {memory: 4g, cpus: "2.0", max_pids: 512}
+env:
+  ? "X: y\n    privileged: true\n    z"
+  : "v"
+YML
+    extra_packages=""
+    extra_env=""
+    override_cmd=""
+    unset CONNIE_MEMORY CONNIE_CPUS CONNIE_MAX_PIDS CONNIE_CMD
+}
+
 a_cli_package_flag_for_an_additional_package() {
     extra_packages="vim"
 }
@@ -272,6 +299,25 @@ generate_override_rejects_a_package_name_that_looks_like_an_apk_flag_test_case()
     when the_override_generation_is_attempted
     expect expect_not_equal "0" "$override_gen_status"
     expect expect_contains "$override_gen_stderr" "Invalid package name"
+}
+
+generate_override_rejects_a_degenerate_max_pids_value_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_max_pids_set_to_a_lone_dash
+    when the_override_generation_is_attempted
+    # A lone '-' passes the char allowlist but would emit invalid YAML
+    # (`pids_limit: -`); reject it with a clean error instead.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid resources.max_pids"
+}
+
+generate_override_does_not_let_an_env_key_inject_a_compose_key_test_case() {
+    given a_merged_config_with_an_injecting_env_key
+    when the_override_is_generated
+    # The env key is JSON-encoded, so the crafted newline cannot inject a
+    # sibling key: the override stays valid AND privileged is not set.
+    expect the_override_parses_as_yaml
+    expect the_override_value_at_path_to_be ".services.workspace.privileged" "null"
 }
 
 generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {

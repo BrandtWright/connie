@@ -77,28 +77,31 @@ every_line_is_indented_six_spaces() {
 
 # ── Test cases ─────────────────────────────────────────────────────────────
 
+# Keys are JSON-encoded (quoted) in the emitted block, same as values, so a
+# crafted key cannot inject a sibling compose key. Assertions match the
+# quoted-key form, e.g. `"TERM":` and `"APP_ENV": "development"`.
 build_env_block_always_includes_the_forwarded_terminal_variables_test_case() {
     given a_merged_config_with_no_env_vars
     when the_env_block_is_built
-    expect the_env_block_contains_line "TERM:"
-    expect the_env_block_contains_line "FORCE_COLOR:"
-    expect the_env_block_contains_line "COLORTERM:"
+    expect the_env_block_contains_line '"TERM":'
+    expect the_env_block_contains_line '"FORCE_COLOR":'
+    expect the_env_block_contains_line '"COLORTERM":'
 }
 
 build_env_block_includes_keys_from_the_config_env_map_test_case() {
     given a_merged_config_with_two_env_vars
     when the_env_block_is_built
-    expect the_env_block_contains_line 'APP_ENV: "development"'
-    expect the_env_block_contains_line 'LOG_LEVEL: "debug"'
+    expect the_env_block_contains_line '"APP_ENV": "development"'
+    expect the_env_block_contains_line '"LOG_LEVEL": "debug"'
 }
 
 build_env_block_lets_cli_flags_override_config_env_values_test_case() {
     given a_config_env_and_a_cli_env_override_for_one_key
     when the_env_block_is_built
     # APP_ENV=production from CLI overrides the development value from config.
-    expect the_env_block_contains_line 'APP_ENV: "production"'
+    expect the_env_block_contains_line '"APP_ENV": "production"'
     # LOG_LEVEL from config is not overridden and remains.
-    expect the_env_block_contains_line 'LOG_LEVEL: "debug"'
+    expect the_env_block_contains_line '"LOG_LEVEL": "debug"'
 }
 
 build_env_block_indents_every_line_with_six_spaces_test_case() {

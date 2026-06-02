@@ -427,11 +427,15 @@ _build_env_block() {
     # $2 = merged_file
     _bee_fwd=$(_build_fwd_env_obj)
     _bee_cli=$(_build_cli_env_obj "$1")
+    # JSON-encode BOTH key and value. Encoding only the value left the key
+    # raw: a config .env key containing a newline could inject a sibling
+    # compose key (e.g. `privileged: true`) onto the workspace service — a
+    # full host escape. @json on the key emits a single quoted scalar.
     _bee_block=$(FWD="$_bee_fwd" CLI="$_bee_cli" yq '
         (env(FWD) * .env * env(CLI)) |
         to_entries |
         .[] |
-        "      " + .key + ": " + (.value | @json)
+        "      " + (.key | @json) + ": " + (.value | @json)
     ' "$2")
     # Empty map kept out of the heredoc — literal braces collide with ${...}.
     [ -n "$_bee_block" ] || _bee_block="      {}"
@@ -439,6 +443,33 @@ _build_env_block() {
 }
 
 # Build the YAML volumes block: standard mounts first, then extras from config.
+# Lexically normalize an ABSOLUTE path (collapse //, resolve . and ..) with
+# no filesystem access, so path-equivalent spellings of the socket directory
+# (/var//run, /var/run/., /var/run/../run, //var/run) all compare equal to
+# the canonical form in the socket guard below. Relative inputs (not host
+# bind sources that can reach the socket dir) are returned unchanged.
+_normalize_abs_path() {
+    case "$1" in
+        /*) : ;;
+        *)
+            printf '%s' "$1"
+            return
+            ;;
+    esac
+    _nap_out=""
+    _nap_oldifs=$IFS
+    IFS=/
+    for _nap_seg in $1; do
+        case "$_nap_seg" in
+            '' | .) continue ;;
+            ..) _nap_out=${_nap_out%/*} ;;
+            *) _nap_out="$_nap_out/$_nap_seg" ;;
+        esac
+    done
+    IFS=$_nap_oldifs
+    printf '%s' "${_nap_out:-/}"
+}
+
 _build_vol_block() {
     # $1 = project_root, $2 = merged_file
     _bvb_state=$(_project_state_dir "$1")
@@ -464,26 +495,24 @@ ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
         # and take over the host, bypassing cap_drop, no-new-privileges, and
         # the read-only rootfs. Matching only a host segment ending in
         # /docker.sock is not enough: mounting the socket's *directory*
-        # (/var/run, /run) or host root re-exposes it at its conventional
-        # path. So reject the socket, any ancestor of the conventional socket
-        # path, host root, and — for non-standard setups like rootless
-        # docker — any directory that actually contains a docker.sock here.
+        # (/var/run, /run), the daemon data root (/var/lib/docker), or host
+        # root re-exposes the daemon. The host path is normalized first so
+        # equivalent spellings (/var//run, /var/run/../run) cannot evade the
+        # comparison. Reject the socket itself, any ancestor of the
+        # conventional socket path, the data root, host root, and — for
+        # non-standard setups like rootless docker — any directory that
+        # actually contains a docker.sock here.
         _oldifs=$IFS
         IFS='
 '
         for _bvb_entry in $_bvb_extra; do
             [ -n "$_bvb_entry" ] || continue
-            _bvb_host=${_bvb_entry%%:*}
-            # Drop a trailing slash so '/var/run/' matches '/var/run',
-            # while leaving bare '/' intact.
+            _bvb_host=$(_normalize_abs_path "${_bvb_entry%%:*}")
             case "$_bvb_host" in
-                ?*/) _bvb_host=${_bvb_host%/} ;;
-            esac
-            case "$_bvb_host" in
-                docker.sock | */docker.sock | / | /var | /var/run | /run)
+                docker.sock | */docker.sock | / | /var | /var/run | /run | /var/lib/docker)
                     IFS=$_oldifs
-                    _die "Refusing to mount a path that exposes the Docker socket: $_bvb_entry" \
-                        "Mounting the docker socket — or a directory that contains it (e.g. /var/run, /run, /) — grants full host control and defeats connie's hardening. Remove this entry from the volumes: list."
+                    _die "Refusing to mount a path that exposes the Docker daemon: $_bvb_entry" \
+                        "Mounting the docker socket — or a directory that contains it (e.g. /var/run, /run, /var/lib/docker, /) — grants full host control and defeats connie's hardening. Remove this entry from the volumes: list."
                     ;;
             esac
             if [ -S "$_bvb_host/docker.sock" ]; then
@@ -548,20 +577,25 @@ _generate_override() {
     # inject a sibling compose key — closing the same YAML-injection class
     # the JSON-encoded scalars below handle. (A `case` glob, not grep, so the
     # whole value is matched, not line-by-line.)
+    # Patterns reject bad chars (incl. newline/colon/space → no injection)
+    # AND structurally-degenerate values that pass the charset but emit
+    # invalid YAML/compose (e.g. 'g', '.', '-'): require a leading digit, a
+    # single trailing unit (memory) / single dot (cpus) / leading-only sign
+    # (pids).
     case "$_memory" in
-        '' | *[!0-9bkmgBKMG]*)
+        '' | *[!0-9bkmgBKMG]* | [!0-9]* | *[bkmgBKMG]?*)
             _die "Invalid resources.memory / CONNIE_MEMORY: '$_memory'" \
                 "Expected a byte size like 4g, 512m, or a plain integer."
             ;;
     esac
     case "$_cpus" in
-        '' | *[!0-9.]*)
+        '' | *[!0-9.]* | [!0-9]* | *.*.* | *.)
             _die "Invalid resources.cpus / CONNIE_CPUS: '$_cpus'" \
                 "Expected a number like 2 or 2.0."
             ;;
     esac
     case "$_max_pids" in
-        '' | *[!0-9-]*)
+        '' | - | *[!0-9-]* | ?*-*)
             _die "Invalid resources.max_pids / CONNIE_MAX_PIDS: '$_max_pids'" \
                 "Expected an integer (use -1 for unlimited)."
             ;;

@@ -71,6 +71,33 @@ volumes:
 EOF
 }
 
+# Path-equivalent spellings of the socket directory (//, .., .) must
+# normalize and be caught even when no socket exists at scan time.
+a_project_mounting_the_socket_dir_via_double_slash() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - /var//run:/var/run
+EOF
+}
+
+a_project_mounting_the_socket_dir_via_dotdot() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - /var/run/../run:/var/run
+EOF
+}
+
+# The Docker data root is a host-takeover primitive comparable to the socket.
+a_project_mounting_the_docker_data_root() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - /var/lib/docker:/var/lib/docker
+EOF
+}
+
 # Mounting host root exposes the socket (and everything else).
 a_project_mounting_host_root() {
     a_project_with_no_extra_volumes
@@ -141,7 +168,7 @@ it_rejects_the_mount() {
 }
 
 the_error_explains_the_docker_socket_refusal() {
-    expect_contains "$vol_stderr" "Docker socket"
+    expect_contains "$vol_stderr" "Docker daemon"
 }
 
 the_error_explains_the_unsupported_entry() {
@@ -208,6 +235,24 @@ build_vol_block_refuses_a_socket_directory_with_a_trailing_slash_test_case() {
 
 build_vol_block_refuses_mounting_host_root_test_case() {
     given a_project_mounting_host_root
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_normalizes_a_double_slash_socket_dir_and_refuses_it_test_case() {
+    given a_project_mounting_the_socket_dir_via_double_slash
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_normalizes_a_dotdot_socket_dir_and_refuses_it_test_case() {
+    given a_project_mounting_the_socket_dir_via_dotdot
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_refuses_mounting_the_docker_data_root_test_case() {
+    given a_project_mounting_the_docker_data_root
     when the_volumes_block_build_is_attempted
     expect it_rejects_the_mount
 }
