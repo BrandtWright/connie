@@ -80,7 +80,7 @@ a_merged_config_with_a_control_char_env_key() {
     project_path="$WORKSPACE/project"
     mkdir -p "$project_path"
     merged_file="$WORKSPACE/merged.yml"
-    K=$(printf 'BAD\xc2\x85KEY') yq -n '
+    K=$(printf 'BAD\302\205KEY') yq -n '
         {"packages": [], "build_commands": [], "start_cmd": "claude",
          "resources": {"memory": "4g", "cpus": "2.0", "max_pids": 512},
          "env": {(strenv(K)): "v"}}' >"$merged_file"
@@ -102,9 +102,12 @@ a_merged_config_mounting_the_docker_socket() {
     yq -i '.unsafe_extra_mounts = ["/var/run/docker.sock:/var/run/docker.sock"]' "$merged_file"
 }
 
-a_merged_config_with_a_yaml_special_env_key() {
+# An env key that is not a valid identifier (spaces, colon, hash). It can
+# never be a real env var name, and a raw splice could corrupt the override,
+# so it must be rejected.
+a_merged_config_with_an_invalid_env_name() {
     a_project_with_a_merged_config_at_defaults
-    yq -i '.env = {"X: y # privileged: true": "v"}' "$merged_file"
+    yq -i '.env = {"BAD NAME: x": "v"}' "$merged_file"
 }
 
 a_cli_package_flag_for_an_additional_package() {
@@ -124,7 +127,7 @@ a_cli_package_flag_that_looks_like_an_apk_flag() {
 # the raw input — the yq fold would otherwise silently drop it.
 a_cli_env_flag_with_a_control_char_key() {
     a_project_with_a_merged_config_at_defaults
-    extra_env=$(printf 'BAD\xc2\x85KEY=v')
+    extra_env=$(printf 'BAD\302\205KEY=v')
 }
 
 # A start command containing characters that are special to YAML: double
@@ -361,21 +364,22 @@ generate_override_accepts_max_pids_minus_one_as_unlimited_test_case() {
     expect the_override_value_at_path_to_be ".services.workspace.pids_limit" "-1"
 }
 
-generate_override_encodes_a_yaml_special_env_key_safely_test_case() {
-    given a_merged_config_with_a_yaml_special_env_key
-    when the_override_is_generated
-    # @json on the key keeps the override valid and contains the whole
-    # string as one key — nothing injected onto the workspace service.
-    expect the_override_parses_as_yaml
-    expect the_override_value_at_path_to_be ".services.workspace.privileged" "null"
+generate_override_rejects_an_env_key_with_an_invalid_name_test_case() {
+    given a_merged_config_with_an_invalid_env_name
+    when the_override_generation_is_attempted
+    # A non-identifier key (spaces/colon) is rejected before it can corrupt
+    # the override; nothing is injected onto the workspace service.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "environment variable name"
 }
 
 generate_override_rejects_an_env_key_with_a_control_character_test_case() {
     given a_merged_config_with_a_control_char_env_key
     when the_override_generation_is_attempted
-    # A NEL in the key would emit an unparseable override; reject it cleanly.
+    # A NEL (U+0085) byte makes the key a non-identifier; reject it cleanly
+    # rather than emit an unparseable override.
     expect expect_not_equal "0" "$override_gen_status"
-    expect expect_contains "$override_gen_stderr" "control character"
+    expect expect_contains "$override_gen_stderr" "environment variable name"
 }
 
 generate_override_rejects_a_cli_env_key_with_a_control_character_test_case() {
@@ -384,7 +388,7 @@ generate_override_rejects_a_cli_env_key_with_a_control_character_test_case() {
     # A control char in a --env key breaks the yq fold and would be silently
     # dropped; it must be caught from the raw input and rejected instead.
     expect expect_not_equal "0" "$override_gen_status"
-    expect expect_contains "$override_gen_stderr" "control character"
+    expect expect_contains "$override_gen_stderr" "environment variable name"
 }
 
 generate_override_aborts_when_a_volume_exposes_the_docker_socket_test_case() {

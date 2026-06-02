@@ -123,8 +123,11 @@ Versioning follows [Semantic Versioning][semver].
   *values* were YAML-encoded; a key containing a newline could inject a
   sibling key such as `privileged: true` onto the workspace service — a
   full host escape. Both key and value are now `@json`-encoded, and env
-  keys containing a control character (from `.env` or `--env`) are
-  rejected outright.
+  var names (from `.env` or `--env`) must be valid identifiers
+  (`[A-Za-z0-9_][A-Za-z0-9_.-]*`) — anything carrying a control char,
+  space, quote, or colon is rejected up front. The check is a shell-side
+  ASCII allowlist, so it behaves identically across shells and `yq`
+  builds.
 - **Volume and env guards now abort the run, not just warn.** These
   validators run inside a command substitution, so their error previously
   exited only the sub-shell — connie carried on and emitted an override

@@ -30,7 +30,7 @@ a_project_whose_config_mounts_a_kernel_tree() {
 
 a_project_whose_config_has_a_control_char_env_key() {
     an_initialized_project
-    K=$(printf 'BAD\xc2\x85KEY') yq -i '.env = {(strenv(K)): "v"}' \
+    K=$(printf 'BAD\302\205KEY') yq -i '.env = {(strenv(K)): "v"}' \
         "$(_project_config "$project_path")"
 }
 
@@ -80,7 +80,7 @@ connie_config_aborts_on_a_control_char_env_key_test_case() {
     given a_project_whose_config_has_a_control_char_env_key
     when the_user_runs_connie_config
     expect it_fails
-    expect stderr_to_contain "control character"
+    expect stderr_to_contain "environment variable name"
 }
 
 connie_config_aborts_on_an_invalid_resource_value_test_case() {

@@ -427,25 +427,26 @@ _build_env_block() {
     # $2 = merged_file
     _bee_fwd=$(_build_fwd_env_obj)
     _bee_cli=$(_build_cli_env_obj "$1")
-    # Reject env keys containing a control character (C0/C1, incl. newline
-    # and U+0085 NEL). @json escapes most of these, but YAML treats NEL as a
-    # line break and JSON does not escape it, so a NEL-bearing key would emit
-    # an unparseable override. Such characters are never valid in an env var
-    # name anyway, so fail with a clean error rather than a broken file.
-    #
-    # Config .env keys are checked against the merged map. --env CLI keys are
-    # checked from the RAW $1 input instead: a control char there breaks the
-    # yq fold in _build_cli_env_obj, so by the time it reached the merged map
-    # the key would already have been silently dropped — the check has to see
-    # the bytes before that.
-    _bee_badkey=$(CFG="$1" yq '
-        [(.env // {} | keys | .[]),
-        (strenv(CFG) | split("\n") | .[] | select(. != "") | sub("=.*"; ""))]
-        | map(select(test("[\x{00}-\x{1f}\x{7f}-\x{9f}]"))) | length
-    ' "$2")
-    [ "${_bee_badkey:-0}" = "0" ] ||
-        _die "Invalid environment variable name (contains a control character)." \
-            "Env keys in the project config .env or via --env must not contain control characters."
+    # Env var NAMES must be safe identifiers. Validate the config .env keys
+    # AND the raw --env keys against an ASCII allowlist in the shell
+    # (LC_ALL=C grep), not via a yq Unicode regex: yq's handling of exotic
+    # code points — and the non-POSIX printf needed to produce them in tests
+    # — varied across builds, whereas a name outside the allowlist is
+    # rejected the same way regardless of how it is represented. A bad name
+    # can carry a newline/quote/colon that would corrupt the override (an env
+    # key with a newline could even inject a sibling Compose key), so reject
+    # it up front. CLI keys are read from the raw $1 input because a control
+    # byte there would already have been dropped by the yq fold in
+    # _build_cli_env_obj.
+    _bee_keys=$(
+        yq '.env // {} | keys | .[]' "$2" 2>/dev/null || true
+        printf '%s\n' "$1" | sed 's/=.*//'
+    )
+    if printf '%s\n' "$_bee_keys" | grep -v '^$' |
+        LC_ALL=C grep -qvE '^[A-Za-z0-9_][A-Za-z0-9_.-]*$'; then
+        _die "Invalid environment variable name." \
+            "Env keys (config .env or via --env) must match [A-Za-z0-9_][A-Za-z0-9_.-]* — letters, digits, underscore, dot, or dash."
+    fi
     # JSON-encode BOTH key and value. Encoding only the value left the key
     # raw: a config .env key containing a newline could inject a sibling
     # compose key (e.g. `privileged: true`) onto the workspace service — a
