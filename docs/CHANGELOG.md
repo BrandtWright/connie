@@ -11,6 +11,11 @@ Versioning follows [Semantic Versioning][semver].
 
 ### Added
 
+- **A test that asserts the base `docker-compose.yml` hardening**
+  (`read_only`, `cap_drop: [ALL]`, `no-new-privileges`, nosuid `/tmp`
+  tmpfs, `init`). The whole posture is merged on top of this base file, so
+  a regression there would otherwise have left the suite green while
+  containers ran unhardened.
 - **`connie remove [dir]`** — symmetric inverse of `connie init`.
   Removes five connie-owned assets in dependency order (Docker
   image → Docker network → state dir → config dir → registry
@@ -126,6 +131,22 @@ Versioning follows [Semantic Versioning][semver].
   missing the rejected block (the socket guard never actually *stopped* a
   run). The failure is now propagated, so a rejected value aborts `connie
   config`/`build`/`run` with a non-zero status and no override emitted.
+- **The volume guard now covers the whole dangerous-mount class**, not just
+  the Docker socket. A dedicated security re-audit found the socket guard
+  was too narrow: a project config could still mount the kernel/device
+  trees (`/proc`, `/sys`, `/dev`, `/dev/mem`), the daemon data root
+  (`/var/lib/docker/*`, `/var/lib/containerd`), a renamed host daemon
+  socket onto the container's `/var/run/docker.sock`, or shadow the standard
+  `/workspace`/`~/.claude` mounts, and could pass `:rshared`/`:rslave`
+  propagation — all of which defeat the container hardening. connie now
+  normalizes both the host source and the container target and rejects this
+  whole class. `volumes:` remains trusted developer input; the guard is a
+  best-effort backstop, now documented as such in SECURITY.md.
+- **SUID/SGID bits are re-stripped after installing user packages.** The
+  base image strips them, but `packages:` are installed (as root) in a later
+  layer, so a user-added package shipping a setuid binary kept its bit in
+  the per-project image — contradicting the documented "stripped from every
+  file" guarantee. `extend.Dockerfile` now re-strips after the install.
 
 ---
 

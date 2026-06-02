@@ -104,6 +104,17 @@ These are accepted risks documented for transparency, not bugs:
   `$XDG_STATE_HOME/connie/<slug>/`. Host-level compromise (a
   malicious browser extension, another user with `sudo`) can read
   them. The 0700 perm reduces but does not eliminate the exposure.
+- **Trusted `volumes:` config (best-effort mount guard).** The
+  project config's `volumes:` list is developer-owned, trusted input
+  (it lives on the host, outside `/workspace`, and the in-container
+  agent cannot edit it). connie backstops the catastrophic mistakes —
+  it refuses mounts that expose the Docker socket/data, the
+  kernel/device trees (`/proc`, `/sys`, `/dev`), host root, mounts
+  that shadow the standard `/workspace`/`~/.claude` mounts, and unsafe
+  mount propagation. This guard is **best-effort**, not a containment
+  boundary: it is lexical (it does not resolve symlinks), and a
+  careless or malicious config could still mount other host-damaging
+  paths. Treat `volumes:` with the same care as `build_commands`.
 
 ---
 

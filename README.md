@@ -305,8 +305,13 @@ rationale. The enforced constraints are:
   to the read-only filesystem at startup
 - **Three host mounts by default** — project directory, per-project `.claude/`,
   and `.claude.json`; a project may add more via the developer-owned `volumes:`
-  config key, but connie refuses any mount that would expose the Docker socket
+  config key, but connie refuses the dangerous-mount class as a backstop (the
+  Docker socket/data, kernel/device trees like `/proc`/`/sys`/`/dev`, host
+  root, mounts that shadow the standard mounts, and unsafe propagation)
 - **Resource limits** — 4GB RAM, 2 CPUs, 512 PIDs (all overridable)
+- **Network egress is _not_ filtered** — the container can reach any network
+  the Docker daemon can; no inbound ports are exposed unless you list them.
+  Enforce egress externally if your threat model needs it (see SECURITY.md)
 
 ---
 

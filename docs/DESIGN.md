@@ -200,6 +200,16 @@ install software, or alter configuration in the image layers. Any path that
 legitimately needs to be writable is explicitly provided via volume mount or
 `tmpfs`.
 
+### Network Egress (not restricted)
+
+connie does **not** filter outbound network traffic. The container uses the
+default Docker bridge network and can reach any host or network the daemon
+can; no host ports are exposed inbound unless the project config lists them
+under `ports:`. Restricting egress is out of scope (see SECURITY.md) — if you
+need a hardened egress posture, run connie inside an external network
+namespace or firewall that enforces it. This is called out here because the
+README's security summary links to this document "for full rationale".
+
 ### All Capabilities Dropped
 
 Linux divides root's privileges into discrete capabilities. Dropping all of
@@ -277,19 +287,30 @@ mount point at the target path if it doesn't exist in the image.
 
 Additional mounts from `volumes:` are developer-owned, trusted input (the
 config lives outside the container and the in-container agent cannot edit it).
-As a guard against the most damaging mistake, connie refuses any `volumes:`
-entry that would expose the Docker daemon socket — the socket itself, a
-directory that contains it (`/var/run`, `/run`), or host root — since reaching
-`docker.sock` would let a container process take over the host and bypass every
-other constraint here. This guard runs wherever the Compose override is
-generated (`connie config`/`build`/`run`); the read-only `connie context`
-preview does not generate an override and so does not evaluate it. The check is
-lexical — it normalizes `.`, `..`, and `//` and rejects the socket, its
-conventional directories (`/var/run`, `/run`), the daemon data root
-(`/var/lib/docker`), and host root, but it does not resolve symlinks. Since
-`volumes:` is trusted developer input that is acceptable; as a backstop, any
-directory that actually contains a live `docker.sock` at generation time is also
-rejected.
+As a backstop against the catastrophic mistakes, connie refuses any `volumes:`
+entry in the dangerous-mount class — the same intent as the original
+docker-socket guard, widened to the whole class. For every extra mount it
+normalizes both the host source and the container target (collapsing `.`,
+`..`, `//`) and rejects:
+
+- the Docker daemon socket, by host-path name, by the source being a unix
+  socket (any name → likely a daemon API socket), or by the container target
+  re-exposing the conventional socket path;
+- the daemon data root (`/var/lib/docker`, `/var/lib/containerd`) and the
+  kernel/device trees (`/proc`, `/sys`, `/dev`, `/boot`), plus host root and
+  the socket directories (`/var/run`, `/run`) and their ancestors/children;
+- mounts whose target shadows a connie standard mount (`/workspace`,
+  `~/.claude`, `~/.claude.json`);
+- unsafe mount propagation (`shared`/`rshared`/`slave`/`rslave`).
+
+The guard runs wherever the Compose override is generated
+(`connie config`/`build`/`run`); the read-only `connie context` preview does
+not generate an override and so does not evaluate it. It is **best-effort**:
+the check is lexical (it does not resolve symlinks), and because `volumes:` is
+trusted developer input it is a footgun-prevention backstop, not a containment
+boundary against the in-container agent (which cannot edit the config). A
+determined or careless config could still mount other host-damaging paths;
+see SECURITY.md "Known Limitations".
 
 ### Resource Limits
 
@@ -522,7 +543,7 @@ assembled file lands at the path Claude Code expects.
 Each source contribution is preceded by a block-level HTML comment
 identifying its origin (`<!-- source: /etc/claude-code/CLAUDE.md on host
 (system-wide) -->` and `<!-- source: ~/.claude/CLAUDE.md on host
-(user-specific) -->`). Claude Code strips block-level HTML comments from
+(user) -->`). Claude Code strips block-level HTML comments from
 CLAUDE.md content before injecting it into context, so these markers cost
 no tokens. They remain visible to humans previewing the assembled file
 via `connie context` or by inspecting the state directory directly, which
@@ -601,7 +622,7 @@ initial preview.
 
 ## Test Architecture
 
-connie ships with 253 tests organised across four layers under `tests/`.
+connie ships with 295 tests organised across four layers under `tests/`.
 The harness is a roll-your-own POSIX shell harness — no external
 framework — written in the same `sh` discipline as `src/connie` so the
 test layer doesn't introduce a runtime dependency.
@@ -610,9 +631,9 @@ test layer doesn't introduce a runtime dependency.
 
 | Layer | Path | Tests | Purpose |
 | --- | --- | --- | --- |
-| Unit | `tests/unit/` | 73 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers (including docker.sock rejection and YAML-safe value encoding), `_generate_connie_context`, `_compose_project_name`, etc. |
+| Unit | `tests/unit/` | 111 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers (the dangerous-mount guard, path normalizer, and YAML-safe value encoding/validation), `_generate_connie_context`, `_compose_project_name`, plus a parse-check asserting the base `docker-compose.yml` hardening. |
 | Integration | `tests/integration/` | 71 | In-process helpers that touch the environment but not Docker: `_migrate_project`, `_register_project`, `_find_project_root`, `cmd_init`, the context-emit functions, `_prepare` and `_run_compose` (via shell-function stubs for docker), `_confirm`, and the `_require_yq` v4 sniff. |
-| CLI | `tests/cli/` | 78 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, verbosity flag/env precedence, including the diagnostic case where a project isn't initialised. |
+| CLI | `tests/cli/` | 82 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, verbosity flag/env precedence, and end-to-end rejection of dangerous config (socket/kernel mounts, control-char env keys, bad resource values), including the diagnostic case where a project isn't initialised. |
 | Docker | `tests/docker/` | 31 | End-to-end against real images and containers: `build-base`, `build`, `clean`, `run` lifecycle, cgroup-v2 resource-limit enforcement, host↔container context parity, `.connie/` → XDG auto-migration trigger. Gated on `docker` being on `$PATH`. |
 
 ### DSL
