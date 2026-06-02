@@ -69,6 +69,14 @@ Versioning follows [Semantic Versioning][semver].
   had shipped without user-facing docs. The canonical test count now
   lives only in `docs/DESIGN.md`; drift-prone figures were removed from
   `CONTRIBUTING.md` and the PR template.
+- **All shell scripts are now shfmt-formatted and the format is enforced
+  in CI.** `make format-check` (which already specified the style) runs
+  as a blocking step with shfmt installed, so formatting drift can no
+  longer land. The one-time reformat was whitespace-only.
+- **Expanded the Docker-free test suite** with direct coverage of
+  `_prepare`, `_run_compose`, `_confirm`, the `_require_yq` v4 sniff, and
+  verbosity flag/env precedence — orchestration paths previously reachable
+  only through the Docker-gated layer.
 
 ### Fixed
 
