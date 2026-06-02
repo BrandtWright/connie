@@ -77,6 +77,10 @@ Versioning follows [Semantic Versioning][semver].
   `_prepare`, `_run_compose`, `_confirm`, the `_require_yq` v4 sniff, and
   verbosity flag/env precedence — orchestration paths previously reachable
   only through the Docker-gated layer.
+- **`scripts/pre-commit` is now shellchecked and format-checked.** It was a
+  POSIX shell script matched by neither lint set; the file selection is now
+  factored into one Make variable so `lint-sh` and `format-check` cover the
+  same files by construction.
 
 ### Fixed
 
@@ -87,7 +91,11 @@ Versioning follows [Semantic Versioning][semver].
   `--cmd 'sh -c "…"'`) broke out of the YAML string and a value with a
   space-then-`#` was silently truncated as a comment. Each is now
   emitted through `yq`, which always produces a valid, fully-escaped
-  scalar.
+  scalar. The remaining bare-scalar slices flagged in re-audit are now
+  covered too: `BASE_IMAGE` is JSON-encoded, and the resource limits
+  (`mem_limit`/`memswap_limit`, `cpus`, `pids_limit`) are validated against
+  a strict character allowlist so a config/`CONNIE_*`-env value cannot
+  inject a sibling compose key.
 
 ### Security
 
@@ -95,7 +103,17 @@ Versioning follows [Semantic Versioning][semver].
   config's `volumes:` list. A `docker.sock` bind mount lets an
   in-container process drive the host daemon and launch a privileged
   container, escaping every other hardening measure; the entry is now
-  rejected with an actionable error before the container is built.
+  rejected with an actionable error before the container is built. The
+  guard also rejects the bypasses found in re-audit: mounting the socket's
+  *directory* (`/var/run`, `/run`) or host root, any host directory that
+  contains a `docker.sock`, and Compose long-syntax (mapping) volume
+  entries (which are unsupported and were previously mangled into mounts
+  that evaded the check).
+- **Package names that look like apk flags are rejected.** A `packages:`
+  or `--package` token starting with `-` (e.g. `--allow-untrusted`) would
+  have been parsed as a flag by the unquoted `apk add` in the build;
+  connie now rejects such tokens and the Dockerfile passes `--` as a
+  backstop.
 
 ---
 
