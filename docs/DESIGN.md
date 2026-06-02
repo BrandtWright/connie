@@ -271,8 +271,9 @@ falls back to no-color mode for all shell tools.
 
 ### Host Mounts
 
-Three locations are always mounted; a project may add more via the
-developer-owned `volumes:` config key (trusted input — see below):
+Three locations are always mounted, and by default nothing else is. A
+project may opt into more via the advanced `unsafe_extra_mounts:` config key
+(developer-owned, trusted input — see below):
 
 | Host path | Container path | Access | Purpose |
 | --- | --- | --- | --- |
@@ -285,11 +286,17 @@ by connie. The state mounts must be pre-created on the host before Docker
 mounts them — with a read-only container filesystem Docker cannot create the
 mount point at the target path if it doesn't exist in the image.
 
-Additional mounts from `volumes:` are developer-owned, trusted input (the
-config lives outside the container and the in-container agent cannot edit it).
-As a backstop against the catastrophic mistakes, connie refuses any `volumes:`
-entry in the dangerous-mount class — the same intent as the original
-docker-socket guard, widened to the whole class. For every extra mount it
+Extra mounts are an explicit opt-in under `unsafe_extra_mounts:` — the key is
+deliberately named because an extra host mount is the one config lever that
+can hand the container a host resource. The default surface has none, so the
+"only your project is mounted" guarantee holds unless a project opts in. Such
+mounts are developer-owned, trusted input (the config lives outside the
+container and the in-container agent cannot edit it). The old generic
+`volumes:` key was removed; a config still using it fails loudly rather than
+silently dropping the mount. As a backstop against the catastrophic mistakes,
+connie refuses any `unsafe_extra_mounts:` entry in the dangerous-mount class —
+the same intent as the original docker-socket guard, widened to the whole
+class. For every extra mount it
 normalizes both the host source and the container target (collapsing `.`,
 `..`, `//`) and rejects:
 
@@ -306,8 +313,9 @@ normalizes both the host source and the container target (collapsing `.`,
 The guard runs wherever the Compose override is generated
 (`connie config`/`build`/`run`); the read-only `connie context` preview does
 not generate an override and so does not evaluate it. It is **best-effort**:
-the check is lexical (it does not resolve symlinks), and because `volumes:` is
-trusted developer input it is a footgun-prevention backstop, not a containment
+the check is lexical (it does not resolve symlinks), and because
+`unsafe_extra_mounts:` is trusted developer input it is a footgun-prevention
+backstop, not a containment
 boundary against the in-container agent (which cannot edit the config). A
 determined or careless config could still mount other host-damaging paths;
 see SECURITY.md "Known Limitations".

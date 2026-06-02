@@ -214,13 +214,15 @@ env:
   LOG_LEVEL: debug
   # FORCE_COLOR: "2"   # override if your terminal only supports 256 colours
 
-# Additional volume mounts beyond the standard mounts.
-# Standard mounts (always present, not configured here):
-#   [project dir]                          →  /workspace      (read/write)
-#   ~/.local/state/connie/<slug>/.claude/  →  ~/.claude/      (read/write)
-#   ~/.local/state/connie/<slug>/.claude.json → ~/.claude.json (read/write)
-volumes:
-  - /some/other/path:/data:ro
+# ADVANCED / opt-in: extra host bind mounts beyond the standard mounts
+# (project dir → /workspace, plus this project's ~/.claude state). Extra
+# mounts are the one config key that can hand the container a host resource,
+# so the key is deliberately named. connie still refuses the catastrophic
+# cases (Docker socket, /proc, /sys, /dev, daemon data, standard-mount
+# shadowing, unsafe propagation), but the guard is best-effort — see
+# "Security Model" and SECURITY.md. Only add what you must; prefer :ro.
+# unsafe_extra_mounts:
+#   - /some/other/path:/data:ro
 
 # Port mappings (host:container).
 ports:
@@ -304,12 +306,13 @@ rationale. The enforced constraints are:
 - **Auto-updater disabled** — `DISABLE_AUTOUPDATER=1` prevents silent writes
   to the read-only filesystem at startup
 - **Three host mounts by default** — project directory, per-project `.claude/`,
-  and `.claude.json`; a project may add more via the developer-owned `volumes:`
-  config key, but connie refuses the dangerous-mount class as a backstop (the
+  and `.claude.json`; by default *nothing else is mounted*. A project may opt
+  into extra mounts via the advanced `unsafe_extra_mounts:` key, but connie
+  refuses the dangerous-mount class as a backstop (the
   Docker socket/data, kernel/device trees like `/proc`/`/sys`/`/dev`, host
   root, mounts that shadow the standard mounts, and unsafe propagation)
 - **Resource limits** — 4GB RAM, 2 CPUs, 512 PIDs (all overridable)
-- **Network egress is _not_ filtered** — the container can reach any network
+- **Network egress is *not* filtered** — the container can reach any network
   the Docker daemon can; no inbound ports are exposed unless you list them.
   Enforce egress externally if your threat model needs it (see SECURITY.md)
 

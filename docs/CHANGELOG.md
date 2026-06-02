@@ -147,6 +147,21 @@ Versioning follows [Semantic Versioning][semver].
   layer, so a user-added package shipping a setuid binary kept its bit in
   the per-project image — contradicting the documented "stripped from every
   file" guarantee. `extend.Dockerfile` now re-strips after the install.
+- **Non-root is pinned in the compose base (`user: "1000:1000"`).** It was
+  enforced only by the image's `USER` directive; pinning it in the static,
+  tested `docker-compose.yml` makes the most important hardening measure
+  hold regardless of the base image built from.
+- **BREAKING: the generic `volumes:` config key was removed; extra mounts
+  are now an explicit `unsafe_extra_mounts:` opt-in.** An extra host mount
+  is the one config lever that can hand the container a host resource, and
+  connie's core use (Claude Code on a project root) needs only the
+  connie-controlled standard mounts. By default nothing else is mounted, so
+  the "only your project is mounted" guarantee now holds unless a project
+  deliberately opts in — it can no longer be tripped by pasting a
+  normal-looking `volumes:` snippet. The dangerous-mount guard still applies
+  to `unsafe_extra_mounts:`. **Migration:** rename any `volumes:` in a
+  project config to `unsafe_extra_mounts:`; a leftover `volumes:` now fails
+  loudly rather than being silently ignored.
 
 ---
 

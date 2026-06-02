@@ -104,17 +104,21 @@ These are accepted risks documented for transparency, not bugs:
   `$XDG_STATE_HOME/connie/<slug>/`. Host-level compromise (a
   malicious browser extension, another user with `sudo`) can read
   them. The 0700 perm reduces but does not eliminate the exposure.
-- **Trusted `volumes:` config (best-effort mount guard).** The
-  project config's `volumes:` list is developer-owned, trusted input
-  (it lives on the host, outside `/workspace`, and the in-container
-  agent cannot edit it). connie backstops the catastrophic mistakes —
-  it refuses mounts that expose the Docker socket/data, the
-  kernel/device trees (`/proc`, `/sys`, `/dev`), host root, mounts
-  that shadow the standard `/workspace`/`~/.claude` mounts, and unsafe
-  mount propagation. This guard is **best-effort**, not a containment
-  boundary: it is lexical (it does not resolve symlinks), and a
-  careless or malicious config could still mount other host-damaging
-  paths. Treat `volumes:` with the same care as `build_commands`.
+- **Trusted extra mounts (`unsafe_extra_mounts:`, best-effort guard).**
+  By default the only writable host paths are the project (`/workspace`)
+  and this project's Claude Code state — no config key can add others.
+  A project may opt into additional host mounts via the deliberately
+  named `unsafe_extra_mounts:` key (the old generic `volumes:` key was
+  removed). That list is developer-owned, trusted input (it lives on the
+  host, outside `/workspace`, and the in-container agent cannot edit it).
+  connie backstops the catastrophic mistakes — it refuses mounts that
+  expose the Docker socket/data, the kernel/device trees (`/proc`,
+  `/sys`, `/dev`), host root, mounts that shadow the standard
+  `/workspace`/`~/.claude` mounts, and unsafe mount propagation. This
+  guard is **best-effort**, not a containment boundary: it is lexical
+  (it does not resolve symlinks), and a careless or malicious config
+  could still mount other host-damaging paths. Treat
+  `unsafe_extra_mounts:` with the same care as `build_commands`.
 
 ---
 
