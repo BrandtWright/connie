@@ -147,6 +147,18 @@ a_merged_config_with_a_port_mapping() {
     yq -i '.ports = ["8080:8080"]' "$merged_file"
 }
 
+# A '$' in a config value would otherwise be interpolated by docker compose
+# from connie's own environment (mount-guard evasion / host-env leak).
+a_merged_config_with_a_dollar_in_an_env_value() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.env = {"FOO": "x-${HOME}-y"}' "$merged_file"
+}
+
+a_merged_config_with_a_dollar_in_a_mount_path() {
+    a_project_with_a_merged_config_at_defaults
+    yq -i '.unsafe_extra_mounts = ["/srv/${DATADIR}:/data:ro"]' "$merged_file"
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_override_is_generated() {
@@ -317,6 +329,24 @@ generate_override_carries_a_configured_port_mapping_test_case() {
     when the_override_is_generated
     expect the_override_parses_as_yaml
     expect the_override_ports_list_contains "8080:8080"
+}
+
+generate_override_doubles_dollar_in_env_values_to_block_interpolation_test_case() {
+    given a_merged_config_with_a_dollar_in_an_env_value
+    when the_override_is_generated
+    # '$' is doubled so docker compose treats ${HOME} literally instead of
+    # interpolating it from connie's environment. yq does not interpolate,
+    # so it reads back the doubled literal.
+    expect the_override_parses_as_yaml
+    expect the_override_value_at_path_to_be ".services.workspace.environment.FOO" 'x-$${HOME}-y'
+}
+
+generate_override_doubles_dollar_in_mount_paths_to_block_interpolation_test_case() {
+    given a_merged_config_with_a_dollar_in_a_mount_path
+    when the_override_is_generated
+    # Same escaping in mount sources — closes the ${VAR}-evades-the-guard path.
+    expect the_override_parses_as_yaml
+    expect the_override_volumes_list_contains '/srv/$${DATADIR}:/data:ro'
 }
 
 generate_override_rejects_a_resource_value_carrying_a_yaml_injection_test_case() {
