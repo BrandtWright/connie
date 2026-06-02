@@ -34,8 +34,16 @@ USER root
 # `--` stops apk option parsing so a package token cannot inject an apk flag
 # (e.g. --allow-untrusted); connie also rejects leading-dash package names
 # before this runs. $EXTRA_PACKAGES stays unquoted to word-split the list.
+#
+# Re-strip SUID/SGID bits AFTER installing user packages. base.Dockerfile
+# strips them, but that runs before this layer, so a user-added apk package
+# shipping a setuid binary (su, mount, sudo, …) would otherwise keep its bit
+# in the per-project image — contradicting the "every file is stripped"
+# guarantee in SECURITY.md/DESIGN.md and the managed-policy context. The
+# `&&` keeps an apk failure fatal; the strip's own `|| true` mirrors base.
 RUN if [ -n "$EXTRA_PACKAGES" ]; then \
-        apk add --no-cache -- $EXTRA_PACKAGES; \
+        apk add --no-cache -- $EXTRA_PACKAGES \
+        && { find / -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true; }; \
     fi
 
 RUN if [ -n "$CONNIE_CONTEXT" ]; then \
