@@ -9,6 +9,8 @@ Versioning follows [Semantic Versioning][semver].
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-06-02
+
 ### Added
 
 - **A CI platform matrix.** The non-Docker test suite now runs on x86_64
