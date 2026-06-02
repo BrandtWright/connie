@@ -226,6 +226,22 @@ _project_state_dir() {
     printf '%s/%s' "$STATE_DIR" "$(_project_slug "$1")"
 }
 
+# Ensure a project has an XDG config, dying with a context-aware hint if not.
+# Commands that don't run _prepare (config/clean/context) call this so a
+# legacy .connie/ project gets a "migrate" hint — those commands don't
+# auto-migrate (only build/run do, via _prepare), and a bare "scaffold one"
+# message would be misleading when state clearly already exists.
+_require_project_config() {
+    _rpc_root="$1"
+    [ -f "$(_project_config "$_rpc_root")" ] && return 0
+    if [ -d "$_rpc_root/.connie" ]; then
+        _die "No XDG config for $_rpc_root, but a legacy .connie/ layout is present." \
+            "Run '$TOOL run $_rpc_root' (or '$TOOL build') once to migrate it to XDG, then retry."
+    fi
+    _die "No project config found for $_rpc_root." \
+        "Run '$TOOL init $_rpc_root' to scaffold one, or '$TOOL doctor $_rpc_root' to diagnose."
+}
+
 # ── Project registry ──────────────────────────────────────────────────────────
 
 _register_project() {
@@ -1251,9 +1267,7 @@ cmd_clean() {
 
     _require_yq
 
-    [ -f "$(_project_config "$_project_root")" ] ||
-        _die "No project config found for $_project_root." \
-            "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
+    _require_project_config "$_project_root"
 
     _require docker
 
@@ -1397,10 +1411,8 @@ cmd_config() {
 
     _require_yq
 
+    _require_project_config "$_project_root"
     _cfg=$(_project_config "$_project_root")
-    [ -f "$_cfg" ] ||
-        _die "No project config found for $_project_root." \
-            "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
 
     _info "Project:  $_project_root"
     _info "Config:   $_cfg"
@@ -1419,10 +1431,7 @@ cmd_context() {
 
     _require_yq
 
-    _cfg=$(_project_config "$_project_root")
-    [ -f "$_cfg" ] ||
-        _die "No project config found for $_project_root." \
-            "Run '$TOOL init $_project_root' to scaffold one, or '$TOOL doctor $_project_root' to diagnose."
+    _require_project_config "$_project_root"
 
     _merged=$(mktemp)
     trap 'rm -f "$_merged"' EXIT

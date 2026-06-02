@@ -64,6 +64,15 @@ the_user_invokes_connie_context_without_an_initialized_project() {
     exercise_connie context "$WORKSPACE"
 }
 
+# A project on the legacy .connie/ layout with no XDG config yet. config/
+# clean/context don't auto-migrate (only build/run do), so they should hint
+# at migration rather than print the bare "scaffold one" message.
+the_user_invokes_connie_config_on_a_legacy_dot_connie_project() {
+    _legacy="$WORKSPACE/legacy"
+    mkdir -p "$_legacy/.connie"
+    exercise_connie config "$_legacy"
+}
+
 # ── Tests: no arguments ───────────────────────────────────────────────────
 
 connie_succeeds_when_invoked_with_no_arguments_test_case() {
@@ -182,4 +191,11 @@ connie_context_rejects_an_uninitialized_project_test_case() {
     when the_user_invokes_connie_context_without_an_initialized_project
     expect it_fails
     expect stderr_to_contain "No project config found"
+}
+
+connie_config_hints_at_migration_for_a_legacy_dot_connie_project_test_case() {
+    when the_user_invokes_connie_config_on_a_legacy_dot_connie_project
+    expect it_fails
+    # Clearer than "scaffold one" when a .connie/ layout already exists.
+    expect stderr_to_contain "legacy .connie/ layout"
 }
