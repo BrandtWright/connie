@@ -107,6 +107,13 @@ a_cli_package_flag_that_looks_like_an_apk_flag() {
     extra_packages="--allow-untrusted"
 }
 
+# A --env CLI key with a U+0085 (NEL) control char. Must be rejected from
+# the raw input — the yq fold would otherwise silently drop it.
+a_cli_env_flag_with_a_control_char_key() {
+    a_project_with_a_merged_config_at_defaults
+    extra_env=$(printf 'BAD\xc2\x85KEY=v')
+}
+
 # A start command containing characters that are special to YAML: double
 # quotes (which broke the old `command: "${...}"` interpolation) and a
 # ` #` sequence (read as a comment if emitted as a bare scalar).
@@ -337,6 +344,15 @@ generate_override_rejects_an_env_key_with_a_control_character_test_case() {
     given a_merged_config_with_a_control_char_env_key
     when the_override_generation_is_attempted
     # A NEL in the key would emit an unparseable override; reject it cleanly.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "control character"
+}
+
+generate_override_rejects_a_cli_env_key_with_a_control_character_test_case() {
+    given a_cli_env_flag_with_a_control_char_key
+    when the_override_generation_is_attempted
+    # A control char in a --env key breaks the yq fold and would be silently
+    # dropped; it must be caught from the raw input and rejected instead.
     expect expect_not_equal "0" "$override_gen_status"
     expect expect_contains "$override_gen_stderr" "control character"
 }
