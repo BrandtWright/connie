@@ -62,7 +62,12 @@ In scope:
   - `/home/claude-user/.claude.json` — per-project Claude Code config
   - `/tmp` — RAM-backed tmpfs (lost on container exit)
 - SUID/SGID bits are stripped from every file in the base image at
-  build time.
+  build time, and re-stripped after any `packages:` are installed so a
+  user-added package cannot reintroduce a setuid binary.
+- The generated Compose override escapes `$` so docker compose performs
+  no `${VAR}` interpolation: config values are literal and cannot be used
+  to evade the mount guard or pull connie's host environment into the
+  container.
 - The per-project state directory on the host is created with mode
   `0700` so OAuth credentials are not readable by other local users.
 - The container has access to the host network stack (default Docker

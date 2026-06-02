@@ -101,6 +101,10 @@ Versioning follows [Semantic Versioning][semver].
   (`mem_limit`/`memswap_limit`, `cpus`, `pids_limit`) are validated against
   a strict character allowlist so a config/`CONNIE_*`-env value cannot
   inject a sibling compose key.
+- **Clearer error for a legacy `.connie/` project** on
+  `config`/`clean`/`context`: these don't auto-migrate (only `build`/`run`
+  do), so they now point the user at `connie run` to migrate, instead of
+  the misleading "scaffold one" message.
 
 ### Security
 
@@ -165,6 +169,24 @@ Versioning follows [Semantic Versioning][semver].
   to `unsafe_extra_mounts:`. **Migration:** rename any `volumes:` in a
   project config to `unsafe_extra_mounts:`; a leftover `volumes:` now fails
   loudly rather than being silently ignored.
+- **docker compose `${VAR}` interpolation is disabled.** A re-audit found
+  that a config value like `${X}` would pass the mount guard literally but
+  be expanded by compose from connie's own environment at run time
+  (guard-evasion + host-env leak). The generated override now escapes `$`
+  as `$$`, so config values are literal. Transparent for real uses
+  (compose collapses `$$`→`$`; build_commands still see their `$`).
+- **The unsafe-mount propagation guard now catches the comma form.** It
+  only matched colon-delimited options, so the canonical Docker spelling
+  `rw,rshared` slipped past while `rshared` alone was caught.
+- **Wrong-typed / degenerate config is rejected up front.** Major keys
+  must be the right YAML type (`env` a map; `packages`/`build_commands`/
+  `ports`/`unsafe_extra_mounts` lists); env names must be identifiers and
+  non-empty; env values must be scalars; `max_pids` accepts only a
+  positive integer or `-1`. Previously these were silently dropped or
+  surfaced a raw `yq` error mid-pipeline instead of a clean connie error.
+- **Runtime hardening is now verified behaviorally** by Docker-gated
+  tests (effective capabilities empty, no-new-privileges set, no SUID/SGID
+  binaries) in addition to the static `docker-compose.yml` parse check.
 
 ---
 

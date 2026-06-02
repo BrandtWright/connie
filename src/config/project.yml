@@ -51,6 +51,11 @@ build_commands: []
 # ── Environment variables ─────────────────────────────────────────────────────
 # Injected into the container at runtime.
 # Safe to commit — do not put secret values here.
+# Names must be identifiers: [A-Za-z0-9_][A-Za-z0-9_.-]*
+#
+# NOTE: values are LITERAL. connie does not perform docker compose
+# interpolation, so "${HOME}" or "$USER" in any config value is passed
+# through verbatim (a '$' is not expanded from connie's environment).
 #
 # env:
 #   APP_ENV: development

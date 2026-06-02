@@ -320,6 +320,21 @@ boundary against the in-container agent (which cannot edit the config). A
 determined or careless config could still mount other host-damaging paths;
 see SECURITY.md "Known Limitations".
 
+### No Compose Variable Interpolation
+
+docker compose normally interpolates `${VAR}`/`$VAR` in the compose file from
+the environment of the process that runs it — here, connie itself. connie
+neither needs nor wants that: config values are meant to be literal. Left
+enabled it would be a footgun and a guard-evasion — a config value like
+`${X}` would pass the dangerous-mount guard as the literal string `${X}` yet
+be expanded by compose at run time (e.g. to `/var/run/docker.sock`), and host
+environment variables could leak into the container. So `_generate_override`
+escapes every `$` as `$$` in the emitted override, which makes compose treat
+all values literally. The escape is transparent: compose collapses `$$` back
+to `$`, and `build_commands` still see their original `$` when
+`extend.Dockerfile` runs them via `sh -c`. The practical rule: **`$` in a
+connie config value is literal; `${VAR}` is not interpolated.**
+
 ### Resource Limits
 
 | Resource | Default |
@@ -630,7 +645,7 @@ initial preview.
 
 ## Test Architecture
 
-connie ships with 295 tests organised across four layers under `tests/`.
+connie ships with 309 tests organised across four layers under `tests/`.
 The harness is a roll-your-own POSIX shell harness — no external
 framework — written in the same `sh` discipline as `src/connie` so the
 test layer doesn't introduce a runtime dependency.
@@ -639,10 +654,10 @@ test layer doesn't introduce a runtime dependency.
 
 | Layer | Path | Tests | Purpose |
 | --- | --- | --- | --- |
-| Unit | `tests/unit/` | 111 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers (the dangerous-mount guard, path normalizer, and YAML-safe value encoding/validation), `_generate_connie_context`, `_compose_project_name`, plus a parse-check asserting the base `docker-compose.yml` hardening. |
+| Unit | `tests/unit/` | 121 | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers (the dangerous-mount guard, path normalizer, config type/value validation, and YAML-safe value encoding), `_generate_connie_context`, `_compose_project_name`, plus a parse-check asserting the base `docker-compose.yml` hardening. |
 | Integration | `tests/integration/` | 71 | In-process helpers that touch the environment but not Docker: `_migrate_project`, `_register_project`, `_find_project_root`, `cmd_init`, the context-emit functions, `_prepare` and `_run_compose` (via shell-function stubs for docker), `_confirm`, and the `_require_yq` v4 sniff. |
-| CLI | `tests/cli/` | 82 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, verbosity flag/env precedence, and end-to-end rejection of dangerous config (socket/kernel mounts, control-char env keys, bad resource values), including the diagnostic case where a project isn't initialised. |
-| Docker | `tests/docker/` | 31 | End-to-end against real images and containers: `build-base`, `build`, `clean`, `run` lifecycle, cgroup-v2 resource-limit enforcement, host↔container context parity, `.connie/` → XDG auto-migration trigger. Gated on `docker` being on `$PATH`. |
+| CLI | `tests/cli/` | 83 | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, `connie doctor`, verbosity flag/env precedence, and end-to-end rejection of dangerous config (socket/kernel mounts, control-char env keys, bad resource values), including the legacy-`.connie/` and uninitialised diagnostics. |
+| Docker | `tests/docker/` | 34 | End-to-end against real images and containers: `build-base`, `build`, `clean`, `run` lifecycle, runtime hardening (cap_drop, no-new-privileges, no SUID binaries), cgroup-v2 resource-limit enforcement, host↔container context parity, `.connie/` → XDG auto-migration trigger. Gated on `docker` being on `$PATH`. |
 
 ### DSL
 

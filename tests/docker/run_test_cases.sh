@@ -82,3 +82,30 @@ run_does_not_leak_connie_no_dispatch_into_the_container_environment_test_case() 
     when the_user_runs_connie_run_with_command "sh -c 'echo dispatch=\${CONNIE_NO_DISPATCH:-UNSET}'"
     expect stdout_to_contain "dispatch=UNSET"
 }
+
+# ── Runtime hardening (behavioral) ──────────────────────────────────────────
+# The static docker-compose.yml carries cap_drop/no-new-privileges and the
+# image strips SUID bits; these assert the posture actually holds at runtime,
+# not just in the file (which compose_hardening_test_cases.sh checks).
+
+run_drops_all_capabilities_test_case() {
+    # CapEff is the effective capability set; with cap_drop: [ALL] and a
+    # non-root user it must be all zeros.
+    given a_unique_test_base_image_tag_and_an_initialized_project
+    when the_user_runs_connie_run_with_command "grep CapEff /proc/self/status"
+    expect stdout_to_contain "CapEff:[[:space:]]*0+$"
+}
+
+run_has_no_new_privileges_set_test_case() {
+    given a_unique_test_base_image_tag_and_an_initialized_project
+    when the_user_runs_connie_run_with_command "grep NoNewPrivs /proc/self/status"
+    expect stdout_to_contain "NoNewPrivs:[[:space:]]*1"
+}
+
+run_image_has_no_suid_or_sgid_binaries_test_case() {
+    # The base strips SUID/SGID bits and extend re-strips after apk; a
+    # default project (no extra packages) must therefore contain none.
+    given a_unique_test_base_image_tag_and_an_initialized_project
+    when the_user_runs_connie_run_with_command "sh -c 'find / -perm /6000 -type f 2>/dev/null | wc -l'"
+    expect stdout_to_contain "^0$"
+}
