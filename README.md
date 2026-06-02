@@ -303,8 +303,9 @@ rationale. The enforced constraints are:
 - **`/tmp` as tmpfs** — RAM-backed, ephemeral, vanishes on exit
 - **Auto-updater disabled** — `DISABLE_AUTOUPDATER=1` prevents silent writes
   to the read-only filesystem at startup
-- **Exactly three host mounts** — project directory, per-project `.claude/`,
-  and `.claude.json` — nothing else from the host is visible
+- **Three host mounts by default** — project directory, per-project `.claude/`,
+  and `.claude.json`; a project may add more via the developer-owned `volumes:`
+  config key, but connie refuses any mount that would expose the Docker socket
 - **Resource limits** — 4GB RAM, 2 CPUs, 512 PIDs (all overridable)
 
 ---

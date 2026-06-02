@@ -261,7 +261,8 @@ falls back to no-color mode for all shell tools.
 
 ### Host Mounts
 
-Exactly three locations on the host filesystem are visible inside the container:
+Three locations are always mounted; a project may add more via the
+developer-owned `volumes:` config key (trusted input — see below):
 
 | Host path | Container path | Access | Purpose |
 | --- | --- | --- | --- |
@@ -273,6 +274,16 @@ The project directory is mounted read/write but nothing is ever written to it
 by connie. The state mounts must be pre-created on the host before Docker
 mounts them — with a read-only container filesystem Docker cannot create the
 mount point at the target path if it doesn't exist in the image.
+
+Additional mounts from `volumes:` are developer-owned, trusted input (the
+config lives outside the container and the in-container agent cannot edit it).
+As a guard against the most damaging mistake, connie refuses any `volumes:`
+entry that would expose the Docker daemon socket — the socket itself, a
+directory that contains it (`/var/run`, `/run`), or host root — since reaching
+`docker.sock` would let a container process take over the host and bypass every
+other constraint here. This guard runs wherever the Compose override is
+generated (`connie config`/`build`/`run`); the read-only `connie context`
+preview does not generate an override and so does not evaluate it.
 
 ### Resource Limits
 

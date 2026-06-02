@@ -56,6 +56,12 @@ Specific rules:
   hadolint, and yq parse-checks across every changed file type. Run it
   before staging any commit, or install the pre-commit hook with
   `make install-hooks` so it runs automatically.
+- `make format` applies shfmt; `make format-check` (a blocking CI step)
+  fails on any drift. The canonical formatter version is **shfmt v3.13.1**
+  — the version CI installs (see `.github/workflows/ci.yml`). Different
+  shfmt versions can format differently, so match it locally to avoid a
+  CI-only failure. shfmt has no language manifest for Dependabot to track,
+  so bump the pin in `ci.yml` (and this note) by hand.
 
 ### Markdown links
 

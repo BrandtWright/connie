@@ -72,12 +72,14 @@ single built base rather than each developer building it locally.
 
 ---
 
-### `--verbose` Flag
+### Config-merge narration under `-v`
 
-Add a `--verbose` flag to `run` and `build` that narrates the config merge
-process to stderr — which config files were found and loaded, which packages
-are being installed, what command will be run. Distinct from `connie config`,
-which shows the generated artifact; `--verbose` describes the process.
+`-v`/`--verbose` already exists (it emits `[debug]` lines tracing the
+`docker compose` invocations). The remaining idea is to have it also narrate
+the config-merge process — which config files were found and loaded, which
+packages are being installed, what command will run. Distinct from
+`connie config`, which shows the generated artifact; this would describe the
+process that produced it.
 
 ### Rules-Directory Previewing in `connie context`
 
