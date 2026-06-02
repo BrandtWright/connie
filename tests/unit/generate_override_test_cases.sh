@@ -47,6 +47,13 @@ connie_cmd_set_to_an_override_value() {
     export CONNIE_CMD=sh
 }
 
+# A resource value carrying a newline + extra YAML key — the injection the
+# bare-scalar splice would otherwise allow.
+connie_memory_set_to_a_yaml_injection_attempt() {
+    export CONNIE_MEMORY='4g
+    privileged: true'
+}
+
 a_cli_package_flag_for_an_additional_package() {
     extra_packages="vim"
 }
@@ -79,6 +86,16 @@ the_override_is_generated() {
     _generate_override "$project_path" "$merged_file" \
         "$extra_packages" "$extra_env" "$override_cmd" \
         >"$override_output_file"
+}
+
+# _generate_override may _die (exit) on an invalid resource value. Run it in
+# a subshell so the exit becomes a captured status, and merge stderr.
+the_override_generation_is_attempted() {
+    override_output_file="$WORKSPACE/override.yml"
+    override_gen_stderr=$({ _generate_override "$project_path" "$merged_file" \
+        "$extra_packages" "$extra_env" "$override_cmd" \
+        >"$override_output_file"; } 2>&1)
+    override_gen_status=$?
 }
 
 # ── Assertions ─────────────────────────────────────────────────────────────
@@ -232,6 +249,16 @@ generate_override_carries_a_configured_port_mapping_test_case() {
     when the_override_is_generated
     expect the_override_parses_as_yaml
     expect the_override_ports_list_contains "8080:8080"
+}
+
+generate_override_rejects_a_resource_value_carrying_a_yaml_injection_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_memory_set_to_a_yaml_injection_attempt
+    when the_override_generation_is_attempted
+    # The bare-scalar mem_limit splice would otherwise let a newline inject
+    # a sibling compose key (e.g. privileged: true). Validation rejects it.
+    expect expect_not_equal "0" "$override_gen_status"
+    expect expect_contains "$override_gen_stderr" "Invalid resources.memory"
 }
 
 generate_override_sets_the_nofile_ulimits_to_the_documented_values_test_case() {

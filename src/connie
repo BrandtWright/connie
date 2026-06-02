@@ -540,6 +540,30 @@ _generate_override() {
     _cpus="${CONNIE_CPUS:-$_cpus}"
     _max_pids="${CONNIE_MAX_PIDS:-$_max_pids}"
 
+    # Resource values flow into the override as bare YAML scalars (compose
+    # wants mem_limit as a byte string, cpus as a number, pids_limit as an
+    # int — quoting them would change their type). So instead of encoding,
+    # validate them with a character-class allowlist. Rejecting any char
+    # outside the set inherently rejects a newline/colon/space that could
+    # inject a sibling compose key — closing the same YAML-injection class
+    # the JSON-encoded scalars below handle. (A `case` glob, not grep, so the
+    # whole value is matched, not line-by-line.)
+    case "$_memory" in
+        '' | *[!0-9bkmgBKMG]*)
+            _die "Invalid resources.memory / CONNIE_MEMORY: '$_memory'" \
+                "Expected a byte size like 4g, 512m, or a plain integer." ;;
+    esac
+    case "$_cpus" in
+        '' | *[!0-9.]*)
+            _die "Invalid resources.cpus / CONNIE_CPUS: '$_cpus'" \
+                "Expected a number like 2 or 2.0." ;;
+    esac
+    case "$_max_pids" in
+        '' | *[!0-9-]*)
+            _die "Invalid resources.max_pids / CONNIE_MAX_PIDS: '$_max_pids'" \
+                "Expected an integer (use -1 for unlimited)." ;;
+    esac
+
     # Apply CLI overrides
     _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
     _final_cmd="${_override_cmd:-$_start_cmd}"
@@ -553,6 +577,9 @@ _generate_override() {
     _build_cmds_yaml=$(CMD="$_build_cmds" yq -n -o=json 'strenv(CMD)')
     _final_packages_yaml=$(PKGS="$_final_packages" yq -n -o=json 'strenv(PKGS)')
     _final_cmd_yaml=$(FCMD="$_final_cmd" yq -n -o=json 'strenv(FCMD)')
+    # BASE_IMAGE comes from $CONNIE_BASE_IMAGE (env, used by tests); encode it
+    # too so the build-arg slot can't be broken by an unusual tag value.
+    _base_image_yaml=$(IMG="$BASE_IMAGE" yq -n -o=json 'strenv(IMG)')
 
     # Generate the connie context and encode as a JSON string so the multi-line
     # value fits a single-line YAML build-arg slot. YAML parses double-quoted
@@ -574,7 +601,7 @@ services:
   workspace:
     build:
       args:
-        BASE_IMAGE: "${BASE_IMAGE}"
+        BASE_IMAGE: ${_base_image_yaml}
         EXTRA_PACKAGES: ${_final_packages_yaml}
         BUILD_COMMANDS: ${_build_cmds_yaml}
         CONNIE_CONTEXT: ${_connie_ctx_yaml}
