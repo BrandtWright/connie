@@ -447,28 +447,50 @@ _build_vol_block() {
     _bvb_mounts="${1}:/workspace:rw
 ${_bvb_state}/.claude:/home/claude-user/.claude
 ${_bvb_state}/.claude.json:/home/claude-user/.claude.json"
+    # Reject long-syntax (mapping) volume entries up front. connie supports
+    # only short-syntax "host:container[:opts]" strings; yq '.volumes | .[]'
+    # would otherwise flatten a {type,source,target} mapping into separate
+    # lines that get re-emitted as bogus mounts AND slip past the socket
+    # guard below (the host segment of such a line parses as "source").
+    _bvb_badcount=$(yq '[.volumes // [] | .[] | select(tag != "!!str")] | length' "$2" 2>/dev/null || printf 0)
+    [ "${_bvb_badcount:-0}" = "0" ] || \
+        _die "Unsupported volume entry in project config." \
+            "connie supports only short-syntax string mounts ('host:container[:opts]'). Rewrite any long-syntax (type:/source:/target:) entries."
+
     _bvb_extra=$(yq '.volumes | .[]' "$2" 2>/dev/null || true)
     if [ -n "$_bvb_extra" ]; then
-        # Reject mounting the Docker socket before emitting anything. A
-        # process that can write to docker.sock can start a privileged
-        # container and take over the host — it bypasses cap_drop,
-        # no-new-privileges, the read-only rootfs, every guarantee connie
-        # makes. Honoring such a mount would make the hardening theater,
-        # so fail loudly instead. The host path is the segment before the
-        # first ':'; a trailing '/docker.sock' (or a bare 'docker.sock')
-        # is the socket regardless of its directory.
+        # Refuse any mount that exposes the Docker daemon socket. Reaching
+        # docker.sock lets a container process start a privileged container
+        # and take over the host, bypassing cap_drop, no-new-privileges, and
+        # the read-only rootfs. Matching only a host segment ending in
+        # /docker.sock is not enough: mounting the socket's *directory*
+        # (/var/run, /run) or host root re-exposes it at its conventional
+        # path. So reject the socket, any ancestor of the conventional socket
+        # path, host root, and — for non-standard setups like rootless
+        # docker — any directory that actually contains a docker.sock here.
         _oldifs=$IFS
         IFS='
 '
         for _bvb_entry in $_bvb_extra; do
             [ -n "$_bvb_entry" ] || continue
-            case "${_bvb_entry%%:*}" in
-                docker.sock | */docker.sock)
+            _bvb_host=${_bvb_entry%%:*}
+            # Drop a trailing slash so '/var/run/' matches '/var/run',
+            # while leaving bare '/' intact.
+            case "$_bvb_host" in
+                ?*/) _bvb_host=${_bvb_host%/} ;;
+            esac
+            case "$_bvb_host" in
+                docker.sock | */docker.sock | / | /var | /var/run | /run)
                     IFS=$_oldifs
-                    _die "Refusing to mount the Docker socket: $_bvb_entry" \
-                        "Mounting docker.sock grants full host control and defeats connie's container hardening. Remove this entry from the volumes: list in your project config."
+                    _die "Refusing to mount a path that exposes the Docker socket: $_bvb_entry" \
+                        "Mounting the docker socket — or a directory that contains it (e.g. /var/run, /run, /) — grants full host control and defeats connie's hardening. Remove this entry from the volumes: list."
                     ;;
             esac
+            if [ -S "$_bvb_host/docker.sock" ]; then
+                IFS=$_oldifs
+                _die "Refusing to mount a directory that contains the Docker socket: $_bvb_entry" \
+                    "$_bvb_host/docker.sock exists on this host; mounting its directory exposes the socket and defeats connie's hardening."
+            fi
         done
         IFS=$_oldifs
         _bvb_mounts="${_bvb_mounts}

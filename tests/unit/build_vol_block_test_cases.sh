@@ -52,6 +52,56 @@ volumes:
 EOF
 }
 
+# Mounting the socket's *directory* re-exposes it at the conventional path
+# without naming the socket — the guard must catch this too.
+a_project_mounting_the_socket_parent_directory() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - /var/run:/var/run
+EOF
+}
+
+# A trailing slash must not defeat the directory check.
+a_project_mounting_run_with_a_trailing_slash() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - /run/:/run
+EOF
+}
+
+# Mounting host root exposes the socket (and everything else).
+a_project_mounting_host_root() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - /:/host:ro
+EOF
+}
+
+# Long-syntax (mapping) entries are unsupported and must be rejected rather
+# than silently flattened into bogus mounts that also evade the socket guard.
+a_project_with_a_long_syntax_volume() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - type: bind
+    source: /var/run/docker.sock
+    target: /var/run/docker.sock
+EOF
+}
+
+# A path whose value needs YAML quoting (embedded space) must round-trip
+# intact through the yq block emission — the property the emitter exists for.
+a_project_with_a_volume_path_needing_quoting() {
+    a_project_with_no_extra_volumes
+    cat >"$merged_file" <<EOF
+volumes:
+  - "/weird path:/data:ro"
+EOF
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_volumes_block_is_built() {
@@ -94,6 +144,17 @@ the_error_explains_the_docker_socket_refusal() {
     expect_contains "$vol_stderr" "Docker socket"
 }
 
+the_error_explains_the_unsupported_entry() {
+    expect_contains "$vol_stderr" "Unsupported volume entry"
+}
+
+# Re-parse the emitted block (indented items are valid under a volumes: key)
+# and assert the mount survived intact.
+the_vol_output_round_trips_to_contain() {
+    _parsed=$(printf 'volumes:\n%s\n' "$vol_output" | yq '.volumes[]')
+    expect_contains "$_parsed" "$1"
+}
+
 # ── Test cases ─────────────────────────────────────────────────────────────
 
 build_vol_block_always_includes_the_three_standard_mounts_test_case() {
@@ -130,4 +191,38 @@ build_vol_block_refuses_a_docker_socket_at_a_nonstandard_path_test_case() {
     given a_project_mounting_the_docker_socket_from_a_custom_path
     when the_volumes_block_build_is_attempted
     expect it_rejects_the_mount
+}
+
+build_vol_block_refuses_mounting_the_socket_parent_directory_test_case() {
+    given a_project_mounting_the_socket_parent_directory
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_explains_the_docker_socket_refusal
+}
+
+build_vol_block_refuses_a_socket_directory_with_a_trailing_slash_test_case() {
+    given a_project_mounting_run_with_a_trailing_slash
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_refuses_mounting_host_root_test_case() {
+    given a_project_mounting_host_root
+    when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+}
+
+build_vol_block_rejects_long_syntax_volume_entries_test_case() {
+    given a_project_with_a_long_syntax_volume
+    when the_volumes_block_build_is_attempted
+    # Inseparable claim: the unsupported entry is rejected AND the message
+    # tells the user to use short-syntax (not silently mangled into mounts).
+    expect it_rejects_the_mount
+    expect the_error_explains_the_unsupported_entry
+}
+
+build_vol_block_preserves_a_volume_path_that_needs_quoting_test_case() {
+    given a_project_with_a_volume_path_needing_quoting
+    when the_volumes_block_is_built
+    expect the_vol_output_round_trips_to_contain "/weird path:/data:ro"
 }
