@@ -176,11 +176,13 @@ a_merged_config_with_a_port_mapping() {
 # from connie's own environment (mount-guard evasion / host-env leak).
 a_merged_config_with_a_dollar_in_an_env_value() {
     a_project_with_a_merged_config_at_defaults
+    # shellcheck disable=SC2016 # ${HOME} is literal config data, not a shell expansion
     yq -i '.env = {"FOO": "x-${HOME}-y"}' "$merged_file"
 }
 
 a_merged_config_with_a_dollar_in_a_mount_path() {
     a_project_with_a_merged_config_at_defaults
+    # shellcheck disable=SC2016 # ${DATADIR} is literal config data, not a shell expansion
     yq -i '.unsafe_extra_mounts = ["/srv/${DATADIR}:/data:ro"]' "$merged_file"
 }
 
@@ -363,6 +365,7 @@ generate_override_doubles_dollar_in_env_values_to_block_interpolation_test_case(
     # interpolating it from connie's environment. yq does not interpolate,
     # so it reads back the doubled literal.
     expect the_override_parses_as_yaml
+    # shellcheck disable=SC2016 # the doubled-$ literal is the expected value
     expect the_override_value_at_path_to_be ".services.workspace.environment.FOO" 'x-$${HOME}-y'
 }
 
@@ -371,6 +374,7 @@ generate_override_doubles_dollar_in_mount_paths_to_block_interpolation_test_case
     when the_override_is_generated
     # Same escaping in mount sources — closes the ${VAR}-evades-the-guard path.
     expect the_override_parses_as_yaml
+    # shellcheck disable=SC2016 # the doubled-$ literal is the expected value
     expect the_override_volumes_list_contains '/srv/$${DATADIR}:/data:ro'
 }
 
