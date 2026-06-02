@@ -54,12 +54,23 @@ jobs:
           sudo wget -qO /usr/local/bin/hadolint \
             https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
           sudo chmod +x /usr/local/bin/hadolint
+          # shfmt — the formatter `make format-check` enforces. The release
+          # filename embeds the version, so pin it rather than use /latest.
+          sudo wget -qO /usr/local/bin/shfmt \
+            https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_linux_amd64
+          sudo chmod +x /usr/local/bin/shfmt
 
       - name: syntax check
         run: make check
 
       - name: lint
         run: make lint
+
+      - name: format check
+        # Fails if any shell script drifts from shfmt style. The target
+        # skips (exit 0) when shfmt is absent, but it's installed above so
+        # this is a real gate here.
+        run: make format-check
 
       - name: tests (default shell)
         run: make test
