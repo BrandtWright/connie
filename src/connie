@@ -514,8 +514,11 @@ _reject_unsafe_mount() {
     _rum_tgt=${_rum_tgt#"${_rum_tgt%%[![:space:]]*}"}
     _rum_tgt=${_rum_tgt%"${_rum_tgt##*[![:space:]]}"}
     _rum_tgt=$(_normalize_abs_path "$_rum_tgt")
+    # Options are the third ':'-field. Docker separates multiple options with
+    # commas (e.g. rw,rshared), so normalize commas to colons before the
+    # propagation check below — otherwise a comma-joined option evades it.
     _rum_opts=""
-    case "$_rum_rest" in *:*) _rum_opts=${_rum_rest#*:} ;; esac
+    case "$_rum_rest" in *:*) _rum_opts=$(printf '%s' "${_rum_rest#*:}" | tr ',' ':') ;; esac
 
     # 1. Sensitive host SOURCE: daemon socket/data, kernel/device trees, root.
     case "$_rum_src" in

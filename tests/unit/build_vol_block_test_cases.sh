@@ -148,6 +148,13 @@ a_project_with_unsafe_mount_propagation() {
     printf 'unsafe_extra_mounts:\n  - /data:/d:rshared\n' >"$merged_file"
 }
 
+# The canonical Docker spelling joins options with commas (rw,rshared),
+# which must be caught just like the single-token form.
+a_project_with_comma_joined_unsafe_propagation() {
+    a_project_with_no_extra_volumes
+    printf 'unsafe_extra_mounts:\n  - /data:/d:rw,rshared\n' >"$merged_file"
+}
+
 # The old 'volumes:' key was removed; a stale config using it must fail
 # loudly rather than silently dropping a mount the user still expects.
 a_project_using_the_removed_volumes_key() {
@@ -386,6 +393,14 @@ build_vol_block_refuses_shadowing_the_claude_state_mount_test_case() {
 build_vol_block_refuses_unsafe_mount_propagation_test_case() {
     given a_project_with_unsafe_mount_propagation
     when the_volumes_block_build_is_attempted
+    expect it_rejects_the_mount
+    expect the_error_mentions_unsafe_propagation
+}
+
+build_vol_block_refuses_comma_joined_unsafe_propagation_test_case() {
+    given a_project_with_comma_joined_unsafe_propagation
+    when the_volumes_block_build_is_attempted
+    # rw,rshared must be rejected too (the canonical multi-option spelling).
     expect it_rejects_the_mount
     expect the_error_mentions_unsafe_propagation
 }
