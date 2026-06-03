@@ -7,27 +7,46 @@ consideration — not committed to any release.
 
 ## Release-Integration Punch List
 
-Items deferred until the project is ready for its first published
-release on a real Git remote. None of these can land until the remote
-URL is known and a GitHub repository exists; tracked here so they
-don't get forgotten at release time.
+The remote, the GitHub repository, and tag-triggered release automation
+(`.github/workflows/release.yml`) now exist, and 0.5.0 has shipped as a
+pre-release — so the original "can't land until a remote exists" blocker
+is gone. What remains are the release-maturity tasks below.
 
+### Supply-chain hardening (1.0 prep)
+
+Targeted at 1.0, where the claim being made is "this is a stable,
+trustworthy release." The image — not the single-file script — is the
+real attack surface, so these harden what actually ships in the
+container.
+
+- **SBOM generation in CI (`syft`).** Add a release step that runs
+  `syft` against the freshly built base image and attaches the SPDX
+  (or CycloneDX) output as a release asset, so anyone downloading a
+  release can verify exactly which apk + npm packages shipped. Optionally
+  gate the release on a `grype`/Trivy scan of that SBOM, failing on
+  high-severity CVEs. Most on-brand remaining item for a security-first
+  container tool.
+- **Build provenance + artifact attestation.** Emit signed SLSA build
+  provenance for release artifacts (e.g. GitHub's
+  `actions/attest-build-provenance`), and optionally sign the base
+  image and the SBOM with `cosign`/Sigstore. Lets a consumer verify a
+  release was built by this repo's CI from this source and not
+  tampered with afterwards — the complement to the SBOM (*what*
+  shipped) and signed tags (*who* tagged it).
 - **GPG-signed release tags.** Switch from `git tag -a` to
-  `git tag -s`. Requires a maintainer GPG key with a verified
-  email matching the GitHub account; the key's public half goes into
-  GitHub settings so signatures show as "verified" on the tag page.
-  CI workflow may want a separate verification job.
-- **SBOM generation in CI.** Add a workflow step that runs `syft`
-  against the freshly built base image and uploads the SPDX or
-  CycloneDX output as a release artifact. Closes the supply-chain
-  story past the SHA-pinned installer: anyone downloading a release
-  can verify exactly what packages shipped.
+  `git tag -s` (0.5.0 used an unsigned annotated tag). Requires a
+  maintainer GPG key with a verified email matching the GitHub
+  account; the public half goes into GitHub settings so signatures
+  show as "verified" on the tag page. A CI job can verify it.
+
+### Repo presentation (anytime)
+
 - **`.github/FUNDING.yml`.** Lists funding platforms (GitHub
   Sponsors, Ko-fi, etc.) used by the maintainer. GitHub renders a
   "Sponsor" button on the repo page when present.
 - **GitHub repo metadata** — description, topics, the "About"
-  sidebar's website/homepage field. Not files but worth checking off
-  at release time so the project's GitHub page isn't blank.
+  sidebar's website/homepage field. Not files, but worth checking
+  off so the project's GitHub page isn't blank.
 
 ---
 
