@@ -89,6 +89,14 @@ _harness_setup_workspace() {
     # almost certainly isn't).
     export CONNIE_ETC_CLAUDE_MD="$WORKSPACE/system-claude.md"
 
+    # Neutralize the host's editor environment. `connie edit` resolves
+    # ${VISUAL:-${EDITOR:-vi}}, so a developer who exports VISUAL/EDITOR (an
+    # interactive editor like vim) would otherwise have it leak into the
+    # editor tests and block waiting for input — the suite would hang on a
+    # developer's machine but pass in CI. Tests that exercise the editor set
+    # VISUAL/EDITOR themselves to a non-interactive stub after this point.
+    unset VISUAL EDITOR
+
     export HOME="$WORKSPACE/home"
     export XDG_CONFIG_HOME="$HOME/.config"
     export XDG_STATE_HOME="$HOME/.local/state"

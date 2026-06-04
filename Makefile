@@ -62,6 +62,7 @@ install: check
 	$(INSTALL) -m 644 $(CURDIR)/src/docker/extend.Dockerfile            $(LIBDIR)/docker/extend.Dockerfile
 	$(INSTALL) -m 644 $(CURDIR)/src/config/defaults.yml                 $(LIBDIR)/config/defaults.yml
 	$(INSTALL) -m 644 $(CURDIR)/src/config/project.yml                  $(LIBDIR)/config/project.yml
+	$(INSTALL) -m 644 $(CURDIR)/src/config/user.yml                     $(LIBDIR)/config/user.yml
 	@echo "==> Done."
 	@echo ""
 	@echo "    Next: run 'connie init <project-dir>' then 'connie run'."

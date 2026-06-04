@@ -1,0 +1,67 @@
+# ~/.config/connie/config.yml
+# connie user configuration — your personal preferences
+#
+# Optional. These settings apply to EVERY connie project on this machine.
+# connie reads config from multiple sources in this order
+# (lowest to highest precedence):
+#
+#   1. connie compiled-in defaults
+#   2. /etc/xdg/connie/config.yml   (system-wide, set by admin)
+#   3. This file                    (your personal preferences)
+#   4. ~/.config/connie/projects/<slug>/config.yml  (per-project)
+#   5. CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS (env vars)
+#   6. CLI flags (--package, --env, --cmd)
+#
+# Higher-precedence sources override lower ones. Everything below is
+# commented out, so by default this file changes nothing: uncomment only
+# what you want applied to all of your projects. The key set is identical
+# to a project's config.yml — see that file (or the project template) for
+# the full documentation of each option.
+
+# ── Packages ──────────────────────────────────────────────────────────────────
+# apk packages added to the image of every project.
+#
+# packages:
+#   - ripgrep
+#   - jq
+
+# ── Build commands ────────────────────────────────────────────────────────────
+# Shell commands run at build time for every project (after apk packages).
+#
+# build_commands:
+#   - npm install -g markdownlint-cli2   # requires packages: [nodejs, npm]
+
+# ── Environment variables ─────────────────────────────────────────────────────
+# Runtime env vars injected into every project's container.
+# Safe to keep here — do not put secret values in config.
+#
+# env:
+#   EDITOR: vim
+
+# ── Mounts ────────────────────────────────────────────────────────────────────
+# Extra host bind mounts for every project. Deliberately named: each one
+# widens your trust surface. See SECURITY.md before using; prefer :ro.
+#
+# unsafe_extra_mounts:
+#   - /data/shared:/data:ro
+
+# ── Ports ─────────────────────────────────────────────────────────────────────
+# Default port mappings exposed from every project's container.
+# Format: "host_port:container_port"
+#
+# ports:
+#   - "8080:8080"
+
+# ── Start command ─────────────────────────────────────────────────────────────
+# The command connie drops you into when a container starts (default: claude).
+#
+# start_cmd: claude
+
+# ── Resource limits ───────────────────────────────────────────────────────────
+# Default container resource ceilings for every project. The compiled-in
+# defaults are memory 4g / cpus "2.0" / max_pids 512.
+#
+# resources:
+#   memory: 4g      # RAM limit (Docker notation: 512m, 1g, 4g, etc.)
+#   cpus: "2.0"     # CPU limit (decimal string: "0.5", "1.0", "4.0")
+#   max_pids: 512   # Maximum number of processes

@@ -8,12 +8,12 @@
 # editor's "go to symbol" or `grep -n '^name(' src/connie` to jump.
 #
 #   Utilities ──────────────────  _die _info _detail _debug _confirm _require
-#                                  _require_yq _usage
+#                                  _require_yq _usage _launch_editor
 #   Project slug + XDG paths ───  _project_slug _project_config _project_state_dir
 #   Project registry ───────────  _register_project _unregister_project
 #   Project root detection ─────  _find_project_root
 #   Migration (.connie/ → XDG) ─  _migrate_project
-#   Config merging ─────────────  _merge_configs
+#   Config merging ─────────────  _merge_configs _validate_config_file
 #   Override generation ────────  _build_fwd_env_obj _build_cli_env_obj
 #                                  _build_env_block _build_vol_block
 #                                  _build_ports_section _generate_override
@@ -25,8 +25,8 @@
 #   Validation / prepare ───────  _prepare
 #   Compose ────────────────────  _compose_project_name _run_compose
 #   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
-#                                  cmd_clean cmd_remove cmd_list cmd_config
-#                                  cmd_context cmd_doctor
+#                                  cmd_clean cmd_remove cmd_list cmd_edit
+#                                  cmd_config cmd_context cmd_doctor
 #   Doctor helpers ─────────────  _doctor_section _doctor_pass _doctor_warn
 #                                  _doctor_fail _doctor_check
 #   Main ───────────────────────  _main
@@ -49,6 +49,7 @@ BASE_IMAGE="${CONNIE_BASE_IMAGE:-connie/base:latest}"
 #   CONNIE_LIB_DIR=./src ./src/connie run ~/repos/project
 LIB_DIR="${CONNIE_LIB_DIR:-/usr/local/lib/connie}"
 PROJECT_TEMPLATE="$LIB_DIR/config/project.yml"
+USER_TEMPLATE="$LIB_DIR/config/user.yml"
 DEFAULTS_FILE="$LIB_DIR/config/defaults.yml"
 
 _xdg_config_dirs="${XDG_CONFIG_DIRS:-/etc/xdg}"
@@ -164,6 +165,8 @@ Usage:
   $TOOL remove     [dir]    Remove ALL connie-owned state for a project (inverse of init)
   $TOOL list                List the project workspaces connie knows about
   $TOOL config     [dir]    Show project paths and effective Compose override
+  $TOOL edit       [dir]    Edit a project's config file in your \$EDITOR
+  $TOOL edit       --user   Edit your user-global config (created if absent)
   $TOOL context    [dir]    Generate and show the Claude Code context file
   $TOOL doctor     [dir]    Diagnose required tools, install, base image, project
   $TOOL help                Show this message
@@ -173,6 +176,9 @@ Options (run, build, config):
   --package <pkg>    Install an additional apk package (repeatable)
   --env KEY=VALUE    Set an additional environment variable (repeatable)
   --cmd <cmd>        Override the start command (default: claude)
+
+Options (edit):
+  --user             Edit the user-global config instead of a project's
 
 Options (remove):
   --yes              Skip the y/N confirmation (required in non-TTY)
@@ -1424,6 +1430,117 @@ cmd_list() {
     printf '%s\n' "$_list_paths"
 }
 
+# ── Edit ─────────────────────────────────────────────────────────────────────
+#
+# `connie edit` opens a config file in the user's editor and validates what
+# they save. Two scopes, mirroring the rest of the CLI's [dir] grammar:
+#
+#   connie edit [dir]   the project's config (must be initialized first)
+#   connie edit --user  the user-global config (created from a template if
+#                       absent — it is the one config layer no other command
+#                       scaffolds)
+#
+# The per-project path embeds a cksum-derived slug, so it is effectively
+# unguessable by hand; `edit` is how a user reaches it without copying the
+# path out of `connie config`. Validation runs after a successful editor
+# exit and leaves the file exactly as saved even when it rejects it — connie
+# reports the problem rather than discarding the user's work.
+
+# Resolve the editor ($VISUAL, then $EDITOR, then vi) and open <file>. The
+# editor value may carry arguments (e.g. "code --wait"), so the expansion is
+# deliberately word-split. Returns the editor's own exit status.
+_launch_editor() {
+    _le_editor="${VISUAL:-${EDITOR:-vi}}"
+    # shellcheck disable=SC2086 # $_le_editor may include args; intentional split
+    $_le_editor "$1"
+}
+
+# Sanity-check a config file the user just edited. Contract:
+#   unparseable YAML            → error on stderr, return 1
+#   top-level map               → ok; warn (still return 0) on unknown keys
+#   top-level null / empty      → ok (a fully-commented file is a valid no-op)
+#   top-level scalar / sequence → error on stderr, return 1
+# The file itself is never modified — connie only reports.
+_validate_config_file() {
+    _vcf_path="$1"
+
+    # `yq tag` exits non-zero on a YAML parse error. Capture inside `if !` so
+    # `set -e` doesn't abort before we can print a friendly message.
+    if ! _vcf_tag=$(yq 'tag' "$_vcf_path" 2>/dev/null); then
+        printf 'error: %s is not valid YAML; left as you saved it.\n' "$_vcf_path" >&2
+        return 1
+    fi
+
+    case "$_vcf_tag" in
+        '!!map') ;;
+        '!!null')
+            # Empty or all-comments: contributes nothing to the merge. Fine.
+            return 0
+            ;;
+        *)
+            printf 'error: %s must be a mapping of config keys (got %s); left as you saved it.\n' \
+                "$_vcf_path" "${_vcf_tag#!!}" >&2
+            return 1
+            ;;
+    esac
+
+    # Map case: warn (but don't fail) on keys connie doesn't recognize, so a
+    # typo'd `resorces:` is caught now instead of silently doing nothing. The
+    # `keys` query is safe here because the tag is known to be !!map. Piping
+    # into `while read` avoids word-splitting the key list. The allowed set is
+    # the complete list of top-level keys connie consumes (see defaults.yml).
+    _vcf_allowed=" packages build_commands env resources ports unsafe_extra_mounts start_cmd "
+    yq 'keys | .[]' "$_vcf_path" 2>/dev/null | while IFS= read -r _vcf_key; do
+        case "$_vcf_allowed" in
+            *" $_vcf_key "*) ;;
+            *)
+                printf 'warning: %s: unknown config key %s (connie will ignore it)\n' \
+                    "$_vcf_path" "$_vcf_key" >&2
+                ;;
+        esac
+    done
+
+    return 0
+}
+
+cmd_edit() {
+    _require_yq
+
+    if [ "$_ARG_USER" = "1" ]; then
+        [ -z "${1:-}" ] ||
+            _die "'$TOOL edit --user' takes no directory argument." \
+                "Use '$TOOL edit --user' for your user config, or '$TOOL edit [dir]' for a project."
+        mkdir -p "$CONFIG_DIR"
+        # Same scaffolding strategy as cmd_init: ship a template, copy it in
+        # only when absent, never clobber. The user-global config is the one
+        # layer no other command creates.
+        if [ ! -f "$USER_CONFIG" ]; then
+            cp "$USER_TEMPLATE" "$USER_CONFIG"
+            _detail "created  $USER_CONFIG"
+        fi
+        _edit_cfg="$USER_CONFIG"
+        _edit_scope="user"
+    else
+        _edit_root=$(_find_project_root "${1:-$PWD}")
+        _require_project_config "$_edit_root"
+        _edit_cfg=$(_project_config "$_edit_root")
+        _edit_scope="project"
+    fi
+
+    _info "Editing $_edit_scope config: $_edit_cfg"
+
+    # `|| { st=$?; }` so the editor's real exit status survives (an `if !`
+    # wrapper would reset $? to the negation's result).
+    _launch_editor "$_edit_cfg" || {
+        _le_status=$?
+        _die "Editor exited with status $_le_status; changes (if any) left at $_edit_cfg."
+    }
+
+    # Returns non-zero on a hard error, which (under set -e) becomes connie's
+    # exit status; the file is left as the user saved it either way.
+    _validate_config_file "$_edit_cfg"
+}
+
 cmd_config() {
     _project_root=$(_find_project_root "${1:-$PWD}")
 
@@ -1667,6 +1784,8 @@ _main() {
     _ARG_KEEP_STATE=0
     _ARG_KEEP_IMAGE=0
     _ARG_DRY_RUN=0
+    # Flag scoped to `edit`: target the user-global config instead of a project.
+    _ARG_USER=0
     _SUBCOMMAND=""
     _TARGET_DIR=""
 
@@ -1682,7 +1801,7 @@ _main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            init | run | build | clean | remove | config | context | doctor | list | help | version)
+            init | run | build | clean | remove | config | edit | context | doctor | list | help | version)
                 _SUBCOMMAND="$1"
                 shift
                 ;;
@@ -1733,6 +1852,10 @@ _main() {
                 _ARG_DRY_RUN=1
                 shift
                 ;;
+            --user)
+                _ARG_USER=1
+                shift
+                ;;
             --version)
                 printf '%s %s\n' "$TOOL" "$VERSION"
                 exit 0
@@ -1757,6 +1880,7 @@ _main() {
         clean) cmd_clean "${_TARGET_DIR:-}" ;;
         remove) cmd_remove "${_TARGET_DIR:-}" ;;
         config) cmd_config "${_TARGET_DIR:-}" ;;
+        edit) cmd_edit "${_TARGET_DIR:-}" ;;
         context) cmd_context "${_TARGET_DIR:-}" ;;
         doctor) cmd_doctor "${_TARGET_DIR:-}" ;;
         list) cmd_list ;;

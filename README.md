@@ -107,6 +107,7 @@ and reused on every subsequent `connie run` for that project.
 | `connie remove [dir]` | Remove all connie-owned state for a project (inverse of init) |
 | `connie list` | List the project workspaces connie knows about |
 | `connie config [dir]` | Show project paths and effective Compose override |
+| `connie edit [dir]` | Edit a project's config in `$EDITOR` (`--user` for the user-global config) |
 | `connie context [dir]` | Generate and show the Claude Code context file |
 | `connie doctor [dir]` | Diagnose required tools, install, base image, and project state |
 | `connie help` | Show usage |
@@ -395,7 +396,7 @@ accepting `EXTRA_PACKAGES` and `BUILD_COMMANDS` as build args. These are
 injected at build time from the merged config — the image is rebuilt only when
 they change; otherwise Docker's layer cache makes the build instant.
 
-### Config: `config/defaults.yml` + `config/project.yml`
+### Config: `config/defaults.yml`, `config/project.yml`, `config/user.yml`
 
 `defaults.yml` is the lowest-precedence layer in connie's config merge. It is
 read on every `connie run`, `connie build`, and `connie config` and is never
@@ -404,6 +405,11 @@ copied anywhere.
 `project.yml` is copied once by `connie init` to
 `~/.config/connie/projects/<slug>/config.yml` and never overwritten. It is the
 developer-owned file that describes the project's container needs.
+
+`user.yml` is the analogous template for machine-wide personal preferences.
+`connie edit --user` copies it once to `~/.config/connie/config.yml` (creating
+it on first use) and never overwrites it; its settings apply to every project,
+sitting just below per-project config in the merge.
 
 ---
 

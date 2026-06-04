@@ -98,6 +98,7 @@ between them.
 │  src/docker/extend.Dockerfile Per-project build template        │
 │  src/config/defaults.yml      Compiled-in defaults              │
 │  src/config/project.yml       Project config template           │
+│  src/config/user.yml          User config template              │
 │  Makefile                     Install / uninstall               │
 └────────────────────┬────────────────────────────────────────────┘
                      │ installed to /usr/local/bin/connie
@@ -107,7 +108,7 @@ between them.
 │                                                                 │
 │  /usr/local/bin/connie              The CLI                     │
 │  /usr/local/lib/connie/docker/      Dockerfiles, entrypoint     │
-│  /usr/local/lib/connie/config/      defaults.yml, project.yml   │
+│  /usr/local/lib/connie/config/   defaults.yml + project/user.yml│
 │  connie/base:latest                 Locally built base image    │
 │  /etc/xdg/connie/config.yml         System-wide config (opt.)   │
 │  ~/.config/connie/config.yml        User config (optional)      │
@@ -658,7 +659,7 @@ they only go stale.)
 | --- | --- | --- |
 | Unit | `tests/unit/` | Pure functions: `_project_slug`, `_merge_configs`, `_generate_override` and its sub-helpers (the dangerous-mount guard, path normalizer, config type/value validation, and YAML-safe value encoding), `_generate_connie_context`, `_compose_project_name`, plus a parse-check asserting the base `docker-compose.yml` hardening. |
 | Integration | `tests/integration/` | In-process helpers that touch the environment but not Docker: `_migrate_project`, `_register_project`, `_find_project_root`, `cmd_init`, the context-emit functions, `_prepare` and `_run_compose` (via shell-function stubs for docker), `_confirm`, and the `_require_yq` v4 sniff. |
-| CLI | `tests/cli/` | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie context`, `connie list`, `connie remove`, `connie doctor`, verbosity flag/env precedence, and end-to-end rejection of dangerous config (socket/kernel mounts, control-char env keys, bad resource values), including the legacy-`.connie/` and uninitialised diagnostics. |
+| CLI | `tests/cli/` | Top-level subcommand behaviour observable via stdout/stderr/exit code: `connie help`, `connie config`, `connie edit`, `connie context`, `connie list`, `connie remove`, `connie doctor`, verbosity flag/env precedence, and end-to-end rejection of dangerous config (socket/kernel mounts, control-char env keys, bad resource values), including the legacy-`.connie/` and uninitialised diagnostics. |
 | Docker | `tests/docker/` | End-to-end against real images and containers: `build-base`, `build`, `clean`, `run` lifecycle, runtime hardening (cap_drop, no-new-privileges, no SUID binaries), cgroup-v2 resource-limit enforcement, host↔container context parity, `.connie/` → XDG auto-migration trigger. Gated on `docker` being on `$PATH`. |
 
 ### DSL

@@ -9,6 +9,19 @@ Versioning follows [Semantic Versioning][semver].
 
 ## [Unreleased]
 
+### Added
+
+- **`connie edit [dir]`** opens a project's config file in your editor
+  (`$VISUAL`, then `$EDITOR`, then `vi`) and validates what you save —
+  warning on unrecognized top-level keys and rejecting a file that is not a
+  YAML mapping, while always leaving your edits on disk. The per-project
+  config path embeds a checksum and so is effectively unguessable by hand;
+  `edit` reaches it without copying the path out of `connie config`.
+- **`connie edit --user`** edits the user-global config
+  (`~/.config/connie/config.yml`), scaffolding it from a new shipped template
+  (`config/user.yml`) on first use — the one config layer no other command
+  creates.
+
 ## [0.5.0] — 2026-06-02
 
 ### Added
