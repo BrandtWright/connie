@@ -11,16 +11,22 @@ Versioning follows [Semantic Versioning][semver].
 
 ### Added
 
-- **`connie edit [dir]`** opens a project's config file in your editor
-  (`$VISUAL`, then `$EDITOR`, then `vi`) and validates what you save —
-  warning on unrecognized top-level keys and rejecting a file that is not a
-  YAML mapping, while always leaving your edits on disk. The per-project
-  config path embeds a checksum and so is effectively unguessable by hand;
-  `edit` reaches it without copying the path out of `connie config`.
-- **`connie edit --user`** edits the user-global config
-  (`~/.config/connie/config.yml`), scaffolding it from a new shipped template
-  (`config/user.yml`) on first use — the one config layer no other command
-  creates.
+- **`connie edit-config [dir]` / `--user`** opens a config file in your editor
+  (`$VISUAL`, then `$EDITOR`, then `vi`) and validates what you save — warning
+  on unrecognized top-level keys and rejecting a file that is not a YAML
+  mapping, while always leaving your edits on disk. The project path embeds a
+  checksum and so is effectively unguessable by hand; `edit-config` reaches it
+  without copying the path out of `connie config`. The `--user` form edits the
+  user-global config (`~/.config/connie/config.yml`), scaffolding it from a
+  shipped template (`config/user.yml`) on first use — the one config layer no
+  other command creates.
+- **`connie edit-context [dir]` / `--user`** opens the connie context file
+  appended to Claude's system prompt — the project context
+  (`~/.config/connie/projects/<slug>/context.md`) or, with `--user`, the
+  user-global one (`~/.config/connie/context.md`). It is freeform markdown, so
+  there is no validation and no template; connie opens an empty file when
+  absent and drops it again if you leave it empty (an empty context adds
+  nothing). Pairs with `connie context`, which prints the assembled payload.
 - **Config delete directives.** A `-<identity>` list entry removes an entry a
   lower-precedence layer added — `-vim` (package), `"-8080"` (host port),
   `-/data` (mount by container target) — and setting an `env` variable to

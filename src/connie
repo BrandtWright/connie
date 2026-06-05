@@ -8,7 +8,7 @@
 # editor's "go to symbol" or `grep -n '^name(' src/connie` to jump.
 #
 #   Utilities ──────────────────  _die _info _detail _debug _confirm _require
-#                                  _require_yq _usage _launch_editor
+#                                  _require_yq _usage _launch_editor _edit_file
 #   Project slug + XDG paths ───  _project_slug _project_config _project_state_dir
 #   Project registry ───────────  _register_project _unregister_project
 #   Project root detection ─────  _find_project_root
@@ -22,8 +22,9 @@
 #   Validation / prepare ───────  _prepare
 #   Compose ────────────────────  _compose_project_name _run_compose
 #   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
-#                                  cmd_clean cmd_remove cmd_list cmd_edit
-#                                  cmd_config cmd_context cmd_doctor
+#                                  cmd_clean cmd_remove cmd_list cmd_edit_config
+#                                  cmd_edit_context cmd_config cmd_context
+#                                  cmd_doctor
 #   Doctor helpers ─────────────  _doctor_section _doctor_pass _doctor_warn
 #                                  _doctor_fail _doctor_check
 #   Main ───────────────────────  _main
@@ -162,28 +163,30 @@ workspace and per-project Claude Code state. Nothing is written to the
 project directory itself.
 
 Usage:
-  $TOOL init       [dir]    Initialize connie for a project directory
-  $TOOL run        [dir]    Build (if needed) and start Claude Code
-  $TOOL build      [dir]    Build the project container image without starting it
-  $TOOL build-base          Build (or rebuild) the connie base image
-  $TOOL clean      [dir]    Remove the locally built project container image
-  $TOOL remove     [dir]    Remove ALL connie-owned state for a project (inverse of init)
-  $TOOL list                List the project workspaces connie knows about
-  $TOOL config     [dir]    Show project paths and effective Compose override
-  $TOOL edit       [dir]    Edit a project's config file in your \$EDITOR
-  $TOOL edit       --user   Edit your user-global config (created if absent)
-  $TOOL context    [dir]    Generate and show the Claude Code context file
-  $TOOL doctor     [dir]    Diagnose required tools, install, base image, project
-  $TOOL help                Show this message
-  $TOOL version             Show version
+  $TOOL init         [dir]    Initialize connie for a project directory
+  $TOOL run          [dir]    Build (if needed) and start Claude Code
+  $TOOL build        [dir]    Build the project container image without starting it
+  $TOOL build-base            Build (or rebuild) the connie base image
+  $TOOL clean        [dir]    Remove the locally built project container image
+  $TOOL remove       [dir]    Remove ALL connie-owned state for a project (inverse of init)
+  $TOOL list                  List the project workspaces connie knows about
+  $TOOL config       [dir]    Show project paths and effective Compose override
+  $TOOL edit-config  [dir]    Edit a project's config file in your \$EDITOR
+  $TOOL edit-config  --user   Edit your user-global config (created if absent)
+  $TOOL edit-context [dir]    Edit a project's connie context (appended to Claude's prompt)
+  $TOOL edit-context --user   Edit your user-global connie context
+  $TOOL context      [dir]    Generate and show the Claude Code context file
+  $TOOL doctor       [dir]    Diagnose required tools, install, base image, project
+  $TOOL help                  Show this message
+  $TOOL version               Show version
 
 Options (run, build, config):
   --package <pkg>    Install an additional apk package (repeatable)
   --env KEY=VALUE    Set an additional environment variable (repeatable)
   --cmd <cmd>        Override the start command (default: claude)
 
-Options (edit):
-  --user             Edit the user-global config instead of a project's
+Options (edit-config, edit-context):
+  --user             Edit the user-global file instead of a project's
 
 Options (remove):
   --yes              Skip the y/N confirmation (required in non-TTY)
@@ -1405,19 +1408,26 @@ cmd_list() {
 
 # ── Edit ─────────────────────────────────────────────────────────────────────
 #
-# `connie edit` opens a config file in the user's editor and validates what
-# they save. Two scopes, mirroring the rest of the CLI's [dir] grammar:
+# `connie edit-config` and `connie edit-context` open a file in the user's
+# editor, mirroring the show commands (`config`/`context`) and the rest of the
+# CLI's [dir] grammar:
 #
-#   connie edit [dir]   the project's config (must be initialized first)
-#   connie edit --user  the user-global config (created from a template if
-#                       absent — it is the one config layer no other command
-#                       scaffolds)
+#   connie edit-config  [dir]    the project's config   (must be initialized)
+#   connie edit-config  --user   the user-global config (scaffolded if absent —
+#                                 the one config layer no other command creates)
+#   connie edit-context [dir]    the project's context  (must be initialized)
+#   connie edit-context --user   the user-global context
 #
-# The per-project path embeds a cksum-derived slug, so it is effectively
-# unguessable by hand; `edit` is how a user reaches it without copying the
-# path out of `connie config`. Validation runs after a successful editor
-# exit and leaves the file exactly as saved even when it rejects it — connie
-# reports the problem rather than discarding the user's work.
+# The per-project paths embed a cksum-derived slug, so they are effectively
+# unguessable by hand; these commands are how a user reaches them without
+# copying paths out of `connie config`. Both share `_edit_file` for the
+# editor launch and exit-status handling, then differ:
+#
+#   - edit-config validates YAML after a successful exit, leaving the file
+#     exactly as saved even when it rejects it (connie reports, never discards).
+#   - edit-context needs no validation (freeform markdown appended to Claude's
+#     system prompt) and no template; it opens an empty file when absent and
+#     drops it again if left empty, since an empty context contributes nothing.
 
 # Resolve the editor ($VISUAL, then $EDITOR, then vi) and open <file>. The
 # editor value may carry arguments (e.g. "code --wait"), so the expansion is
@@ -1476,13 +1486,27 @@ _validate_config_file() {
     return 0
 }
 
-cmd_edit() {
+# Launch the editor on a file, dying with a clear message if the editor itself
+# errors (as opposed to saving content connie later rejects). $1 = path, $2 =
+# human label for the "Editing …" line. The `|| { st=$?; }` form preserves the
+# editor's real exit status (an `if !` wrapper would reset $? to the negation).
+_edit_file() {
+    _ef_path="$1"
+    _ef_label="$2"
+    _info "Editing $_ef_label: $_ef_path"
+    _launch_editor "$_ef_path" || {
+        _ef_status=$?
+        _die "Editor exited with status $_ef_status; changes (if any) left at $_ef_path."
+    }
+}
+
+cmd_edit_config() {
     _require_yq
 
     if [ "$_ARG_USER" = "1" ]; then
         [ -z "${1:-}" ] ||
-            _die "'$TOOL edit --user' takes no directory argument." \
-                "Use '$TOOL edit --user' for your user config, or '$TOOL edit [dir]' for a project."
+            _die "'$TOOL edit-config --user' takes no directory argument." \
+                "Use '$TOOL edit-config --user' for your user config, or '$TOOL edit-config [dir]' for a project."
         mkdir -p "$CONFIG_DIR"
         # Same scaffolding strategy as cmd_init: ship a template, copy it in
         # only when absent, never clobber. The user-global config is the one
@@ -1491,27 +1515,47 @@ cmd_edit() {
             cp "$USER_TEMPLATE" "$USER_CONFIG"
             _detail "created  $USER_CONFIG"
         fi
-        _edit_cfg="$USER_CONFIG"
-        _edit_scope="user"
+        _ec_file="$USER_CONFIG"
+        _ec_scope="user"
     else
-        _edit_root=$(_find_project_root "${1:-$PWD}")
-        _require_project_config "$_edit_root"
-        _edit_cfg=$(_project_config "$_edit_root")
-        _edit_scope="project"
+        _ec_root=$(_find_project_root "${1:-$PWD}")
+        _require_project_config "$_ec_root"
+        _ec_file=$(_project_config "$_ec_root")
+        _ec_scope="project"
     fi
 
-    _info "Editing $_edit_scope config: $_edit_cfg"
-
-    # `|| { st=$?; }` so the editor's real exit status survives (an `if !`
-    # wrapper would reset $? to the negation's result).
-    _launch_editor "$_edit_cfg" || {
-        _le_status=$?
-        _die "Editor exited with status $_le_status; changes (if any) left at $_edit_cfg."
-    }
+    _edit_file "$_ec_file" "$_ec_scope config"
 
     # Returns non-zero on a hard error, which (under set -e) becomes connie's
     # exit status; the file is left as the user saved it either way.
-    _validate_config_file "$_edit_cfg"
+    _validate_config_file "$_ec_file"
+}
+
+cmd_edit_context() {
+    if [ "$_ARG_USER" = "1" ]; then
+        [ -z "${1:-}" ] ||
+            _die "'$TOOL edit-context --user' takes no directory argument." \
+                "Use '$TOOL edit-context --user' for your user context, or '$TOOL edit-context [dir]' for a project."
+        mkdir -p "$CONFIG_DIR"
+        _ex_file="$USER_CONTEXT"
+        _ex_scope="user"
+    else
+        _ex_root=$(_find_project_root "${1:-$PWD}")
+        _require_project_config "$_ex_root"
+        _ex_file="$CONFIG_DIR/projects/$(_project_slug "$_ex_root")/context.md"
+        _ex_scope="project"
+    fi
+
+    # No template and no validation: context is freeform markdown appended to
+    # Claude's system prompt. Open an empty file when absent (so the editor has
+    # something to attach to), say what it is, then drop it again if left empty
+    # — an empty context contributes nothing (see _resolve_context), so a
+    # 0-byte file would be pure clutter. An existing file is never truncated
+    # before editing.
+    [ -f "$_ex_file" ] || : >"$_ex_file"
+    _detail "Markdown here is appended to Claude's system prompt; an empty file adds nothing."
+    _edit_file "$_ex_file" "$_ex_scope context"
+    [ -s "$_ex_file" ] || rm -f "$_ex_file"
 }
 
 cmd_config() {
@@ -1748,7 +1792,7 @@ _main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-            init | run | build | clean | remove | config | edit | context | doctor | list | help | version)
+            init | run | build | clean | remove | config | edit-config | edit-context | context | doctor | list | help | version)
                 _SUBCOMMAND="$1"
                 shift
                 ;;
@@ -1827,7 +1871,8 @@ _main() {
         clean) cmd_clean "${_TARGET_DIR:-}" ;;
         remove) cmd_remove "${_TARGET_DIR:-}" ;;
         config) cmd_config "${_TARGET_DIR:-}" ;;
-        edit) cmd_edit "${_TARGET_DIR:-}" ;;
+        edit-config) cmd_edit_config "${_TARGET_DIR:-}" ;;
+        edit-context) cmd_edit_context "${_TARGET_DIR:-}" ;;
         context) cmd_context "${_TARGET_DIR:-}" ;;
         doctor) cmd_doctor "${_TARGET_DIR:-}" ;;
         list) cmd_list ;;

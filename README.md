@@ -106,7 +106,8 @@ and reused on every subsequent `connie run` for that project.
 | `connie remove [dir]` | Remove all connie-owned state for a project (inverse of init) |
 | `connie list` | List the project workspaces connie knows about |
 | `connie config [dir]` | Show project paths and effective Compose override |
-| `connie edit [dir]` | Edit a project's config in `$EDITOR` (`--user` for the user-global config) |
+| `connie edit-config [dir]` | Edit a project's config in `$EDITOR` (`--user` for the user-global config) |
+| `connie edit-context [dir]` | Edit a project's connie context (`--user` for the user-global context) |
 | `connie context [dir]` | Generate and show the Claude Code context file |
 | `connie doctor [dir]` | Diagnose required tools, install, base image, and project state |
 | `connie help` | Show usage |
@@ -284,7 +285,8 @@ for personal preferences that apply everywhere, the project file for
 per-project notes you don't want checked into the repo, and the machine file
 (`/etc/xdg/connie/context.md`) for host-specific facts. These are plain
 markdown — no YAML, no escaping — and changes take effect on the next
-`connie run`.
+`connie run`. `connie edit-context [dir]` (or `--user`) opens the project or
+user file for you; leave it empty to contribute nothing.
 
 ### Wiring it into other tools
 
@@ -416,9 +418,9 @@ copied anywhere.
 developer-owned file that describes the project's container needs.
 
 `user.yml` is the analogous template for machine-wide personal preferences.
-`connie edit --user` copies it once to `~/.config/connie/config.yml` (creating
-it on first use) and never overwrites it; its settings apply to every project,
-sitting just below per-project config in the merge.
+`connie edit-config --user` copies it once to `~/.config/connie/config.yml`
+(creating it on first use) and never overwrites it; its settings apply to every
+project, sitting just below per-project config in the merge.
 
 ---
 

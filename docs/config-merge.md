@@ -25,8 +25,8 @@ defaults(packages: []) → user(packages: [neovim]) → project(packages: [])
   ⇒  packages: []        # the user's neovim is read in, then wiped
 ```
 
-So `connie edit --user` + adding `neovim` to `packages` does nothing for any
-initialized project: the merged list is empty, the build arg is unchanged,
+So `connie edit-config --user` + adding `neovim` to `packages` does nothing
+for any initialized project: the merged list is empty, the build arg is unchanged,
 Docker hits its cache, and nothing installs. The user-level and system-level
 layers are effectively dead for every list-valued key (`packages`,
 `build_commands`, `ports`, `unsafe_extra_mounts`). Maps and scalars (`env`,
