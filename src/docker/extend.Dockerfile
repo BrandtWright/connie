@@ -13,12 +13,12 @@
 #                    base without touching the user's real production tag)
 #   EXTRA_PACKAGES   apk packages to install
 #   BUILD_COMMANDS   arbitrary shell commands run as claude-user
-#   CONNIE_CONTEXT   managed-policy Claude Code context, written to
-#                    /etc/claude-code/CLAUDE.md inside the image so Claude
-#                    Code loads it on every session as the highest-priority,
-#                    immutable scope describing the container environment.
 # If a build arg has not changed since the last build, Docker's layer cache
 # means the corresponding step completes instantly.
+#
+# connie's own context is no longer baked into the image; it is appended to
+# Claude's system prompt at run time via `claude --append-system-prompt` (the
+# launch command in the generated Compose override). See docs/context.md.
 
 # BASE_IMAGE is a "global" ARG — it must appear before the first FROM
 # so it can be referenced in the FROM line. ARGs declared after FROM
@@ -28,7 +28,6 @@ FROM ${BASE_IMAGE}
 
 ARG EXTRA_PACKAGES
 ARG BUILD_COMMANDS
-ARG CONNIE_CONTEXT
 
 USER root
 # `--` stops apk option parsing so a package token cannot inject an apk flag
@@ -44,11 +43,6 @@ USER root
 RUN if [ -n "$EXTRA_PACKAGES" ]; then \
         apk add --no-cache -- $EXTRA_PACKAGES \
         && { find / -perm /6000 -type f -exec chmod a-s {} + 2>/dev/null || true; }; \
-    fi
-
-RUN if [ -n "$CONNIE_CONTEXT" ]; then \
-        mkdir -p /etc/claude-code && \
-        printf '%s' "$CONNIE_CONTEXT" > /etc/claude-code/CLAUDE.md; \
     fi
 
 # Set npm global prefix to a user-writable location already on PATH.

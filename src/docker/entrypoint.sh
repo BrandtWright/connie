@@ -39,7 +39,4 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/tmp/.gitconfig}"
 # user, which triggers git's dubious ownership check.
 git config --global --add safe.directory /workspace 2>/dev/null || true
 
-# Show what command is about to run — helps diagnose startup issues.
-printf 'connie entrypoint: exec %s\n' "$*" >&2
-
 exec "$@"

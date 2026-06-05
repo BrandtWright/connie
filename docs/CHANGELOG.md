@@ -40,6 +40,23 @@ Versioning follows [Semantic Versioning][semver].
   more-specific layer adds to, remaps, or redefines what a more-general one set
   rather than clobbering it. Configuration still composes only application
   settings, never the container's security posture. See `docs/config-merge.md`.
+- **Context is now appended to Claude's system prompt instead of written as
+  `CLAUDE.md`.** connie no longer bakes a managed-policy
+  `/etc/claude-code/CLAUDE.md` into the image or assembles a
+  `~/.claude/CLAUDE.md` from host files. It appends its context to Claude's
+  system prompt at launch via `claude --append-system-prompt`, so a project's
+  own `CLAUDE.md` loads natively and is never read, written, or shadowed.
+  Context is sourced from a generated application scope plus optional
+  `context.md` files beside each config layer (`/etc/xdg/connie/`,
+  `~/.config/connie/`, and the per-project config dir); `connie context` prints
+  the exact payload that will be appended. A non-`claude` `start_cmd` receives
+  no injection. See `docs/context.md`.
+
+### Removed
+
+- **`CONNIE_ETC_CLAUDE_MD`** — the host-system-wide-policy path override is
+  gone, along with the user-level `~/.claude/CLAUDE.md` assembly it supported
+  (superseded by the system-prompt context model above).
 
 ## [0.5.0] — 2026-06-02
 

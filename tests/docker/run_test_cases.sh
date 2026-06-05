@@ -64,10 +64,15 @@ run_enforces_a_read_only_root_filesystem_test_case() {
     expect stdout_to_contain "READ_ONLY"
 }
 
-run_loads_the_connie_managed_policy_context_into_etc_claude_code_test_case() {
+run_does_not_bake_context_into_the_image_test_case() {
     given a_unique_test_base_image_tag_and_an_initialized_project
-    when the_user_runs_connie_run_with_command "cat /etc/claude-code/CLAUDE.md"
-    expect stdout_to_contain "# Connie Container Environment"
+    # connie no longer writes its context to a file in the image — it is
+    # appended to Claude's system prompt via --append-system-prompt in the
+    # launch command instead. Confirm the old baked artifact is gone (a
+    # `--cmd` override runs a non-claude command, so no flag is injected;
+    # this is purely a regression guard that the bake was removed).
+    when the_user_runs_connie_run_with_command "sh -c 'cat /etc/claude-code/CLAUDE.md 2>/dev/null || echo NO_BAKED_CONTEXT'"
+    expect stdout_to_contain "NO_BAKED_CONTEXT"
 }
 
 run_does_not_leak_connie_no_dispatch_into_the_container_environment_test_case() {

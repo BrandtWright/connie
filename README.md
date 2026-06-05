@@ -19,13 +19,12 @@ into Claude Code — ready to assist with development tasks.
 connie run ~/repos/my-project
         │
         ├── reads   ~/.config/connie/projects/<slug>/config.yml   project config
+        ├── reads   context.md beside each config layer (if present) connie context
         ├── builds  connie-workspace image                         base + packages
-        │           with /etc/claude-code/CLAUDE.md baked in       managed-policy context
-        ├── writes  ~/.local/state/connie/<slug>/.claude/CLAUDE.md user-level context
         ├── mounts  ~/repos/my-project  →  /workspace               (read/write)
         ├── mounts  ~/.local/state/connie/<slug>/.claude/         →  ~/.claude/
         ├── mounts  ~/.local/state/connie/<slug>/.claude.json     →  ~/.claude.json
-        └── starts  Claude Code         inside the hardened container
+        └── starts  claude --append-system-prompt <connie context>  in the container
 ```
 
 Nothing is written to the project directory. Claude Code state (auth tokens,
@@ -254,53 +253,52 @@ start_cmd: claude
 
 ## Claude Code Context
 
-Claude Code loads `CLAUDE.md` files from four scopes in this order, from
-broadest to most specific:
+connie appends its own context to Claude's system prompt when it launches
+Claude (`claude --append-system-prompt`). It writes no `CLAUDE.md` anywhere,
+so a project's own `CLAUDE.md` (and `CLAUDE.local.md`) loads natively, exactly
+as Claude Code finds it — connie never reads, writes, or shadows it. Projects
+that already use `CLAUDE.md` work without modification.
 
-| Scope | Path in container | Managed by | Purpose |
-| --- | --- | --- | --- |
-| Managed policy | `/etc/claude-code/CLAUDE.md` | connie (build time) | Describes the connie container and its customization for this project |
-| User-level | `~/.claude/CLAUDE.md` | connie (run time) | Personal Claude Code preferences forwarded from the host, applied across all projects |
-| Project | `/workspace/CLAUDE.md` or `/workspace/.claude/CLAUDE.md` | the project | Project-specific instructions, unmodified by connie |
-| Local | `/workspace/CLAUDE.local.md` | the developer | Personal project notes, unmodified by connie |
+The appended payload has up to four scopes, assembled from conventional files
+on the host:
 
-connie populates the first two scopes. The project and local scopes come
-from `/workspace` exactly as Claude Code finds them — connie does not touch
-`/workspace/CLAUDE.md` or `/workspace/CLAUDE.local.md`, so projects that
-already use them work without modification.
+| Scope | Source on host | Included |
+| --- | --- | --- |
+| Application | generated from the merged config | always |
+| Machine | `/etc/xdg/connie/context.md` | if the file exists |
+| User | `~/.config/connie/context.md` | if the file exists |
+| Project | `~/.config/connie/projects/<slug>/context.md` | if the file exists |
 
-### Managed policy — connie describing the container
+### Application — connie describing the container
 
-On every `connie build`/`connie run`, connie reads the merged project
-config and generates a description of the container environment:
-filesystem constraints, available tools, installed packages, build-time
-setup commands, additional mounts, exposed ports, environment variables,
-and resource limits. The content is baked into the image at
-`/etc/claude-code/CLAUDE.md` via a Docker build arg, so Claude Code finds
-it at the path it expects for managed-policy context. Because it lives in
-the image, the user cannot exclude it. Docker layer caching means the
-rebuild step completes instantly when the content has not changed.
+connie generates a description of the container environment from the merged
+config: filesystem constraints, available tools, installed packages,
+build-time setup commands, additional mounts, exposed ports, environment
+variables, and resource limits. This scope is always present.
 
-### User-level — host preferences forwarded into the container
+### Machine / User / Project — your own context
 
-On every `connie run`, connie assembles the container's `~/.claude/CLAUDE.md`
-by concatenating two host files, in this order:
+Drop a `context.md` beside any config layer and its contents are appended
+under a `## … Context` heading. Use the user file (`~/.config/connie/context.md`)
+for personal preferences that apply everywhere, the project file for
+per-project notes you don't want checked into the repo, and the machine file
+(`/etc/xdg/connie/context.md`) for host-specific facts. These are plain
+markdown — no YAML, no escaping — and changes take effect on the next
+`connie run`.
 
-1. `/etc/claude-code/CLAUDE.md` on the host — system-wide host context
-2. `~/.claude/CLAUDE.md` on the host — your personal Claude Code preferences
+### Wiring it into other tools
 
-The result is written into the per-project state directory, which is
-bind-mounted to `~/.claude/` inside the container. If neither host file
-exists, no file is written and the user-level scope is simply empty.
-Changes on the host take effect on the next `connie run`.
+The payload reaches Claude via `--append-system-prompt`. If you point connie
+at a different tool with `start_cmd`, connie does not inject the flag (it
+can't assume another tool understands it); read `connie context` and wire the
+output into your tool however it expects.
 
 ### Previewing
 
-Run `connie context [dir]` to print all four context scopes — the two
-connie populates plus the project and local scopes it reads from the
-project directory — without starting the container. This requires no
-Docker and is the quickest way to verify exactly what Claude Code will
-load before a run.
+Run `connie context [dir]` to print the exact payload connie will append —
+without starting the container. It needs no Docker and is the quickest way to
+verify what Claude will receive before a run. (A one-line diagnostic goes to
+stderr, so `connie context > preview.md` captures just the payload.)
 
 ---
 
@@ -337,14 +335,15 @@ XDG locations on your machine:
 ```text
 ~/.config/connie/
 ├── config.yml                        your personal preferences (all projects)
+├── context.md                        your personal context, appended to Claude (optional)
 └── projects/
     └── <slug>/
-        └── config.yml                project-specific config (edit this)
+        ├── config.yml                project-specific config (edit this)
+        └── context.md                project-specific context (optional)
 
 ~/.local/state/connie/
 └── <slug>/
     ├── .claude/                      Claude Code credentials, history, state
-    │   └── CLAUDE.md                 user-level context (generated by connie run)
     └── .claude.json                  Claude Code account metadata and config
 
 ~/.local/share/connie/

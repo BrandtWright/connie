@@ -169,29 +169,29 @@ write to the read-only filesystem.
 
 ### Claude Code context generation
 
-Claude Code loads `CLAUDE.md` from four scopes. connie populates two of them:
+connie bakes and writes no `CLAUDE.md`. It appends its context to Claude's
+system prompt at launch via `claude --append-system-prompt`, so a project's own
+`CLAUDE.md` loads natively and is never read, written, or shadowed.
 
-1. **Managed policy** (`/etc/claude-code/CLAUDE.md` in the container) —
-   `_generate_connie_context` reads the merged config and emits markdown
-   describing the container. `_generate_override` encodes it as a JSON-string
-   YAML value and passes it as the `CONNIE_CONTEXT` build arg.
-   `extend.Dockerfile` writes it to the image as root. Baked into the layer
-   cache; immutable from inside the container.
-2. **User-level** (`~/.claude/CLAUDE.md` in the container) — split between
-   `_emit_user_context` (pure, prints the assembled content to stdout with
-   block-level HTML source-attribution markers between the host's
-   `/etc/claude-code/CLAUDE.md` and `~/.claude/CLAUDE.md` contributions) and
-   `_write_user_context` (calls `_emit_user_context` and writes the result
-   into the per-project state directory, which is bind-mounted to
-   `~/.claude/`). `cmd_run` calls `_write_user_context` at run time;
-   `cmd_context` calls `_emit_user_context` for a read-only preview.
+`_resolve_context` (shared by `cmd_run` and `cmd_context`, so the preview is
+exactly what Claude receives) assembles one markdown payload host-side, in
+order:
 
-The project and local scopes (`/workspace/CLAUDE.md`,
-`/workspace/.claude/CLAUDE.md`, `/workspace/CLAUDE.local.md`) come from
-the project directory unchanged — connie never writes them. For
-preview-only purposes, `_emit_project_context` and `_emit_local_context`
-read them from the host project root so `cmd_context` can show all four
-scopes in one place without launching the container.
+1. **Application** — `_generate_connie_context` reads the merged config and
+   emits markdown describing the container (resources, packages, ports, mounts,
+   security posture). Always present.
+2. **Machine / User / Project** — the contents of a `context.md` beside each
+   config layer (`$SYSTEM_CONTEXT`, `$USER_CONTEXT`, and
+   `<config>/projects/<slug>/context.md`), each under a `## … Context` heading,
+   included only when the file exists and is non-empty.
+
+`_generate_override` injects the payload by emitting `command:` as an argv
+array — `["claude", "--append-system-prompt", "<payload>"]` — when the launch
+command is `claude` (an array keeps the multi-line payload as one verbatim
+element, so there is no shell quoting). Any other `start_cmd` passes through as
+a scalar and gets no injection (connie cannot deliver context through a flag
+the tool lacks). `cmd_context` prints the same payload for a read-only preview.
+Nothing is written to disk or into the project directory.
 
 ## Conventions
 
@@ -202,12 +202,11 @@ scopes in one place without launching the container.
 - Security-relevant edits to `src/docker/docker-compose.yml` or
   `src/docker/base.Dockerfile` should be mirrored in `docs/DESIGN.md`, which
   documents the rationale for each hardening measure.
-- Changes to context generation (`_generate_connie_context`,
-  `_emit_user_context`, `_write_user_context`, `_emit_project_context`,
-  `_emit_local_context`, or the `CONNIE_CONTEXT` build-arg wiring in
-  `extend.Dockerfile`) should be mirrored in the **Claude Code Context
-  Model** section of `docs/DESIGN.md` and the **Claude Code Context**
-  section of `README.md`.
+- Changes to context generation (`_resolve_context`,
+  `_generate_connie_context`, or the `--append-system-prompt` command wiring in
+  `_generate_override`) should be mirrored in `docs/context.md`, the **Claude
+  Code Context Model** section of `docs/DESIGN.md`, and the **Claude Code
+  Context** section of `README.md`.
 - `docs/TODO.md` tracks features and ideas under consideration.
   Consult it when evaluating new work; update it when items are completed or
   when new ideas arise during a session.

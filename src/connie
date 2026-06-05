@@ -17,11 +17,8 @@
 #   Override generation ────────  _build_fwd_env_obj _build_cli_env_obj
 #                                  _build_env_block _build_vol_block
 #                                  _build_ports_section _generate_override
-#   Context generation ─────────  _generate_connie_context _emit_user_context
-#                                  _emit_project_context _emit_local_context
-#                                  _write_user_context
-#   Context preview formatting ─  _ctx_preview_header _ctx_scope_header
-#                                  _ctx_preview_footer
+#   Context ────────────────────  _generate_connie_context _read_if_present
+#                                  _resolve_context
 #   Validation / prepare ───────  _prepare
 #   Compose ────────────────────  _compose_project_name _run_compose
 #   Subcommands ────────────────  cmd_build_base cmd_init cmd_build cmd_run
@@ -56,6 +53,14 @@ _xdg_config_dirs="${XDG_CONFIG_DIRS:-/etc/xdg}"
 SYSTEM_CONFIG="${_xdg_config_dirs%%:*}/$TOOL/config.yml"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/$TOOL"
 USER_CONFIG="$CONFIG_DIR/config.yml"
+# Context files (markdown) sit beside each layer's config.yml. connie reads
+# them host-side and appends their contents to Claude's system prompt (via
+# --append-system-prompt); an absent file simply contributes nothing. The
+# system and user paths are fixed; the per-project path is derived per slug in
+# _resolve_context (like _project_config). The application scope is generated,
+# not read from a file, so it has no path here.
+SYSTEM_CONTEXT="${_xdg_config_dirs%%:*}/$TOOL/context.md"
+USER_CONTEXT="$CONFIG_DIR/context.md"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/$TOOL"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/$TOOL"
 PROJECTS_FILE="$DATA_DIR/projects.yml"
@@ -824,24 +829,35 @@ _generate_override() {
 
     # Encode every user-controlled scalar as a JSON string (always a valid,
     # fully-escaped YAML scalar) before splicing it into the override below.
-    # `-o=json` is the same treatment CONNIE_CONTEXT already gets, and is
-    # safer than bare `strenv`: yq's default plain output for a value like
+    # `-o=json` produces an always-valid, fully-escaped YAML scalar, safer
+    # than bare `strenv`: yq's default plain output for a value like
     # `a: b` or `x #y` would corrupt the surrounding mapping or be read as a
     # comment when interpolated after `key:`.
     _build_cmds_yaml=$(CMD="$_build_cmds" yq -n -o=json 'strenv(CMD)')
     _final_packages_yaml=$(PKGS="$_final_packages" yq -n -o=json 'strenv(PKGS)')
-    _final_cmd_yaml=$(FCMD="$_final_cmd" yq -n -o=json 'strenv(FCMD)')
     # BASE_IMAGE comes from $CONNIE_BASE_IMAGE (env, used by tests); encode it
     # too so the build-arg slot can't be broken by an unusual tag value.
     _base_image_yaml=$(IMG="$BASE_IMAGE" yq -n -o=json 'strenv(IMG)')
 
-    # Generate the connie context and encode as a JSON string so the multi-line
-    # value fits a single-line YAML build-arg slot. YAML parses double-quoted
-    # strings with escape sequences (\n etc.), so docker compose passes the
-    # original multi-line markdown to docker build. extend.Dockerfile writes it
-    # to /etc/claude-code/CLAUDE.md inside the image.
-    _connie_ctx=$(_generate_connie_context "$_project_root" "$_merged_file")
-    _connie_ctx_yaml=$(CTX="$_connie_ctx" yq -n -o=json 'strenv(CTX)')
+    # Build the launch command. When it is `claude` (connie's default and the
+    # one tool that understands --append-system-prompt), inject the resolved
+    # context payload: emit `command:` as a JSON argv array so the multi-line
+    # payload is one verbatim element, not a word-split string. yq's -I=0 keeps
+    # the array on one line; the base command is whitespace-split into its
+    # leading tokens (start_cmd is conventionally simple, e.g. `claude` or
+    # `claude --resume`), then the flag and payload are appended. Any other
+    # start_cmd is the user's own and passes through unchanged — and uninjected,
+    # since connie cannot deliver context through a flag the tool lacks.
+    case "${_final_cmd%% *}" in
+        claude | */claude)
+            _connie_ctx=$(_resolve_context "$_project_root" "$_merged_file")
+            _command_yaml=$(CMD="$_final_cmd" CTX="$_connie_ctx" yq -n -o=json -I=0 \
+                '(strenv(CMD) | split(" ") | map(select(. != ""))) + ["--append-system-prompt", strenv(CTX)]')
+            ;;
+        *)
+            _command_yaml=$(FCMD="$_final_cmd" yq -n -o=json 'strenv(FCMD)')
+            ;;
+    esac
 
     # These builders validate their inputs and _die on a rejected value
     # (docker.sock mount, control-char env key, …). Because they run in a
@@ -872,7 +888,6 @@ services:
         BASE_IMAGE: ${_base_image_yaml}
         EXTRA_PACKAGES: ${_final_packages_yaml}
         BUILD_COMMANDS: ${_build_cmds_yaml}
-        CONNIE_CONTEXT: ${_connie_ctx_yaml}
     environment:
 ${_env_block}
     volumes:
@@ -887,27 +902,29 @@ ${_ports_section}
         soft: 4096
         hard: 8192
     working_dir: /workspace
-    command: ${_final_cmd_yaml}
+    command: ${_command_yaml}
 YAML
 }
 
 # ── Context generation ───────────────────────────────────────────────────────
 #
-# Claude Code loads CLAUDE.md from four scopes:
+# connie appends its context to Claude's system prompt at launch (via
+# `claude --append-system-prompt`), so a project's own CLAUDE.md keeps loading
+# normally and is never touched, read, or shadowed. The payload has up to four
+# scopes, assembled host-side by _resolve_context:
 #
-#   1. Managed policy  /etc/claude-code/CLAUDE.md          ← connie generates
-#   2. User-level      ~/.claude/CLAUDE.md                 ← connie generates
-#   3. Project         /workspace/[.claude/]CLAUDE.md      ← connie never touches
-#   4. Local           /workspace/CLAUDE.local.md          ← connie never touches
+#   Application  generated from the merged config   (always present)
+#   Machine      $SYSTEM_CONTEXT                     (if the file exists)
+#   User         $USER_CONTEXT                       (if the file exists)
+#   Project      <config>/projects/<slug>/context.md (if the file exists)
 #
-# connie populates scopes 1 and 2. The project and local scopes come from
-# /workspace exactly as Claude Code finds them — a project that already has
-# a CLAUDE.md works unchanged.
+# _generate_connie_context produces the application scope; the other three are
+# plain markdown files read verbatim. connie writes nothing into the project.
 
-# Emit markdown describing the connie container environment. Read by
-# _generate_override and embedded as the CONNIE_CONTEXT build arg;
-# extend.Dockerfile writes it to /etc/claude-code/CLAUDE.md so Claude Code
-# loads it as managed-policy context — the highest-priority, immutable scope.
+# Emit markdown describing the connie container environment — connie's live
+# facts (resources, packages, ports, mounts, security posture) derived from the
+# merged config. This is the always-present "application" scope of the context
+# payload assembled by _resolve_context.
 _generate_connie_context() {
     _gcc_root="$1"
     _gcc_merged="$2"
@@ -984,140 +1001,45 @@ under Exposed Ports.
 FOOTER
 }
 
-# Emit the user-level Claude Code context to stdout. Concatenates the host's
-# /etc/claude-code/CLAUDE.md (system-wide) and ~/.claude/CLAUDE.md
-# (user-specific), in that order, with block-level HTML comments identifying
-# each contribution's source. Per the Claude Code docs, block-level HTML
-# comments are stripped before context injection, so the markers cost no
-# tokens but remain visible when humans preview the assembled file (e.g.
-# via 'connie context'), making it easy to trace any instruction back to
-# its host source. Emits nothing if neither host file exists.
+# Read a file's contents to stdout if it exists; emit nothing otherwise. Used
+# by _resolve_context for the optional per-layer context files. Uses an `if`
+# (not `[ -f ] && cat`) so it returns 0 when the file is absent — under
+# `set -eu` a non-zero return inside `$(...)` would abort the caller.
+_read_if_present() {
+    if [ -f "$1" ]; then
+        cat "$1"
+    fi
+}
+
+# Assemble the context payload connie appends to Claude's system prompt (via
+# --append-system-prompt). Concatenates, in order:
 #
-# The system-wide path is overridable via $CONNIE_ETC_CLAUDE_MD so the
-# test suite can stage fixtures without touching /etc/ (the path is
-# unwritable to non-root and would otherwise be a global side-effect
-# across all connie installations on the machine). In production the
-# override is unset and the path defaults to the Claude Code docs'
-# managed-policy location.
-_emit_user_context() {
-    _euc_etc="${CONNIE_ETC_CLAUDE_MD:-/etc/claude-code/CLAUDE.md}"
-    _euc_user="$HOME/.claude/CLAUDE.md"
-
-    if [ -f "$_euc_etc" ]; then
-        printf '<!-- source: /etc/claude-code/CLAUDE.md on host (system-wide) -->\n\n'
-        cat "$_euc_etc"
-    fi
-    if [ -f "$_euc_user" ]; then
-        [ -f "$_euc_etc" ] && printf '\n'
-        printf '<!-- source: ~/.claude/CLAUDE.md on host (user) -->\n\n'
-        cat "$_euc_user"
-    fi
-}
-
-# Emit the project-scope Claude Code context to stdout. Per the Claude Code
-# memory docs, Claude Code looks for project context at either ./CLAUDE.md
-# or ./.claude/CLAUDE.md from its working directory — /workspace inside the
-# container. Both can coexist; if both are present, the docs say they load
-# into context. This function reads from the host project root (which the
-# container bind-mounts at /workspace) so 'connie context' can preview them
-# without launching the container. Connie never writes these files.
-_emit_project_context() {
-    _epc_root="$1"
-    _epc_main="$_epc_root/CLAUDE.md"
-    _epc_alt="$_epc_root/.claude/CLAUDE.md"
-
-    if [ -f "$_epc_main" ]; then
-        printf '<!-- source: /workspace/CLAUDE.md -->\n\n'
-        cat "$_epc_main"
-    fi
-    if [ -f "$_epc_alt" ]; then
-        [ -f "$_epc_main" ] && printf '\n'
-        printf '<!-- source: /workspace/.claude/CLAUDE.md -->\n\n'
-        cat "$_epc_alt"
-    fi
-}
-
-# Emit the local-scope Claude Code context (./CLAUDE.local.md) to stdout.
-# The local scope is intended for personal, gitignored project notes per
-# the Claude Code docs. As with the project scope, connie never writes this
-# file; we read it from the host project root for preview only.
+#   1. the generated container self-description (always present)
+#   2. machine context   ($SYSTEM_CONTEXT)              if the file exists
+#   3. user context      ($USER_CONTEXT)                if the file exists
+#   4. project context   (<config>/projects/<slug>/…)   if the file exists
 #
-# Uses an `if` rather than `[ -f ] && cat` so the function returns 0 when
-# the file is absent. With `set -eu` enabled at script scope, a non-zero
-# return from this function inside `_local_ctx=$(_emit_local_context ...)`
-# would abort the script before the empty-scope marker could be printed.
-_emit_local_context() {
-    _elc_root="$1"
-    _elc_file="$_elc_root/CLAUDE.local.md"
-    if [ -f "$_elc_file" ]; then
-        cat "$_elc_file"
-    fi
-}
+# Each optional scope gets a "## … Context" heading and is included only when
+# its source file exists and is non-empty. Shared by cmd_run (which injects the
+# payload into the launch command) and cmd_context (which prints it), so the
+# preview is provably what Claude receives. Pure: stdout only, no side effects,
+# and it never reads or writes anything under the project directory.
+_resolve_context() {
+    _rc_root="$1"
+    _rc_merged="$2"
+    _rc_project_ctx="$CONFIG_DIR/projects/$(_project_slug "$_rc_root")/context.md"
 
-# Install the user-level Claude Code context to the per-project state
-# directory. The state directory's .claude/ is bind-mounted to ~/.claude/
-# inside the container, so the file lands at the user-level scope path
-# Claude Code expects. Removes the destination instead of leaving a 0-byte
-# file when both host sources are absent.
-_write_user_context() {
-    _wuc_root="$1"
-    _wuc_dest="$(_project_state_dir "$_wuc_root")/.claude/CLAUDE.md"
-    rm -f "$_wuc_dest"
-    _emit_user_context >"$_wuc_dest"
-    [ -s "$_wuc_dest" ] || rm -f "$_wuc_dest"
-}
+    # Application scope — always present.
+    _generate_connie_context "$_rc_root" "$_rc_merged"
 
-# ── Context preview formatting (used by cmd_context) ─────────────────────────
-#
-# Scope structure markers go to stdout as block-level HTML comments. Claude
-# Code strips block-level HTML comments before context injection per its
-# memory docs, so if the preview is ever redirected to a file and loaded
-# back as actual context, the markers cost no tokens. Putting structure on
-# stdout (rather than stderr) means `connie context > preview.md` produces
-# a coherent, self-contained document with every scope clearly delineated.
+    _rc_machine=$(_read_if_present "$SYSTEM_CONTEXT")
+    [ -z "$_rc_machine" ] || printf '\n## Machine Context\n\n%s\n' "$_rc_machine"
 
-_ctx_preview_header() {
-    _cph_root="$1"
-    cat <<COMMENT
-<!--
-═══════════════════════════════════════════════════════════════════════
-Claude Code context preview
-Project root: $_cph_root
-═══════════════════════════════════════════════════════════════════════
-Section markers below are block-level HTML comments. Claude Code strips
-them on context injection per its memory documentation, so they cost no
-tokens if this output is ever fed back in as actual context.
--->
-COMMENT
-}
+    _rc_user=$(_read_if_present "$USER_CONTEXT")
+    [ -z "$_rc_user" ] || printf '\n## User Context\n\n%s\n' "$_rc_user"
 
-_ctx_scope_header() {
-    _csh_num="$1"
-    _csh_title="$2"
-    _csh_path="$3"
-    _csh_origin="$4"
-    cat <<COMMENT
-
-<!--
-═══════════════════════════════════════════════════════════════════════
-Scope $_csh_num/4: $_csh_title
-Path in container: $_csh_path
-$_csh_origin
-═══════════════════════════════════════════════════════════════════════
--->
-
-COMMENT
-}
-
-_ctx_preview_footer() {
-    cat <<COMMENT
-
-<!--
-═══════════════════════════════════════════════════════════════════════
-End of context preview
-═══════════════════════════════════════════════════════════════════════
--->
-COMMENT
+    _rc_project=$(_read_if_present "$_rc_project_ctx")
+    [ -z "$_rc_project" ] || printf '\n## Project Context\n\n%s\n' "$_rc_project"
 }
 
 # ── Validation and config merge ───────────────────────────────────────────────
@@ -1319,11 +1241,11 @@ cmd_run() {
     trap '_info "Interrupted. Cleaning up."; exit 130' INT
     trap '_info "Terminated. Cleaning up."; exit 143' TERM
     _prepare "$_project_root" "$_merged"
-    # _generate_override embeds the connie (managed-policy) context as a build
-    # arg; user-level context is assembled fresh from host files at run time.
+    # _generate_override resolves the context payload and bakes it into the
+    # launch command (claude --append-system-prompt); nothing context-related
+    # is written to disk or into the project.
     _generate_override "$_project_root" "$_merged" \
         "$_ARG_PACKAGES" "$_ARG_ENV" "$_ARG_CMD" >"$_override"
-    _write_user_context "$_project_root"
     _run_compose "$_project_root" "$_override" build workspace
     # Auto-detect non-interactive contexts (CI, output-redirected, piped
     # stdin) and pass `-T` to skip TTY allocation. The compose file's
@@ -1623,41 +1545,15 @@ cmd_context() {
     trap 'rm -f "$_merged"' EXIT
     _merge_configs "$_project_root" >"$_merged"
 
-    _ctx_preview_header "$_project_root"
-
-    _ctx_scope_header 1 "Managed-policy" "/etc/claude-code/CLAUDE.md" \
-        "Generated by connie from the merged config; baked into the image."
-    _generate_connie_context "$_project_root" "$_merged"
-
-    # shellcheck disable=SC2088 # literal display path, not for shell expansion
-    _ctx_scope_header 2 "User-level" "~/.claude/CLAUDE.md" \
-        "Assembled by connie from host /etc/claude-code/CLAUDE.md and ~/.claude/CLAUDE.md."
-    _user_ctx=$(_emit_user_context)
-    if [ -n "$_user_ctx" ]; then
-        printf '%s\n' "$_user_ctx"
-    else
-        printf '<!-- (empty: neither host source file exists) -->\n'
-    fi
-
-    _ctx_scope_header 3 "Project" "/workspace/CLAUDE.md and /workspace/.claude/CLAUDE.md" \
-        "Read by Claude Code directly from the project directory; connie never writes here."
-    _proj_ctx=$(_emit_project_context "$_project_root")
-    if [ -n "$_proj_ctx" ]; then
-        printf '%s\n' "$_proj_ctx"
-    else
-        printf '<!-- (empty: no CLAUDE.md in project root) -->\n'
-    fi
-
-    _ctx_scope_header 4 "Local" "/workspace/CLAUDE.local.md" \
-        "Read by Claude Code directly from the project directory; connie never writes here."
-    _local_ctx=$(_emit_local_context "$_project_root")
-    if [ -n "$_local_ctx" ]; then
-        printf '%s\n' "$_local_ctx"
-    else
-        printf '<!-- (empty: no CLAUDE.local.md in project root) -->\n'
-    fi
-
-    _ctx_preview_footer
+    # Print exactly what connie appends to Claude's system prompt at launch.
+    # _resolve_context is the same function cmd_run feeds into the command, so
+    # this is provably the injected payload — not an approximation. The
+    # project's own CLAUDE.md is loaded by Claude separately and is not shown
+    # here (connie never reads it). Labels go to stderr; the payload to stdout,
+    # so `connie context > out.md` captures just the context.
+    _info "Context appended to Claude's system prompt (--append-system-prompt):"
+    printf '\n' >&2
+    _resolve_context "$_project_root" "$_merged"
 }
 
 # ── Doctor ───────────────────────────────────────────────────────────────────

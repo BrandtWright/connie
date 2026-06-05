@@ -5,11 +5,12 @@
 # on top of the connie base image. The build picks up
 #
 #   - the project's merged config (via _generate_override)
-#   - the connie context content (via _generate_connie_context, embedded
-#     in extend.Dockerfile's CONNIE_CONTEXT build arg, written to
-#     /etc/claude-code/CLAUDE.md inside the image)
 #   - any project packages (apk install via EXTRA_PACKAGES)
 #   - any project build commands (BUILD_COMMANDS)
+#
+# connie's context is no longer baked into the image; it is appended to
+# Claude's system prompt at run time (see run_test_cases.sh), so there is
+# no /etc/claude-code/CLAUDE.md build artifact to assert here.
 #
 # Tests use the isolated CONNIE_BASE_IMAGE tag so they don't touch the
 # user's `connie/base:latest`. The first test builds both base + workspace
@@ -29,20 +30,6 @@ build_produces_a_per_project_workspace_image_test_case() {
     given a_unique_test_base_image_tag_and_an_initialized_project
     when the_user_runs_connie_build_against_the_project
     expect the_workspace_image_exists
-}
-
-build_writes_the_connie_context_to_etc_claude_code_in_the_workspace_image_test_case() {
-    given a_unique_test_base_image_tag_and_an_initialized_project
-    when the_user_runs_connie_build_against_the_project
-    # extend.Dockerfile receives the CONNIE_CONTEXT build arg from
-    # _generate_override and writes it to /etc/claude-code/CLAUDE.md
-    # inside the image. This is what Claude Code loads as
-    # managed-policy context. Verifying the file is present AND
-    # contains the expected header is the load-bearing claim — without
-    # it, every connie run would start Claude Code with no context.
-    expect the_workspace_image_contains_file "/etc/claude-code/CLAUDE.md"
-    expect the_workspace_image_file_to_contain "/etc/claude-code/CLAUDE.md" \
-        "# Connie Container Environment"
 }
 
 build_is_idempotent_when_the_workspace_image_already_exists_test_case() {

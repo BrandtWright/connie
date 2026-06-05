@@ -9,8 +9,10 @@
 # Strategy:
 #   - Verify the output parses as YAML and has the expected top-level
 #     structure (services.workspace.{build,environment,volumes,...})
-#   - Verify scalar values (resource limits, command) propagate from the
-#     merged config
+#   - Verify resource limits propagate from the merged config, and that
+#     the launch command is built correctly: a scalar passthrough for a
+#     non-claude command, or an argv array carrying the appended context
+#     payload for the default `claude`
 #   - Verify the CONNIE_* override env vars take precedence over the
 #     merged config
 #   - Verify the CLI flags propagate (--package appends, --cmd replaces)
@@ -37,6 +39,14 @@ a_project_with_a_merged_config_at_defaults() {
 a_project_with_a_merged_config_specifying_packages() {
     a_project_with_a_merged_config_at_defaults
     yq -i '.packages = ["python3", "py3-pip"]' "$merged_file"
+}
+
+# A user-scope context.md beside the user config. _resolve_context reads it
+# (via $USER_CONTEXT) and adds a "## User Context" section to the payload.
+a_user_context_file_present() {
+    mkdir -p "$CONFIG_DIR"
+    user_context_content="Distinctive user marker: be-terse"
+    printf '%s\n' "$user_context_content" >"$USER_CONTEXT"
 }
 
 connie_memory_set_to_an_override_value() {
@@ -250,6 +260,29 @@ the_override_ports_list_contains() {
     expect_contains "$_actual" "$1"
 }
 
+the_override_command_array_length_to_be() {
+    _actual=$(yq '.services.workspace.command | length' "$override_output_file")
+    expect_equal "$1" "$_actual"
+}
+
+the_override_command_element_to_be() {
+    _idx="$1"
+    _expected="$2"
+    _actual=$(yq ".services.workspace.command[$_idx]" "$override_output_file")
+    expect_equal "$_expected" "$_actual"
+}
+
+the_override_command_is_a_scalar_string() {
+    _actual=$(yq '.services.workspace.command | type' "$override_output_file")
+    expect_equal "!!str" "$_actual"
+}
+
+# The appended-prompt payload is the last argv element of the command array.
+the_override_appended_prompt_contains() {
+    _actual=$(yq '.services.workspace.command[-1]' "$override_output_file")
+    expect_contains "$_actual" "$1"
+}
+
 # ── Test cases ─────────────────────────────────────────────────────────────
 
 generate_override_produces_parseable_yaml_test_case() {
@@ -288,10 +321,38 @@ generate_override_sets_working_dir_to_workspace_test_case() {
     expect the_override_value_at_path_to_be ".services.workspace.working_dir" "/workspace"
 }
 
-generate_override_carries_the_start_command_from_the_merged_config_test_case() {
+generate_override_builds_an_argv_command_for_the_default_claude_test_case() {
     given a_project_with_a_merged_config_at_defaults
     when the_override_is_generated
-    expect the_override_value_at_path_to_be ".services.workspace.command" "claude"
+    # The default `claude` start_cmd is emitted as an argv array carrying the
+    # appended context payload: [claude, --append-system-prompt, <payload>].
+    # An array (not a scalar string) keeps the multi-line payload as one
+    # verbatim element.
+    expect the_override_parses_as_yaml
+    expect the_override_command_array_length_to_be "3"
+    expect the_override_command_element_to_be "0" "claude"
+    expect the_override_command_element_to_be "1" "--append-system-prompt"
+}
+
+generate_override_injects_the_resolved_context_as_the_appended_prompt_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given a_user_context_file_present
+    when the_override_is_generated
+    # The appended-prompt payload always carries the generated application
+    # scope, and picks up the user scope when its context.md exists.
+    expect the_override_appended_prompt_contains "# Connie Container Environment"
+    expect the_override_appended_prompt_contains "## User Context"
+    expect the_override_appended_prompt_contains "Distinctive user marker"
+}
+
+generate_override_passes_a_non_claude_command_through_as_a_scalar_test_case() {
+    given a_project_with_a_merged_config_at_defaults
+    given connie_cmd_set_to_an_override_value
+    when the_override_is_generated
+    # A non-claude start_cmd cannot consume --append-system-prompt, so connie
+    # passes it through as a scalar string and injects no context.
+    expect the_override_command_is_a_scalar_string
+    expect the_override_value_at_path_to_be ".services.workspace.command" "sh"
 }
 
 generate_override_lets_connie_memory_env_var_override_the_merged_config_test_case() {

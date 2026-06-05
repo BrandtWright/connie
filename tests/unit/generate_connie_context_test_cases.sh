@@ -1,10 +1,13 @@
 # tests/unit/generate_connie_context_test_cases.sh
 #
 # Behavior specifications for _generate_connie_context — the function that
-# produces the managed-policy markdown ($CONNIE_CONTEXT) baked into the
-# image at /etc/claude-code/CLAUDE.md. The function reads a merged config
-# file and emits a markdown blob whose sections appear conditionally based
-# on which config keys are populated. Tests:
+# produces the "application" scope of the context payload: the markdown
+# describing the container environment. _resolve_context prepends this
+# (always present) to the optional machine/user/project context, and the
+# whole payload is appended to Claude's system prompt at launch. The
+# function reads a merged config file and emits a markdown blob whose
+# sections appear conditionally based on which config keys are populated.
+# Tests:
 #
 #   - The structural scaffolding (always-present sections, resource limits
 #     pulled from the merged config) is correct

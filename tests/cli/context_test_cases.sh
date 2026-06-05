@@ -1,14 +1,15 @@
 # tests/cli/context_test_cases.sh
 #
 # CLI-level tests for `connie context` against an initialized project.
-# Complements the existing error-path test (context_rejects_an_uninitialized
-# _project) in tests/cli/usage_test_cases.sh.
+# Complements the error-path test (context_rejects_an_uninitialized_project)
+# in tests/cli/usage_test_cases.sh.
 #
-# `connie context` prints the four Claude Code scope sections in load
-# order to stdout: connie (managed-policy) → user → project → local.
-# Each is wrapped in block-level HTML scope-header comments that Claude
-# Code strips on context injection but humans can read for orientation.
-# Diagnostic info (project path) goes to stderr above the content.
+# `connie context` prints — to stdout — exactly the payload connie appends to
+# Claude's system prompt at launch (--append-system-prompt): the generated
+# application scope, plus the machine/user/project context.md scopes that
+# exist. A one-line diagnostic header goes to stderr, so the stdout is a
+# clean, redirectable copy of the payload. The project's own CLAUDE.md is
+# loaded by Claude separately and is NOT read or shown here.
 
 # shellcheck disable=SC2148 # sourced by harness; no shebang needed
 
@@ -20,20 +21,25 @@ an_initialized_project_in_the_workspace() {
     exercise_connie init "$project_path" >/dev/null 2>&1
 }
 
-an_initialized_project_with_a_workspace_claude_md() {
+# A user-scope context.md beside the user config.
+an_initialized_project_with_a_user_context() {
     an_initialized_project_in_the_workspace
-    project_claude_md_content="# Project-scope guidance
-
-This project uses POSIX shell. No bashisms."
-    printf '%s' "$project_claude_md_content" >"$project_path/CLAUDE.md"
+    mkdir -p "$CONFIG_DIR"
+    printf '%s\n' "User marker: prefers-terse-answers" >"$USER_CONTEXT"
 }
 
-an_initialized_project_with_a_claude_local_md() {
+# connie's own per-project context (under the config dir — NOT in the repo).
+an_initialized_project_with_a_connie_project_context() {
     an_initialized_project_in_the_workspace
-    local_claude_md_content="# Personal notes
+    _proj_ctx="$CONFIG_DIR/projects/$(_project_slug "$project_path")/context.md"
+    mkdir -p "$(dirname "$_proj_ctx")"
+    printf '%s\n' "Project marker: deploy-on-fridays" >"$_proj_ctx"
+}
 
-Sandbox URL: http://localhost:8080"
-    printf '%s' "$local_claude_md_content" >"$project_path/CLAUDE.local.md"
+# A CLAUDE.md checked into the project itself. connie must NOT read it.
+an_initialized_project_with_a_repo_claude_md() {
+    an_initialized_project_in_the_workspace
+    printf '%s\n' "Repo marker: this-is-in-source-control" >"$project_path/CLAUDE.md"
 }
 
 # ── Stimuli ────────────────────────────────────────────────────────────────
@@ -44,61 +50,12 @@ the_user_runs_connie_context() {
 
 # ── Assertions ─────────────────────────────────────────────────────────────
 
-the_stdout_contains_the_connie_scope_header() {
-    stdout_to_contain "Scope 1/4: Managed-policy"
-}
-
-the_stdout_contains_the_user_scope_header() {
-    stdout_to_contain "Scope 2/4: User-level"
-}
-
-the_stdout_contains_the_project_scope_header() {
-    stdout_to_contain "Scope 3/4: Project"
-}
-
-the_stdout_contains_the_local_scope_header() {
-    stdout_to_contain "Scope 4/4: Local"
-}
-
-the_stdout_contains_the_connie_context_body() {
-    stdout_to_contain "# Connie Container Environment"
-}
-
-the_stdout_contains_the_workspace_claude_md_content() {
-    stdout_to_contain "POSIX shell"
-}
-
-the_stdout_contains_the_local_claude_md_content() {
-    stdout_to_contain "Sandbox URL"
-}
-
-the_stdout_contains_the_preview_footer() {
-    stdout_to_contain "End of context preview"
-}
-
-the_stdout_mentions_the_project_root() {
-    # cmd_context writes the project root inside the preview-header HTML
-    # comment block on stdout (not stderr) — the header is part of the
-    # contextual document so it can travel with a redirected preview.
-    stdout_to_contain "Project root: $project_path"
-}
-
-the_scope_headers_appear_in_load_order() {
-    _h1=$(grep -n "Scope 1/4" "$TEST_STDOUT" | head -1 | cut -d: -f1)
-    _h2=$(grep -n "Scope 2/4" "$TEST_STDOUT" | head -1 | cut -d: -f1)
-    _h3=$(grep -n "Scope 3/4" "$TEST_STDOUT" | head -1 | cut -d: -f1)
-    _h4=$(grep -n "Scope 4/4" "$TEST_STDOUT" | head -1 | cut -d: -f1)
-    if [ -z "$_h1" ] || [ -z "$_h2" ] || [ -z "$_h3" ] || [ -z "$_h4" ]; then
-        _assertion_failure "all four scope headers present" "lines 1<2<3<4" \
-            "actual" "h1=$_h1 h2=$_h2 h3=$_h3 h4=$_h4"
+the_stdout_does_not_contain() {
+    if grep -E -q -- "$1" "$TEST_STDOUT"; then
+        _assertion_failure "stdout to NOT contain" "$1" \
+            "stdout was" "$(cat "$TEST_STDOUT")"
         return 1
     fi
-    if [ "$_h1" -lt "$_h2" ] && [ "$_h2" -lt "$_h3" ] && [ "$_h3" -lt "$_h4" ]; then
-        return 0
-    fi
-    _assertion_failure "scope ordering" "1<2<3<4" \
-        "actual lines" "1@$_h1 2@$_h2 3@$_h3 4@$_h4"
-    return 1
 }
 
 # ── Test cases ─────────────────────────────────────────────────────────────
@@ -109,62 +66,39 @@ connie_context_succeeds_against_an_initialized_project_test_case() {
     expect it_succeeds
 }
 
-connie_context_emits_the_managed_policy_scope_header_test_case() {
+connie_context_prints_the_application_scope_to_stdout_test_case() {
     given an_initialized_project_in_the_workspace
     when the_user_runs_connie_context
-    expect the_stdout_contains_the_connie_scope_header
+    expect stdout_to_contain "# Connie Container Environment"
 }
 
-connie_context_emits_the_user_level_scope_header_test_case() {
+connie_context_writes_its_diagnostic_header_to_stderr_not_stdout_test_case() {
     given an_initialized_project_in_the_workspace
     when the_user_runs_connie_context
-    expect the_stdout_contains_the_user_scope_header
+    # The label goes to stderr so `connie context > out.md` captures only the
+    # payload Claude receives.
+    expect stderr_to_contain "append-system-prompt"
+    expect the_stdout_does_not_contain "append-system-prompt"
 }
 
-connie_context_emits_the_project_scope_header_test_case() {
-    given an_initialized_project_in_the_workspace
+connie_context_includes_the_user_scope_when_present_test_case() {
+    given an_initialized_project_with_a_user_context
     when the_user_runs_connie_context
-    expect the_stdout_contains_the_project_scope_header
+    expect stdout_to_contain "## User Context"
+    expect stdout_to_contain "prefers-terse-answers"
 }
 
-connie_context_emits_the_local_scope_header_test_case() {
-    given an_initialized_project_in_the_workspace
+connie_context_includes_the_connie_project_scope_when_present_test_case() {
+    given an_initialized_project_with_a_connie_project_context
     when the_user_runs_connie_context
-    expect the_stdout_contains_the_local_scope_header
+    expect stdout_to_contain "## Project Context"
+    expect stdout_to_contain "deploy-on-fridays"
 }
 
-connie_context_emits_the_connie_managed_policy_content_under_scope_1_test_case() {
-    given an_initialized_project_in_the_workspace
+connie_context_does_not_read_the_projects_own_claude_md_test_case() {
+    given an_initialized_project_with_a_repo_claude_md
     when the_user_runs_connie_context
-    expect the_stdout_contains_the_connie_context_body
-}
-
-connie_context_includes_the_workspace_claude_md_content_when_present_test_case() {
-    given an_initialized_project_with_a_workspace_claude_md
-    when the_user_runs_connie_context
-    expect the_stdout_contains_the_workspace_claude_md_content
-}
-
-connie_context_includes_the_claude_local_md_content_when_present_test_case() {
-    given an_initialized_project_with_a_claude_local_md
-    when the_user_runs_connie_context
-    expect the_stdout_contains_the_local_claude_md_content
-}
-
-connie_context_emits_a_closing_preview_footer_test_case() {
-    given an_initialized_project_in_the_workspace
-    when the_user_runs_connie_context
-    expect the_stdout_contains_the_preview_footer
-}
-
-connie_context_emits_scope_headers_in_documented_load_order_test_case() {
-    given an_initialized_project_in_the_workspace
-    when the_user_runs_connie_context
-    expect the_scope_headers_appear_in_load_order
-}
-
-connie_context_includes_the_project_root_in_the_preview_header_test_case() {
-    given an_initialized_project_in_the_workspace
-    when the_user_runs_connie_context
-    expect the_stdout_mentions_the_project_root
+    # The invariant: connie never reads or shows the repo's CLAUDE.md. Claude
+    # loads it natively; connie's context rides alongside via the system prompt.
+    expect the_stdout_does_not_contain "this-is-in-source-control"
 }

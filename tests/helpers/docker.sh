@@ -91,17 +91,6 @@ a_unique_test_base_image_tag_and_a_legacy_dot_connie_project() {
     trap "docker image rm -f '$test_base_image' '$workspace_image' >/dev/null 2>&1 || true; docker network rm '$workspace_network' >/dev/null 2>&1 || true" EXIT
 }
 
-# Variant that stages a fingerprint in the project's merged config — a
-# unique env-var key/value pair that flows through _generate_connie_context
-# into BOTH the in-container /etc/claude-code/CLAUDE.md AND the host's
-# `connie context` preview. The fingerprint anchors the parity claim:
-# the same config produces the same context text on both sides.
-a_unique_test_base_image_tag_and_an_initialized_project_with_a_parity_fingerprint() {
-    a_unique_test_base_image_tag_and_an_initialized_project
-    _cfg=$(_project_config "$project_path")
-    yq -i '.env.PARITY_CHECK = "fp-deadbeef-2026"' "$_cfg"
-}
-
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_user_runs_connie_build_base() {
@@ -124,13 +113,6 @@ the_user_runs_connie_clean_against_the_project() {
 # stdout/stderr land in $TEST_STDOUT/$TEST_STDERR cleanly.
 the_user_runs_connie_run_with_command() {
     exercise_connie run --cmd "$1" "$project_path"
-}
-
-# Preview the four-scope context for the project on the host. Used by
-# parity tests to verify that the managed-policy section reflects the
-# same config values as the in-container /etc/claude-code/CLAUDE.md.
-the_user_runs_connie_context_against_the_project() {
-    exercise_connie context "$project_path"
 }
 
 # ── Assertions ─────────────────────────────────────────────────────────────
@@ -210,28 +192,6 @@ the_workspace_image_exists() {
     fi
     _assertion_failure "image to exist" "$workspace_image" \
         "actual" "no such image (docker image inspect failed)"
-    return 1
-}
-
-the_workspace_image_contains_file() {
-    _path="$1"
-    if docker run --rm "$workspace_image" test -f "$_path" >/dev/null 2>&1; then
-        return 0
-    fi
-    _assertion_failure "file to exist in workspace image" "$_path" \
-        "actual" "no such file in container filesystem"
-    return 1
-}
-
-the_workspace_image_file_to_contain() {
-    _path="$1"
-    _expected="$2"
-    _actual=$(docker run --rm "$workspace_image" cat "$_path" 2>/dev/null)
-    case "$_actual" in
-        *"$_expected"*) return 0 ;;
-    esac
-    _assertion_failure "file to contain" "$_expected (in $_path)" \
-        "actual contents" "$_actual"
     return 1
 }
 
