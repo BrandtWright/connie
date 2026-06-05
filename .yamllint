@@ -1,0 +1,38 @@
+# .yamllint — correctness-focused YAML linting for connie.
+#
+# Adopted for one thing the prior `yq` parse-check missed: yq silently accepts
+# DUPLICATE KEYS (it just keeps one value), so a fat-fingered `memory:` twice
+# would pass unnoticed and merge ambiguously. key-duplicates closes that gap.
+# Two cheap hygiene checks come along (trailing whitespace, final newline).
+#
+# Everything stylistic is disabled on purpose — this is a guardrail, not a
+# nag. connie's heavily-commented config templates and the hardened
+# docker-compose.yml carry intentional formatting that the style rules would
+# fight, and connie's single-document YAML omits the `---` marker by
+# convention (matching docker-compose). The shell, Dockerfile, and Markdown
+# linters carry their own width/style rules where those matter.
+#
+# This file has no .yml/.yaml extension, so `make lint-yaml` does not lint the
+# linter config itself; yamllint auto-discovers it from the repo root.
+
+extends: default
+
+rules:
+  # Correctness + cheap hygiene (kept):
+  key-duplicates: enable
+  trailing-spaces: enable
+  new-line-at-end-of-file: enable
+
+  # Style — disabled so the linter stays a guardrail, not a nag:
+  document-start: disable
+  line-length: disable
+  indentation: disable
+  comments: disable
+  comments-indentation: disable
+  empty-lines: disable
+  truthy: disable
+  braces: disable
+  brackets: disable
+  colons: disable
+  commas: disable
+  hyphens: disable

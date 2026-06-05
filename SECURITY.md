@@ -168,6 +168,6 @@ These are accepted risks documented for transparency, not bugs:
   reproducible — a re-push to `alpine:3.20` cannot silently change what
   the base image starts from. See the update procedure in
   `base.Dockerfile` for bumping it.
-- All other tooling (yq, hadolint, markdownlint, shellcheck) is
+- All other tooling (yq, yamllint, hadolint, markdownlint, shellcheck) is
   installed by the contributor outside the container — not part of
   the runtime supply chain.

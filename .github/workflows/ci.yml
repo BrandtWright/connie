@@ -56,7 +56,9 @@ jobs:
       - name: install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y shellcheck
+          # shellcheck (POSIX-sh lint) and yamllint (YAML lint — `make
+          # lint-yaml` prefers it for duplicate-key + hygiene checks).
+          sudo apt-get install -y shellcheck yamllint
           # yq v4 — the apt package on ubuntu is v3 (incompatible API).
           # Install the v4 binary from the upstream release as the script does.
           sudo wget -qO /usr/local/bin/yq \

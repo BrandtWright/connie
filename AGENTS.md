@@ -60,6 +60,7 @@ When working on connie inside connie, the project's own `config.yml`
 packages:
   - yq          # exercise yq pipelines in src/connie directly
   - shellcheck  # POSIX/bashism enforcement (make check only checks parse validity)
+  - yamllint    # YAML lint (duplicate-key + hygiene; yq parse is the fallback)
 
 build_commands:
   # hadolint is a Haskell binary and is not available in Alpine's apk
@@ -78,6 +79,10 @@ Each tool closes a specific verification gap:
   below; run as `shellcheck -s sh src/connie`
 - `hadolint` — catches common Dockerfile mistakes in `src/docker/base.Dockerfile`
   and `src/docker/extend.Dockerfile`
+- `yamllint` — flags duplicate keys (which yq silently accepts) plus
+  trailing-space / final-newline hygiene in the config templates and
+  `docker-compose.yml`; `make lint-yaml` falls back to a yq parse-check when
+  it is absent
 
 ## Hard constraints
 

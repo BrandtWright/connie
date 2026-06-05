@@ -53,9 +53,10 @@ Specific rules:
 - Syntax-check with: `sh -n src/connie`
 - `make check` runs the syntax check
 - `make lint` runs shellcheck (POSIX/bashism enforcement), markdownlint,
-  hadolint, and yq parse-checks across every changed file type. Run it
-  before staging any commit, or install the pre-commit hook with
-  `make install-hooks` so it runs automatically.
+  hadolint, and yamllint (YAML — with a yq parse-check fallback when yamllint
+  is not installed) across every changed file type. Run it before staging any
+  commit, or install the pre-commit hook with `make install-hooks` so it runs
+  automatically.
 - `make format` applies shfmt; `make format-check` (a blocking CI step)
   fails on any drift. The canonical formatter version is **shfmt v3.13.1**
   — the version CI installs (see `.github/workflows/ci.yml`). Different

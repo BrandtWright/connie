@@ -30,7 +30,7 @@ help:
 	@printf '  uninstall       Remove connie from PREFIX\n\n'
 	@printf '$(BOLD)Lint and format$(RST)\n'
 	@printf '  check           Syntax-check src/connie (sh -n)\n'
-	@printf '  lint            shellcheck + markdownlint + hadolint + yq parse\n'
+	@printf '  lint            shellcheck + markdownlint + hadolint + yamllint\n'
 	@printf '                  (sub-targets: lint-sh, lint-md, lint-docker, lint-yaml)\n'
 	@printf '  format          Auto-format shell scripts with shfmt (writes in place)\n'
 	@printf '  format-check    Verify shell scripts match shfmt style without writing\n\n'
@@ -142,11 +142,24 @@ lint-docker:
 	  | xargs -0 hadolint
 	@echo "    OK"
 
+# YAML lint. Prefers yamllint, which catches duplicate keys (yq silently
+# accepts them) plus trailing-space / final-newline hygiene; see .yamllint for
+# the correctness-focused ruleset. Falls back to a yq parse-check when yamllint
+# is not installed, so the baseline "is it valid YAML" check still runs
+# everywhere yq is present (e.g. a dev container without yamllint). CI installs
+# yamllint, so the full check is a real gate there.
 lint-yaml:
-	@echo "==> yq parse-check"
-	@find $(CURDIR) -type f \( -name "*.yml" -o -name "*.yaml" \) \
-	    -not -path "$(CURDIR)/.git/*" \
-	    -exec sh -c 'yq eval-all "null" "$$1" >/dev/null' _ {} \;
+	@if command -v yamllint >/dev/null 2>&1; then \
+		echo "==> yamllint"; \
+		find $(CURDIR) -type f \( -name "*.yml" -o -name "*.yaml" \) \
+		    -not -path "$(CURDIR)/.git/*" -print0 \
+		  | xargs -0 yamllint; \
+	else \
+		echo "==> yq parse-check (yamllint absent — install it for duplicate-key checks)"; \
+		find $(CURDIR) -type f \( -name "*.yml" -o -name "*.yaml" \) \
+		    -not -path "$(CURDIR)/.git/*" \
+		    -exec sh -c 'yq eval-all "null" "$$1" >/dev/null' _ {} \; ; \
+	fi
 	@echo "    OK"
 
 # shfmt is not pre-installed everywhere; check for it and emit a helpful
