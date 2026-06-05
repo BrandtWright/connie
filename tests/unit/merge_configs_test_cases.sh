@@ -12,8 +12,10 @@
 # build_commands append in precedence order; and the keyed-set arrays
 # (packages, ports, unsafe_extra_mounts) accumulate across layers, then
 # collapse to one entry per identity — package name, host port, container
-# target — keeping the most-specific. The tests below verify the precedence
-# chain and each of those behaviours.
+# target — keeping the most-specific. A leading-`-` list entry (`-vim`,
+# `"-8080"`, `-/data`) or a null env value deletes that identity, and a more-
+# specific layer can re-add it. The tests below verify the precedence chain
+# and each of those behaviours.
 #
 # The harness exports CONNIE_LIB_DIR pointing at the in-tree src/ so
 # $DEFAULTS_FILE resolves to the repo's defaults.yml (not the
@@ -196,6 +198,91 @@ packages:
 EOF
 }
 
+# ── Preconditions: deletes (leading-`-` directive / null env value) ────────
+
+a_user_package_list_and_a_project_that_deletes_one() {
+    mkdir -p "$XDG_CONFIG_HOME/connie"
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+packages:
+  - git
+  - curl
+EOF
+    _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
+    mkdir -p "$_cfg_dir"
+    cat >"$_cfg_dir/config.yml" <<EOF
+packages:
+  - "-curl"
+EOF
+}
+
+a_user_that_deletes_a_package_and_a_project_that_re_adds_it() {
+    mkdir -p "$XDG_CONFIG_HOME/connie"
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+packages:
+  - "-vim"
+EOF
+    _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
+    mkdir -p "$_cfg_dir"
+    cat >"$_cfg_dir/config.yml" <<EOF
+packages:
+  - vim
+EOF
+}
+
+a_user_env_and_a_project_that_deletes_a_key_with_null() {
+    mkdir -p "$XDG_CONFIG_HOME/connie"
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+env:
+  A: "1"
+  B: "2"
+EOF
+    _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
+    mkdir -p "$_cfg_dir"
+    cat >"$_cfg_dir/config.yml" <<EOF
+env:
+  B: null
+EOF
+}
+
+a_user_port_list_and_a_project_that_deletes_one() {
+    mkdir -p "$XDG_CONFIG_HOME/connie"
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+ports:
+  - "8080:80"
+  - "9090:90"
+EOF
+    _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
+    mkdir -p "$_cfg_dir"
+    cat >"$_cfg_dir/config.yml" <<EOF
+ports:
+  - "-8080"
+EOF
+}
+
+a_user_mount_list_and_a_project_that_deletes_one_by_target() {
+    mkdir -p "$XDG_CONFIG_HOME/connie"
+    cat >"$XDG_CONFIG_HOME/connie/config.yml" <<EOF
+unsafe_extra_mounts:
+  - /srv/data:/data:ro
+  - /srv/logs:/logs:ro
+EOF
+    _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
+    mkdir -p "$_cfg_dir"
+    cat >"$_cfg_dir/config.yml" <<EOF
+unsafe_extra_mounts:
+  - "-/data"
+EOF
+}
+
+a_project_that_deletes_an_absent_package() {
+    _cfg_dir="$XDG_CONFIG_HOME/connie/projects/$(_project_slug "$project_path")"
+    mkdir -p "$_cfg_dir"
+    cat >"$_cfg_dir/config.yml" <<EOF
+packages:
+  - "-nonexistent"
+EOF
+}
+
 # ── Stimuli ────────────────────────────────────────────────────────────────
 
 the_configs_are_merged() {
@@ -243,6 +330,12 @@ the_ports_to_be_exactly() {
 the_mounts_to_be_exactly() {
     _expected="$1"
     _actual=$(printf '%s' "$merged_output" | yq -o=json -I=0 '.unsafe_extra_mounts')
+    expect_equal "$_expected" "$_actual"
+}
+
+the_env_to_be_exactly() {
+    _expected="$1"
+    _actual=$(printf '%s' "$merged_output" | yq -o=json -I=0 '.env')
     expect_equal "$_expected" "$_actual"
 }
 
@@ -372,4 +465,53 @@ merge_configs_tolerates_a_present_but_null_layer_test_case() {
     # The all-comments user config parses to null and contributes nothing;
     # the project's packages still come through.
     expect the_packages_to_be_exactly '["vim"]'
+}
+
+merge_configs_deletes_a_package_with_a_leading_dash_test_case() {
+    given a_project_path_in_the_workspace
+    given a_user_package_list_and_a_project_that_deletes_one
+    when the_configs_are_merged
+    # User adds [git, curl]; project deletes curl via "-curl".
+    expect the_packages_to_be_exactly '["git"]'
+}
+
+merge_configs_re_adds_a_package_a_lower_layer_deleted_test_case() {
+    given a_project_path_in_the_workspace
+    given a_user_that_deletes_a_package_and_a_project_that_re_adds_it
+    when the_configs_are_merged
+    # User deletes vim ("-vim"); the more-specific project re-adds it.
+    expect the_packages_to_be_exactly '["vim"]'
+}
+
+merge_configs_deletes_an_env_var_with_a_null_value_test_case() {
+    given a_project_path_in_the_workspace
+    given a_user_env_and_a_project_that_deletes_a_key_with_null
+    when the_configs_are_merged
+    # Project sets B: null, which removes B; A survives.
+    expect the_env_to_be_exactly '{"A":"1"}'
+}
+
+merge_configs_deletes_a_port_mapping_with_a_leading_dash_test_case() {
+    given a_project_path_in_the_workspace
+    given a_user_port_list_and_a_project_that_deletes_one
+    when the_configs_are_merged
+    # "-8080" drops the host-port-8080 mapping; 9090 remains.
+    expect the_ports_to_be_exactly '["9090:90"]'
+}
+
+merge_configs_deletes_a_mount_by_container_target_test_case() {
+    given a_project_path_in_the_workspace
+    given a_user_mount_list_and_a_project_that_deletes_one_by_target
+    when the_configs_are_merged
+    # "-/data" drops the mount whose container target is /data.
+    expect the_mounts_to_be_exactly '["/srv/logs:/logs:ro"]'
+}
+
+merge_configs_treats_a_delete_of_an_absent_entry_as_a_noop_test_case() {
+    given a_project_path_in_the_workspace
+    given a_project_that_deletes_an_absent_package
+    when the_configs_are_merged
+    # Deleting a package no layer added removes nothing, and the directive
+    # itself does not leak into the result.
+    expect the_packages_to_be_exactly '[]'
 }

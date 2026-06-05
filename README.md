@@ -160,8 +160,10 @@ and map values (`resources`, `env`, `start_cmd`) and accumulates the list keys �
 `build_commands` append in order, while `packages`, `ports`, and
 `unsafe_extra_mounts` accumulate and collapse to one entry per identity (package
 name, host port, container target), so a layer can also remap a port or redefine
-a mount set by a more general one. Configuration only ever changes application
-settings; it cannot weaken the container's security posture.
+a mount set by a more general one — or remove an inherited entry with a
+`-<identity>` directive (`-vim`, `"-8080"`, `-/data`; for env, set the variable
+to `null`). Configuration only ever changes application settings; it cannot
+weaken the container's security posture.
 
 `TERM` and `COLORTERM` from the host shell are automatically forwarded into
 the container as the lowest-precedence env entries — below even project config.

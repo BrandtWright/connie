@@ -15,7 +15,9 @@
 # Higher-precedence sources compose on top of lower ones additively: scalars
 # and map values take the most-specific value; build_commands append; and
 # packages, ports, and unsafe_extra_mounts accumulate, keyed by name / host
-# port / container target. Everything below is commented out, so by default
+# port / container target (and a `-<identity>` entry — "-vim", "-8080",
+# "-/data" — or a null env value removes one a lower layer added). Everything
+# below is commented out, so by default
 # this file changes nothing: uncomment only what you want applied to all of
 # your projects. The key set is identical to a project's config.yml — see that
 # file (or the project template) for the full documentation of each option.

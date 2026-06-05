@@ -19,7 +19,9 @@
 # build_commands append in order; and packages, ports, and unsafe_extra_mounts
 # accumulate across layers, keyed by package name, host port, and container
 # target respectively (so this layer can also remap a port or redefine a mount
-# set by a more general one).
+# set by a more general one). To REMOVE an entry a lower-precedence layer added,
+# list "-<identity>": "-vim" drops a package, "-8080" a host-port mapping,
+# "-/data" a mount by its container target; for env, set the variable to null.
 
 # ── Packages ──────────────────────────────────────────────────────────────────
 # Additional packages to install into the container at build time.

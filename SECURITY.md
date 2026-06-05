@@ -112,7 +112,10 @@ build time, so even arbitrary build-time shell cannot widen the posture.
 The single exception is `unsafe_extra_mounts`, which can widen the trust
 surface (see Known Limitations). Because mounts compose additively, an entry
 can be contributed by any layer; the dangerous-mount guard validates the final
-merged set regardless of which layer each entry came from.
+merged set regardless of which layer each entry came from. A more-specific
+layer can also drop an inherited mount with a `-<target>` directive (keyed by
+container target), so a project can tighten its mount set below a broader
+system- or user-level baseline.
 
 ---
 

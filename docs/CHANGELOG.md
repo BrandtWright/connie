@@ -21,6 +21,12 @@ Versioning follows [Semantic Versioning][semver].
   (`~/.config/connie/config.yml`), scaffolding it from a new shipped template
   (`config/user.yml`) on first use — the one config layer no other command
   creates.
+- **Config delete directives.** A `-<identity>` list entry removes an entry a
+  lower-precedence layer added — `-vim` (package), `"-8080"` (host port),
+  `-/data` (mount by container target) — and setting an `env` variable to
+  `null` removes it. A more-specific layer can re-add a deleted entry, so a
+  project can tighten its mount or port set below a system- or user-level
+  baseline. `build_commands` has no delete (it is an ordered list).
 
 ### Changed
 

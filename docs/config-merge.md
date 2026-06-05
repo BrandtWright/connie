@@ -1,8 +1,8 @@
 # Config Merge — Additive, Keyed-Set Composition
 
-Status: design note (not yet implemented). Drives a two-phase change to
-`_merge_configs`. Phase 1 ships first and must pass the full CI gate before
-Phase 2 begins.
+Status: implemented (both phases). Documents the two-phase change to
+`_merge_configs`: Phase 1 (additive, keyed composition) and Phase 2 (delete
+directives). Both pass the full CI gate.
 
 ---
 
@@ -99,9 +99,9 @@ follow from a value's shape:
 | Key | Shape | Identity | Behaviour | Delete (Phase 2) |
 | --- | --- | --- | --- | --- |
 | `env` | map | var name | add / override per key | `KEY: null` |
-| `packages` | list of scalars | the package name | accumulate + dedupe | `null`/token |
-| `ports` | list `host:container` | **host port** | accumulate; lower layer overrides a host port | token |
-| `unsafe_extra_mounts` | list `host:container[:opts]` | **container target** | accumulate; lower layer redefines a target | token |
+| `packages` | list of scalars | the package name | accumulate + dedupe | `-name` |
+| `ports` | list `host:container` | **host port** | accumulate; lower layer overrides a host port | `"-hostport"` |
+| `unsafe_extra_mounts` | list `host:container[:opts]` | **container target** | accumulate; lower layer redefines a target | `-target` |
 | `build_commands` | ordered list | — (none) | **append**, in precedence order, dupes kept | none |
 | `resources` | map of scalars | — | override (leaves last-win) | n/a |
 | `start_cmd` | scalar | — | override | n/a |
@@ -215,40 +215,55 @@ Only the four list keys change (from replace → accumulate); `env`,
 
 ---
 
-## Phase 2 — `null`-delete sentinel (fast follow)
+## Phase 2 — delete directives (implemented)
 
-Scope: let a lower layer remove an entry a higher layer established, uniformly
-via a `null`-style sentinel. Builds on Phase 1's keyed-set foundation; not a
-rewrite.
+A lower layer can remove an entry a higher layer established. Built on Phase 1's
+keyed-set foundation — the same `reverse | unique_by(identity) | reverse`
+collapse, with the identity function taught to ignore a leading `-`, plus a
+final pass that drops surviving directives.
+
+### Delete syntax
+
+One uniform rule for the list keys: **a list entry of `-<identity>` deletes the
+entry with that identity**, where the identity is the same field the key is
+collapsed on. For `env` (a map) the natural form is `KEY: null`.
+
+| Key | Delete a value | Identity matched |
+| --- | --- | --- |
+| `packages` | `-vim` | package name |
+| `ports` | `"-8080"` | host port (quote it — bare `-8080` is a YAML int) |
+| `unsafe_extra_mounts` | `-/data` | container target |
+| `env` | `MY_VAR: null` | var name |
+
+A leading `-` is reserved: it cannot collide with a real value (a package name
+or host path starting with `-` is invalid, and a negative host port is
+meaningless), so a directive is unambiguous.
 
 ### Behaviour
 
-- `env`: `KEY: null` deletes `KEY` (an even-lower layer may re-add it). Merge
-  last-wins including nulls, then strip null-valued keys at the end.
-- `packages` / `ports` / `unsafe_extra_mounts`: a sentinel removes the entry
-  with that identity (package name / host port / container target). Deleting a
-  non-existent identity is a no-op.
-- `build_commands`: **no delete** (no key; ordered). Documented limitation —
-  and note a build command cannot `apk del` (it is unprivileged), so removal
-  is not achievable as a side effect either.
+- A directive is keyed by identity exactly like an add, so the most-specific
+  add OR delete per identity wins — which means a more-specific layer can
+  **re-add** something a less-specific layer deleted (`env` re-add works the
+  same way, via last-wins over the `null`).
+- Deleting an identity no layer established is a **no-op**, and the directive
+  never leaks into the merged result.
+- `build_commands`: **no delete** (no key; ordered). A build command also
+  cannot `apk del` (it runs unprivileged), so removal is not achievable as a
+  side effect either — by design.
 
-### Open decision — sentinel representation for list keys
+### Implementation
 
-`env` is a map, so `KEY: null` is natural. The list-shaped keys need a chosen
-representation; decide during Phase 2:
-
-- a per-key token in the string form (e.g. `8080:0` for a port, `target:none`
-  for a mount, a leading `-` or `!name` for a package), or
-- accept an optional map shape for these keys so `null` works natively.
-
-Prefer one documented, unambiguous token per key that cannot collide with a
-real value.
+In the `_merge_configs` post-pass: `env` strips null-valued keys
+(`with_entries(select(.value != null))`); each list key collapses with the
+identity function reading through a leading `-` (`sub("^-"; "")`), then drops
+surviving `-` entries (`map(select(test("^-") | not))`). `ports` are coerced to
+strings first so a `"-8080"` directive is not parsed as the integer `-8080`.
 
 ### Tests
 
-- delete an inherited entry; delete-then-re-add across layers; delete of a
-  non-existent identity is a no-op; the sentinel never matches a legitimate
-  value.
+Added to `tests/unit/merge_configs_*`: delete a package / port / mount / env
+key; re-add a deleted package at a more-specific layer; delete of an absent
+identity is a no-op.
 
 ---
 
@@ -278,3 +293,15 @@ covering every key:
   `unsafe_extra_mounts: ["/a:/data:rw"]`; `start_cmd: sh`;
   `resources.memory: 8g`.
 - within-layer collision `["8080:80", "8080:90"]` → `["8080:90"]`.
+
+The Phase 2 delete pipeline was run against the same three layers with delete
+directives:
+
+- input: `packages` `[git, curl]` / `["-curl", vim]` / `[curl]`; `ports`
+  `["8080:80"]` / `["-8080", "-9999"]` / `["8080:9000"]`; `unsafe_extra_mounts`
+  `["/a:/data:ro"]` / `["-/data"]` / —; `env` `{A:1, B:2}` / `{B: null}` /
+  `{B: 3}`.
+- output: `packages: [git, vim, curl]` (curl deleted then re-added);
+  `ports: ["8080:9000"]` (8080 deleted then re-mapped; `-9999` a no-op);
+  `unsafe_extra_mounts: []` (deleted, not re-added); `env: {A: 1, B: 3}`
+  (B deleted then re-added).

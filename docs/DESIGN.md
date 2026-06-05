@@ -182,7 +182,8 @@ scalars take the most-specific value, `build_commands` append in precedence
 order, and `packages`, `ports`, and `unsafe_extra_mounts` accumulate and then
 collapse to one entry per identity (package name, host port, container target)
 — so a more-specific layer can remap a port or redefine a mount, not only add
-one.
+one. A `-<identity>` list entry (or a null env value) deletes an inherited
+entry; `build_commands` is the one list with no delete.
 
 Note: `TERM` and `COLORTERM` from the host shell are forwarded into the
 container as the lowest-precedence env entries — below even `defaults.yml`.

@@ -377,7 +377,9 @@ _migrate_project() {
 #     ports, unsafe_extra_mounts) entry per identity — package name, host port,
 #                               container target — keeping the most-specific.
 #                               This is how a lower layer remaps a port or
-#                               redefines a mount.
+#                               redefines a mount. A leading-`-` entry
+#                               (`-vim`, `"-8080"`, `-/data`) deletes that
+#                               identity, as does a null env value.
 #
 # This only ever composes application settings; the container's security
 # posture (cap-drop, no-new-privileges, read-only rootfs, SUID stripping,
@@ -413,15 +415,26 @@ _merge_configs() {
         mv "$_mc_tmp" "$_mc_work"
     done
 
-    # Collapse the keyed-set arrays to one entry per identity, keeping the
-    # most-specific (last-appended) one. `unique` dedupes packages by value;
-    # `reverse | unique_by(key) | reverse` keeps the last entry per host port
-    # (ports) and container target (mounts) while preserving order.
-    # build_commands is intentionally left as the appended, ordered list.
+    # Resolve deletes, then collapse each keyed set to one entry per identity.
+    # A null env value and a leading-`-` list entry (`-vim`, `"-8080"`,
+    # `-/data`) are delete directives keyed by identity — package name, host
+    # port, container target. Identity ignores the leading `-`, so
+    # `reverse | unique_by(identity) | reverse` lets the most-specific add OR
+    # delete per identity win (this is what allows delete-then-re-add across
+    # layers); any surviving delete directive is then dropped. ports are coerced
+    # to strings first so a `"-8080"` directive is not parsed as the integer
+    # -8080. build_commands stays the appended, ordered list — it has no delete.
     yq -i '
-        .packages            = (.packages // []            | unique)
-      | .ports               = (.ports // []               | reverse | unique_by(split(":") | .[0]) | reverse)
-      | .unsafe_extra_mounts = (.unsafe_extra_mounts // [] | reverse | unique_by(split(":") | .[1]) | reverse)
+        .env = (.env // {} | with_entries(select(.value != null)))
+      | .packages = (.packages // []
+          | reverse | unique_by(sub("^-"; "")) | reverse
+          | map(select(test("^-") | not)))
+      | .ports = (.ports // [] | map(tostring)
+          | reverse | unique_by(sub("^-"; "") | split(":") | .[0]) | reverse
+          | map(select(test("^-") | not)))
+      | .unsafe_extra_mounts = (.unsafe_extra_mounts // []
+          | reverse | unique_by(sub("^-"; "") | (split(":") | .[1]) // .) | reverse
+          | map(select(test("^-") | not)))
     ' "$_mc_work" ||
         {
             rm -f "$_mc_work"
