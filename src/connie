@@ -363,7 +363,25 @@ _migrate_project() {
 }
 
 # ── Config merging ────────────────────────────────────────────────────────────
-
+#
+# Compose the layers (defaults → system → user → project) into one merged
+# document. Composition is ADDITIVE and keyed: a more-specific layer adds to,
+# overrides within, or refines what a more-general layer established, rather
+# than wholesale-replacing it. See docs/config-merge.md for the full model.
+#
+#   maps (env, resources) /     deep-merge; the most-specific value wins per
+#     scalars (start_cmd)        leaf.
+#   build_commands              append in precedence order (an ordered list;
+#                               duplicates are meaningful and kept).
+#   keyed sets (packages,       accumulate across layers, then collapse to one
+#     ports, unsafe_extra_mounts) entry per identity — package name, host port,
+#                               container target — keeping the most-specific.
+#                               This is how a lower layer remaps a port or
+#                               redefines a mount.
+#
+# This only ever composes application settings; the container's security
+# posture (cap-drop, no-new-privileges, read-only rootfs, SUID stripping,
+# non-root user) is fixed in the image/compose base and is unreachable here.
 _merge_configs() {
     _mc_root="$1"
     [ -f "$DEFAULTS_FILE" ] ||
@@ -373,6 +391,11 @@ _merge_configs() {
 
     printf '{}' >"$_mc_work"
 
+    # Accumulate every present layer. `*+` deep-merges maps, lets the
+    # most-specific scalar win, and APPENDS arrays (the '+'); the keyed-set
+    # collapse below turns those appended arrays into the right per-identity
+    # result. A present-but-null layer (a fully-commented config) contributes
+    # nothing, which is correct.
     for _mc_cfg in \
         "$DEFAULTS_FILE" \
         "$SYSTEM_CONFIG" \
@@ -381,7 +404,7 @@ _merge_configs() {
         [ -f "$_mc_cfg" ] || continue
         _mc_tmp=$(_mktemp)
         # shellcheck disable=SC2016 # $item is a yq variable, not a shell var
-        yq eval-all '. as $item ireduce ({}; . * $item)' \
+        yq eval-all '. as $item ireduce ({}; . *+ $item)' \
             "$_mc_work" "$_mc_cfg" >"$_mc_tmp" ||
             {
                 rm -f "$_mc_work" "$_mc_tmp"
@@ -389,6 +412,21 @@ _merge_configs() {
             }
         mv "$_mc_tmp" "$_mc_work"
     done
+
+    # Collapse the keyed-set arrays to one entry per identity, keeping the
+    # most-specific (last-appended) one. `unique` dedupes packages by value;
+    # `reverse | unique_by(key) | reverse` keeps the last entry per host port
+    # (ports) and container target (mounts) while preserving order.
+    # build_commands is intentionally left as the appended, ordered list.
+    yq -i '
+        .packages            = (.packages // []            | unique)
+      | .ports               = (.ports // []               | reverse | unique_by(split(":") | .[0]) | reverse)
+      | .unsafe_extra_mounts = (.unsafe_extra_mounts // [] | reverse | unique_by(split(":") | .[1]) | reverse)
+    ' "$_mc_work" ||
+        {
+            rm -f "$_mc_work"
+            return 1
+        }
 
     cat "$_mc_work"
     rm -f "$_mc_work"

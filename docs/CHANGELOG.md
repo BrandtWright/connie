@@ -22,6 +22,19 @@ Versioning follows [Semantic Versioning][semver].
   (`config/user.yml`) on first use — the one config layer no other command
   creates.
 
+### Changed
+
+- **Config layers now compose additively instead of replacing.** Previously a
+  higher-precedence layer's list (even an empty one) wholesale-replaced the
+  layer below, which made user- and system-level `packages` (and other list
+  keys) effectively dead for any initialized project. Now maps and scalars
+  still take the most-specific value, `build_commands` append in precedence
+  order, and `packages`, `ports`, and `unsafe_extra_mounts` accumulate across
+  layers — keyed by package name, host port, and container target — so a
+  more-specific layer adds to, remaps, or redefines what a more-general one set
+  rather than clobbering it. Configuration still composes only application
+  settings, never the container's security posture. See `docs/config-merge.md`.
+
 ## [0.5.0] — 2026-06-02
 
 ### Added

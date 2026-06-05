@@ -14,7 +14,12 @@
 #   5. CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS (env vars)
 #   6. CLI flags (--package, --env, --cmd)
 #
-# Higher-precedence sources override lower ones.
+# Higher-precedence sources compose on top of lower ones additively: scalars
+# (start_cmd) and map values (env, resources) take the most-specific value;
+# build_commands append in order; and packages, ports, and unsafe_extra_mounts
+# accumulate across layers, keyed by package name, host port, and container
+# target respectively (so this layer can also remap a port or redefine a mount
+# set by a more general one).
 
 # ── Packages ──────────────────────────────────────────────────────────────────
 # Additional packages to install into the container at build time.

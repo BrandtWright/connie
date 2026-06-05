@@ -66,8 +66,11 @@ Different configuration belongs at different levels:
 - **CLI flags** — one-off overrides for a single invocation
 
 `connie` respects this layering and merges all sources with explicit, predictable
-precedence. Higher layers override lower ones; the safe defaults are always
-the fallback.
+precedence. Composition is additive and keyed: a higher layer overrides scalar
+and map values (`resources`, `env`, `start_cmd`) and accumulates the list keys
+(`packages`, `build_commands`, `ports`, `unsafe_extra_mounts`), so it adds to
+or refines lower layers rather than replacing them wholesale. The safe defaults
+are always the fallback.
 
 ### 5. Build-time vs Runtime Separation
 
@@ -173,6 +176,13 @@ CLI flags                                     (highest precedence)
       │
       └──► runtime config ──► override.yml ──► docker compose run
 ```
+
+Each `+` is an additive, keyed merge (see `docs/config-merge.md`): maps and
+scalars take the most-specific value, `build_commands` append in precedence
+order, and `packages`, `ports`, and `unsafe_extra_mounts` accumulate and then
+collapse to one entry per identity (package name, host port, container target)
+— so a more-specific layer can remap a port or redefine a mount, not only add
+one.
 
 Note: `TERM` and `COLORTERM` from the host shell are forwarded into the
 container as the lowest-precedence env entries — below even `defaults.yml`.

@@ -90,6 +90,30 @@ Out of scope:
   threat model, run `connie` inside a network namespace that enforces
   it externally.
 
+### Configuration and the security boundary
+
+connie's config layers (defaults → system → user → project, then `CONNIE_*`
+env vars and CLI flags) compose **additively**: each more-specific layer adds
+to, overrides within, or refines what a more-general layer established. This
+is how a system administrator can mandate a setting for every project ("my
+system, my rules") without a user silently dropping it.
+
+What configuration can reach is deliberately narrow. The merge composes only
+**application settings** — `packages`, `build_commands`, `env`, `ports`,
+`unsafe_extra_mounts`, `resources`, and `start_cmd`. It cannot touch the
+container's **security posture**: the dropped capabilities,
+`no-new-privileges`, read-only root filesystem, SUID/SGID stripping, and the
+non-root `claude-user` are fixed in the base image and the Compose base and are
+not represented in any config layer. No combination of layers can re-grant a
+capability, restore a setuid bit, make the root filesystem writable, or run as
+root — and `build_commands` themselves run unprivileged (as `claude-user`) at
+build time, so even arbitrary build-time shell cannot widen the posture.
+
+The single exception is `unsafe_extra_mounts`, which can widen the trust
+surface (see Known Limitations). Because mounts compose additively, an entry
+can be contributed by any layer; the dangerous-mount guard validates the final
+merged set regardless of which layer each entry came from.
+
 ---
 
 ## Known Limitations
@@ -112,10 +136,11 @@ These are accepted risks documented for transparency, not bugs:
 - **Trusted extra mounts (`unsafe_extra_mounts:`, best-effort guard).**
   By default the only writable host paths are the project (`/workspace`)
   and this project's Claude Code state — no config key can add others.
-  A project may opt into additional host mounts via the deliberately
-  named `unsafe_extra_mounts:` key (the old generic `volumes:` key was
-  removed). That list is developer-owned, trusted input (it lives on the
-  host, outside `/workspace`, and the in-container agent cannot edit it).
+  Any config layer may add host mounts via the deliberately named
+  `unsafe_extra_mounts:` key (the old generic `volumes:` key was removed),
+  and the merged set is what gets mounted. That list is developer-owned,
+  trusted input — every layer lives on the host, outside `/workspace`, and
+  the in-container agent cannot edit it.
   connie backstops the catastrophic mistakes — it refuses mounts that
   expose the Docker socket/data, the kernel/device trees (`/proc`,
   `/sys`, `/dev`), host root, mounts that shadow the standard

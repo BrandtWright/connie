@@ -12,11 +12,13 @@
 #   5. CONNIE_CMD, CONNIE_MEMORY, CONNIE_CPUS, CONNIE_MAX_PIDS (env vars)
 #   6. CLI flags (--package, --env, --cmd)
 #
-# Higher-precedence sources override lower ones. Everything below is
-# commented out, so by default this file changes nothing: uncomment only
-# what you want applied to all of your projects. The key set is identical
-# to a project's config.yml — see that file (or the project template) for
-# the full documentation of each option.
+# Higher-precedence sources compose on top of lower ones additively: scalars
+# and map values take the most-specific value; build_commands append; and
+# packages, ports, and unsafe_extra_mounts accumulate, keyed by name / host
+# port / container target. Everything below is commented out, so by default
+# this file changes nothing: uncomment only what you want applied to all of
+# your projects. The key set is identical to a project's config.yml — see that
+# file (or the project template) for the full documentation of each option.
 
 # ── Packages ──────────────────────────────────────────────────────────────────
 # apk packages added to the image of every project.

@@ -1,6 +1,8 @@
 # connie compiled-in defaults
 # These are the lowest-precedence values in the config hierarchy.
-# They are overridden by system, user, and project config in that order.
+# Higher layers (system, user, project) compose on top of these additively:
+# overriding scalar and map values, and accumulating the list keys (packages,
+# build_commands, ports, unsafe_extra_mounts).
 #
 # To change a default for all projects on your machine, copy the relevant
 # key to ~/.config/connie/config.yml and set your preferred value there.

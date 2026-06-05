@@ -155,6 +155,14 @@ from lowest to highest precedence:
 6. CLI flags (--package, --env, --cmd)
 ```
 
+Composition is additive and keyed: a higher-precedence layer overrides scalar
+and map values (`resources`, `env`, `start_cmd`) and accumulates the list keys —
+`build_commands` append in order, while `packages`, `ports`, and
+`unsafe_extra_mounts` accumulate and collapse to one entry per identity (package
+name, host port, container target), so a layer can also remap a port or redefine
+a mount set by a more general one. Configuration only ever changes application
+settings; it cannot weaken the container's security posture.
+
 `TERM` and `COLORTERM` from the host shell are automatically forwarded into
 the container as the lowest-precedence env entries — below even project config.
 They can be overridden via `config.yml` `env:` or `--env`.
