@@ -2,7 +2,10 @@
 # connie project configuration
 #
 # This file describes what this project needs from its container environment.
-# It is the only connie file you should ever need to edit.
+# It is the main connie file you edit for a project. Project *context* —
+# markdown appended to Claude's system prompt — is a separate file: context.md
+# beside this one, edited with `connie edit-context` (preview the assembled
+# result with `connie context`).
 #
 # connie reads config from multiple sources in this order
 # (lowest to highest precedence):
@@ -22,6 +25,10 @@
 # set by a more general one). To REMOVE an entry a lower-precedence layer added,
 # list "-<identity>": "-vim" drops a package, "-8080" a host-port mapping,
 # "-/data" a mount by its container target; for env, set the variable to null.
+#
+# Everything below is commented out, so a freshly-initialized project changes
+# nothing by default — it inherits the compiled-in defaults plus your user and
+# system settings. Uncomment only what this project needs.
 
 # ── Packages ──────────────────────────────────────────────────────────────────
 # Additional packages to install into the container at build time.
@@ -38,8 +45,6 @@
 #   - npm
 #   - jq
 
-packages: []
-
 # ── Build commands ────────────────────────────────────────────────────────────
 # Arbitrary shell commands run at image build time, as claude-user.
 # Executed after apk packages are installed, so apk-installed tools are
@@ -53,8 +58,6 @@ packages: []
 #   - npm install -g markdownlint-cli2  # requires packages: [nodejs, npm]
 #   - pip install black ruff            # requires packages: [python3, py3-pip]
 
-build_commands: []
-
 # ── Environment variables ─────────────────────────────────────────────────────
 # Injected into the container at runtime.
 # Safe to commit — do not put secret values here.
@@ -67,8 +70,6 @@ build_commands: []
 # env:
 #   APP_ENV: development
 #   LOG_LEVEL: debug
-
-env: {}
 
 # ── Mounts ────────────────────────────────────────────────────────────────────
 # By default the ONLY writable host path inside the container is your project
@@ -97,14 +98,14 @@ env: {}
 # ports:
 #   - "8080:8080"
 
-ports: []
-
 # ── Start command ─────────────────────────────────────────────────────────────
 # The command connie drops you into when the container starts.
-# Defaults to 'claude' (Claude Code). Override for debugging with:
+# Defaults to 'claude' (Claude Code) from connie's compiled-in defaults. Leave
+# this commented to inherit that (or a user/system override); set it only to
+# pin a different command for THIS project. To override ad hoc for one run:
 #   connie run --cmd sh
 #
-start_cmd: claude
+# start_cmd: claude
 
 # ── Resource limits ───────────────────────────────────────────────────────────
 # Defaults are defined in connie's compiled-in defaults.

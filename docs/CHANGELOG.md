@@ -64,6 +64,17 @@ Versioning follows [Semantic Versioning][semver].
   gone, along with the user-level `~/.claude/CLAUDE.md` assembly it supported
   (superseded by the system-prompt context model above).
 
+### Fixed
+
+- **A freshly-initialized project no longer overrides your user/system
+  `start_cmd`.** The scaffolded project config shipped an active
+  `start_cmd: claude`; as the most-specific layer it silently won over any
+  `start_cmd` set at the user or system level. The project template is now
+  inert — every key commented out — so a new project contributes nothing to
+  the merge until you uncomment something. This also drops the redundant active
+  empty `packages` / `build_commands` / `env` / `ports` keys the template
+  carried (no-ops under the additive merge).
+
 ## [0.5.0] — 2026-06-02
 
 ### Added

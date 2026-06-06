@@ -2,6 +2,11 @@
 # connie user configuration — your personal preferences
 #
 # Optional. These settings apply to EVERY connie project on this machine.
+#
+# Your user *context* (markdown appended to Claude's system prompt for every
+# project) is a separate file, ~/.config/connie/context.md — edit it with
+# `connie edit-context --user`.
+#
 # connie reads config from multiple sources in this order
 # (lowest to highest precedence):
 #

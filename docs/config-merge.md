@@ -16,9 +16,9 @@ yq eval-all '. as $item ireduce ({}; . * $item)' "$work" "$cfg"
 ```
 
 `*` **replaces** arrays — it does not combine them. Combined with the fact
-that `connie init` scaffolds a project `config.yml` containing an *active*
-`packages: []`, the highest-precedence layer's empty list silently clobbers
-every lower layer:
+that `connie init` scaffolded a project `config.yml` containing an *active*
+`packages: []` (the template is since inert — see the CHANGELOG), the
+highest-precedence layer's empty list silently clobbered every lower layer:
 
 ```text
 defaults(packages: []) → user(packages: [neovim]) → project(packages: [])

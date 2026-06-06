@@ -415,7 +415,10 @@ copied anywhere.
 
 `project.yml` is copied once by `connie init` to
 `~/.config/connie/projects/<slug>/config.yml` and never overwritten. It is the
-developer-owned file that describes the project's container needs.
+developer-owned file that describes the project's container needs. It ships
+inert — every key commented out — so a freshly-initialized project changes
+nothing in the merge until you uncomment something (it won't, for example,
+override a `start_cmd` you set at the user level).
 
 `user.yml` is the analogous template for machine-wide personal preferences.
 `connie edit-config --user` copies it once to `~/.config/connie/config.yml`
