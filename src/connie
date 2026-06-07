@@ -16,7 +16,9 @@
 #   Config merging ─────────────  _merge_configs _validate_config_file
 #   Override generation ────────  _build_fwd_env_obj _build_cli_env_obj
 #                                  _build_env_block _build_vol_block
-#                                  _build_ports_section _generate_override
+#                                  _build_ports_section _validate_config_types
+#                                  _validate_resources _validate_packages
+#                                  _generate_override
 #   Context ────────────────────  _generate_connie_context _read_if_present
 #                                  _resolve_context
 #   Validation / prepare ───────  _prepare
@@ -740,6 +742,77 @@ _build_ports_section() {
     printf '    ports:\n%s' "$_bps_block"
 }
 
+# Reject wrong-typed config keys up front so a type mistake fails with a clear
+# connie error instead of a silent drop or a raw yq error emitted mid-pipeline.
+# Each major key must be its expected YAML type (or absent). $1 = merged file.
+_validate_config_types() {
+    _vct_file="$1"
+    for _vct_got in 'env !!map' 'packages !!seq' 'build_commands !!seq' \
+        'ports !!seq' 'unsafe_extra_mounts !!seq'; do
+        _vct_key=${_vct_got% *}
+        _vct_want=${_vct_got#* }
+        _vct_tag=$(yq ".${_vct_key} | tag" "$_vct_file" 2>/dev/null || printf '!!null')
+        case "$_vct_tag" in
+            '!!null' | "$_vct_want") : ;;
+            *)
+                _die "Invalid type for '${_vct_key}:' in config (got ${_vct_tag#!!}, expected ${_vct_want#!!})." \
+                    "Fix the config so '${_vct_key}:' is a ${_vct_want#!!}."
+                ;;
+        esac
+    done
+}
+
+# Validate the resource limits ($1 memory, $2 cpus, $3 max_pids) after env
+# overrides. These flow into the override as bare YAML scalars (compose wants
+# mem_limit as a byte string, cpus as a number, pids_limit as an int — quoting
+# would change their type), so instead of JSON-encoding them we gate them with a
+# character-class allowlist. Rejecting any char outside the set inherently
+# rejects a newline/colon/space that could inject a sibling compose key — the
+# same YAML-injection class the JSON-encoded scalars handle. The patterns also
+# reject structurally-degenerate values that pass the charset but emit invalid
+# YAML (e.g. 'g', '.', '-'): require a leading digit, a single trailing unit
+# (memory) / single dot (cpus) / leading-only sign (pids).
+_validate_resources() {
+    _vr_memory="$1"
+    _vr_cpus="$2"
+    _vr_max_pids="$3"
+    case "$_vr_memory" in
+        '' | *[!0-9bkmgBKMG]* | [!0-9]* | *[bkmgBKMG]?*)
+            _die "Invalid resources.memory / CONNIE_MEMORY: '$_vr_memory'" \
+                "Expected a byte size like 4g, 512m, or a plain integer."
+            ;;
+    esac
+    case "$_vr_cpus" in
+        '' | *[!0-9.]* | [!0-9]* | *.*.* | *.)
+            _die "Invalid resources.cpus / CONNIE_CPUS: '$_vr_cpus'" \
+                "Expected a number like 2 or 2.0."
+            ;;
+    esac
+    case "$_vr_max_pids" in
+        -1) : ;; # the only valid negative: Docker's "unlimited" sentinel
+        '' | 0 | *[!0-9]*)
+            _die "Invalid resources.max_pids / CONNIE_MAX_PIDS: '$_vr_max_pids'" \
+                "Expected a positive integer, or -1 for unlimited."
+            ;;
+    esac
+}
+
+# Reject package names starting with '-'. Tokens are passed unquoted to `apk
+# add` at build time, so a leading-dash token would be parsed as an apk flag
+# (e.g. --allow-untrusted); extend.Dockerfile also passes `--` as a backstop.
+# $1 = space-joined package list (intentional word-split below).
+_validate_packages() {
+    # shellcheck disable=SC2086
+    for _vp_pkg in $1; do
+        case "$_vp_pkg" in
+            -*)
+                _die "Invalid package name: '$_vp_pkg'" \
+                    "Package names cannot start with '-' (it would be read as an apk flag). Check packages: / --package."
+                ;;
+        esac
+    done
+}
+
 _generate_override() {
     _project_root="$1"
     _merged_file="$2"
@@ -747,22 +820,7 @@ _generate_override() {
     _extra_env="$4"
     _override_cmd="$5"
 
-    # Reject wrong-typed config keys up front so a type mistake fails with a
-    # clear connie error instead of a silent drop or a raw yq error emitted
-    # mid-pipeline. Each major key must be its expected YAML type (or absent).
-    for _got in 'env !!map' 'packages !!seq' 'build_commands !!seq' \
-        'ports !!seq' 'unsafe_extra_mounts !!seq'; do
-        _gt_key=${_got% *}
-        _gt_want=${_got#* }
-        _gt_tag=$(yq ".${_gt_key} | tag" "$_merged_file" 2>/dev/null || printf '!!null')
-        case "$_gt_tag" in
-            '!!null' | "$_gt_want") : ;;
-            *)
-                _die "Invalid type for '${_gt_key}:' in config (got ${_gt_tag#!!}, expected ${_gt_want#!!})." \
-                    "Fix the config so '${_gt_key}:' is a ${_gt_want#!!}."
-                ;;
-        esac
-    done
+    _validate_config_types "$_merged_file"
 
     # Extract values from merged config.
     # No // fallbacks needed — defaults.yml guarantees all keys are present.
@@ -779,56 +837,13 @@ _generate_override() {
     _cpus="${CONNIE_CPUS:-$_cpus}"
     _max_pids="${CONNIE_MAX_PIDS:-$_max_pids}"
 
-    # Resource values flow into the override as bare YAML scalars (compose
-    # wants mem_limit as a byte string, cpus as a number, pids_limit as an
-    # int — quoting them would change their type). So instead of encoding,
-    # validate them with a character-class allowlist. Rejecting any char
-    # outside the set inherently rejects a newline/colon/space that could
-    # inject a sibling compose key — closing the same YAML-injection class
-    # the JSON-encoded scalars below handle. (A `case` glob, not grep, so the
-    # whole value is matched, not line-by-line.)
-    # Patterns reject bad chars (incl. newline/colon/space → no injection)
-    # AND structurally-degenerate values that pass the charset but emit
-    # invalid YAML/compose (e.g. 'g', '.', '-'): require a leading digit, a
-    # single trailing unit (memory) / single dot (cpus) / leading-only sign
-    # (pids).
-    case "$_memory" in
-        '' | *[!0-9bkmgBKMG]* | [!0-9]* | *[bkmgBKMG]?*)
-            _die "Invalid resources.memory / CONNIE_MEMORY: '$_memory'" \
-                "Expected a byte size like 4g, 512m, or a plain integer."
-            ;;
-    esac
-    case "$_cpus" in
-        '' | *[!0-9.]* | [!0-9]* | *.*.* | *.)
-            _die "Invalid resources.cpus / CONNIE_CPUS: '$_cpus'" \
-                "Expected a number like 2 or 2.0."
-            ;;
-    esac
-    case "$_max_pids" in
-        -1) : ;; # the only valid negative: Docker's "unlimited" sentinel
-        '' | 0 | *[!0-9]*)
-            _die "Invalid resources.max_pids / CONNIE_MAX_PIDS: '$_max_pids'" \
-                "Expected a positive integer, or -1 for unlimited."
-            ;;
-    esac
+    _validate_resources "$_memory" "$_cpus" "$_max_pids"
 
     # Apply CLI overrides
     _final_packages="${_packages}${_extra_packages:+ $_extra_packages}"
     _final_cmd="${_override_cmd:-$_start_cmd}"
 
-    # Package tokens are passed unquoted to `apk add` during the build, so a
-    # token starting with '-' would be parsed as an apk flag (e.g.
-    # --allow-untrusted). Reject them here; extend.Dockerfile also passes
-    # `--` as a backstop. Intentional word-split on the space-joined list.
-    # shellcheck disable=SC2086
-    for _pkg in $_final_packages; do
-        case "$_pkg" in
-            -*)
-                _die "Invalid package name: '$_pkg'" \
-                    "Package names cannot start with '-' (it would be read as an apk flag). Check packages: / --package."
-                ;;
-        esac
-    done
+    _validate_packages "$_final_packages"
 
     # Encode every user-controlled scalar as a JSON string (always a valid,
     # fully-escaped YAML scalar) before splicing it into the override below.
