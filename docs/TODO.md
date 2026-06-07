@@ -188,6 +188,25 @@ distribution and the `CONNIE_LIB_DIR` story intact while letting the source
 be modular. Only worth doing once the single file genuinely hurts — today
 the ToC carries it.
 
+### Skip the per-project image when there's nothing to add
+
+With the project template now inert, the default project has no `packages`
+and no `build_commands`, so `extend.Dockerfile` reduces to `FROM base` plus an
+`ENV` and two no-op `RUN`s — yet connie still builds and tags a whole
+per-project image (`connie-<slug>-workspace`) that is essentially the base
+image plus one env var. When both `packages` and `build_commands` are empty,
+connie could skip the per-project build and run the base image directly,
+passing `NPM_CONFIG_PREFIX` via the Compose `environment:` block (it is
+generic, so it could just move to `base.Dockerfile`). Saves a build step,
+disk, and an image to clean, at the cost of a "maybe no per-project image"
+branch in `clean`/`remove` and the loss of a uniform per-project-image model.
+Pure build/runtime plumbing — no bearing on the security posture, which lives
+in `docker-compose.yml`, not the image.
+
+---
+
+## Documentation
+
 ### Screencast / Quickstart GIF
 
 A short terminal recording showing `connie init` + `connie run` from scratch
