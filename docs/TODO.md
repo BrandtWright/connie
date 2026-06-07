@@ -12,6 +12,15 @@ The remote, the GitHub repository, and tag-triggered release automation
 pre-release — so the original "can't land until a remote exists" blocker
 is gone. What remains are the release-maturity tasks below.
 
+### API stabilization for 1.0
+
+connie is deliberately pre-1.0, and the config/context surface is still
+settling — the context subsystem recently took a breaking change (config
+keys → `--append-system-prompt` injection). Before cutting 1.0, give the
+config schema and the `connie` command set a stability pass so the 1.0
+"this is stable" promise holds, and document whatever surface is meant to
+be stable.
+
 ### Supply-chain hardening (1.0 prep)
 
 Targeted at 1.0, where the claim being made is "this is a stable,
@@ -38,6 +47,11 @@ container.
   maintainer GPG key with a verified email matching the GitHub
   account; the public half goes into GitHub settings so signatures
   show as "verified" on the tag page. A CI job can verify it.
+- **Pin the CI toolchain.** The shipped artifact is reproducibly pinned
+  (Alpine by digest, the Claude installer by SHA256), but `ci.yml` still
+  fetches `yq`, `hadolint`, and `markdownlint-cli2` from `/latest` (only
+  `shfmt` is version-pinned). Pin all four so a verifier upgrade can't
+  silently flip a lint or test verdict between otherwise-identical runs.
 
 ### Repo presentation (anytime)
 
@@ -47,6 +61,24 @@ container.
 - **GitHub repo metadata** — description, topics, the "About"
   sidebar's website/homepage field. Not files, but worth checking
   off so the project's GitHub page isn't blank.
+- **OpenSSF Scorecard + Best Practices badges.** Add the
+  `ossf/scorecard-action` workflow and (optionally) pursue the OpenSSF
+  Best Practices badge (formerly CII). On current evidence connie scores
+  well; the badges make the existing rigor legible to anyone evaluating
+  the project from the outside.
+
+### Governance & contribution health (anytime)
+
+- **`CODEOWNERS`.** Even for a small maintainer set it documents who owns
+  what and can drive automatic review requests.
+- **Fuller code of conduct.** `CODE_OF_CONDUCT.md` is currently a short
+  stub; adopt the full Contributor Covenant so the enforcement and
+  contact process is explicit.
+- **Document and enable branch protection.** Require the `ci` checks and
+  at least one review on `main`, and record the policy in CONTRIBUTING so
+  the bar is visible. (These are GitHub settings that live outside the
+  repo, so they can't be verified from a checkout — worth noting they're
+  on.)
 
 ---
 
@@ -118,6 +150,22 @@ directories load on Claude's side, outside connie's concern.
 
 A command that rebuilds the base image and pulls the latest `connie` release in
 one step, analogous to `brew upgrade`.
+
+### Test-coverage measurement
+
+The suite is large (~3:1 test:source LOC, 330 cases), but coverage is
+unquantified. Wrap `kcov` around `tests/run.sh` to produce a line/branch
+coverage figure for `src/connie`, surface it in CI, and optionally fail
+below a threshold — turning "lots of tests" into a defensible number that
+also flags untested branches.
+
+### Doc-drift guard
+
+Docs run ~1.35:1 against source and many cite `src/connie` function and
+flag names, so code changes routinely need a matching doc sweep. A
+lightweight CI check — assert that the names cited in DESIGN/README/AGENTS
+still exist in `src/connie`, or snapshot `connie help` — would catch drift
+mechanically instead of by review.
 
 ---
 
