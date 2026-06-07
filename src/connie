@@ -1157,7 +1157,7 @@ cmd_build_base() {
 }
 
 cmd_init() {
-    _target="${1:-$PWD}"
+    _target="${_TARGET_DIR:-$PWD}"
     _target=$(cd "$_target" 2>/dev/null && pwd) || _die "Directory not found: $_target"
 
     _require_yq
@@ -1231,7 +1231,7 @@ INITEOF
 }
 
 cmd_build() {
-    _project_root=$(_find_project_root "${1:-$PWD}")
+    _project_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
     _info "Building project container for $_project_root"
     _merged=$(_mktemp)
     _override=$(_mktemp)
@@ -1251,7 +1251,7 @@ cmd_build() {
 }
 
 cmd_run() {
-    _project_root=$(_find_project_root "${1:-$PWD}")
+    _project_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
     _info "Starting Claude Code for $_project_root"
     _merged=$(_mktemp)
     _override=$(_mktemp)
@@ -1279,7 +1279,7 @@ cmd_run() {
 }
 
 cmd_clean() {
-    _project_root=$(_find_project_root "${1:-$PWD}")
+    _project_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
 
     _require_yq
 
@@ -1316,7 +1316,7 @@ cmd_clean() {
 #   --keep-image   skip Docker image + network removal
 #   --dry-run      print what would be removed; touch nothing
 cmd_remove() {
-    _project_root=$(_find_project_root "${1:-$PWD}")
+    _project_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
     _rm_slug=$(_project_slug "$_project_root")
     _rm_config_dir="$CONFIG_DIR/projects/$_rm_slug"
     _rm_state_dir="$STATE_DIR/$_rm_slug"
@@ -1520,7 +1520,7 @@ cmd_edit_config() {
     _require_yq
 
     if [ "$_ARG_USER" = "1" ]; then
-        [ -z "${1:-}" ] ||
+        [ -z "${_TARGET_DIR:-}" ] ||
             _die "'$TOOL edit-config --user' takes no directory argument." \
                 "Use '$TOOL edit-config --user' for your user config, or '$TOOL edit-config [dir]' for a project."
         mkdir -p "$CONFIG_DIR"
@@ -1534,7 +1534,7 @@ cmd_edit_config() {
         _ec_file="$USER_CONFIG"
         _ec_scope="user"
     else
-        _ec_root=$(_find_project_root "${1:-$PWD}")
+        _ec_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
         _require_project_config "$_ec_root"
         _ec_file=$(_project_config "$_ec_root")
         _ec_scope="project"
@@ -1549,14 +1549,14 @@ cmd_edit_config() {
 
 cmd_edit_context() {
     if [ "$_ARG_USER" = "1" ]; then
-        [ -z "${1:-}" ] ||
+        [ -z "${_TARGET_DIR:-}" ] ||
             _die "'$TOOL edit-context --user' takes no directory argument." \
                 "Use '$TOOL edit-context --user' for your user context, or '$TOOL edit-context [dir]' for a project."
         mkdir -p "$CONFIG_DIR"
         _ex_file="$USER_CONTEXT"
         _ex_scope="user"
     else
-        _ex_root=$(_find_project_root "${1:-$PWD}")
+        _ex_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
         _require_project_config "$_ex_root"
         _ex_file="$CONFIG_DIR/projects/$(_project_slug "$_ex_root")/context.md"
         _ex_scope="project"
@@ -1575,7 +1575,7 @@ cmd_edit_context() {
 }
 
 cmd_config() {
-    _project_root=$(_find_project_root "${1:-$PWD}")
+    _project_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
 
     _require_yq
 
@@ -1595,7 +1595,7 @@ cmd_config() {
 }
 
 cmd_context() {
-    _project_root=$(_find_project_root "${1:-$PWD}")
+    _project_root=$(_find_project_root "${_TARGET_DIR:-$PWD}")
 
     _require_yq
 
@@ -1674,7 +1674,7 @@ _doctor_check_yq_v4() {
 }
 
 cmd_doctor() {
-    _doc_target="${1:-$PWD}"
+    _doc_target="${_TARGET_DIR:-$PWD}"
     _doc_failed=0
     _doc_warned=0
     _doc_passed=0
@@ -1811,6 +1811,13 @@ _reject_unsupported_flags() {
 }
 
 _main() {
+    # Parsed-CLI state. _main writes these globals from the command line and
+    # the cmd_* dispatch targets read them directly (rather than via positional
+    # parameters) — one uniform convention for every parsed input, including
+    # _TARGET_DIR (the optional [dir]) and _VERBOSITY (initialized at file scope
+    # so it is set even when the test harness sources connie without running
+    # _main). Defaults are assigned here so reads stay safe under `set -u` when
+    # a flag is absent.
     _ARG_PACKAGES=""
     _ARG_ENV=""
     _ARG_CMD=""
@@ -1910,17 +1917,17 @@ _main() {
     _reject_unsupported_flags "$_SUBCOMMAND"
 
     case "${_SUBCOMMAND:-help}" in
-        init) cmd_init "${_TARGET_DIR:-}" ;;
-        build) cmd_build "${_TARGET_DIR:-}" ;;
+        init) cmd_init ;;
+        build) cmd_build ;;
         build-base) cmd_build_base ;;
-        run) cmd_run "${_TARGET_DIR:-}" ;;
-        clean) cmd_clean "${_TARGET_DIR:-}" ;;
-        remove) cmd_remove "${_TARGET_DIR:-}" ;;
-        config) cmd_config "${_TARGET_DIR:-}" ;;
-        edit-config) cmd_edit_config "${_TARGET_DIR:-}" ;;
-        edit-context) cmd_edit_context "${_TARGET_DIR:-}" ;;
-        context) cmd_context "${_TARGET_DIR:-}" ;;
-        doctor) cmd_doctor "${_TARGET_DIR:-}" ;;
+        run) cmd_run ;;
+        clean) cmd_clean ;;
+        remove) cmd_remove ;;
+        config) cmd_config ;;
+        edit-config) cmd_edit_config ;;
+        edit-context) cmd_edit_context ;;
+        context) cmd_context ;;
+        doctor) cmd_doctor ;;
         list) cmd_list ;;
         version) printf '%s %s\n' "$TOOL" "$VERSION" ;;
         help)
