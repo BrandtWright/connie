@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 400" width="720" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#808080"/>
+    </marker>
+  </defs>
+  <text x="360" y="32" font-size="20" font-weight="700" text-anchor="middle" fill="#808080">Where each config key goes</text>
+
+  <!-- merged config -->
+  <rect x="210" y="52" width="300" height="50" rx="8" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5"/>
+  <text x="360" y="74" font-size="14" font-weight="700" text-anchor="middle" fill="#334155">merged config</text>
+  <text x="360" y="93" font-size="11" font-style="italic" text-anchor="middle" fill="#475569">defaults → system → user → project</text>
+
+  <!-- split arrows -->
+  <line x1="300" y1="102" x2="200" y2="168" stroke="#808080" stroke-width="1.5" marker-end="url(#arrow3)"/>
+  <line x1="420" y1="102" x2="520" y2="168" stroke="#808080" stroke-width="1.5" marker-end="url(#arrow3)"/>
+
+  <!-- build-time column -->
+  <rect x="40" y="170" width="300" height="190" rx="8" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="56" y="197" font-size="14" font-weight="700" fill="#7c2d12">Build time → the image</text>
+  <g font-size="12.5" fill="#7c2d12" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+    <text x="56" y="226">packages</text>
+    <text x="56" y="248">build_commands</text>
+  </g>
+  <g font-size="12" fill="#92400e">
+    <text x="56" y="278">→ build args → extend.Dockerfile</text>
+    <text x="56" y="300">→ baked into image layers</text>
+  </g>
+  <text x="56" y="338" font-size="11.5" font-style="italic" fill="#92400e">the only keys that change image files</text>
+
+  <!-- run-time column -->
+  <rect x="380" y="170" width="300" height="190" rx="8" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+  <text x="396" y="197" font-size="14" font-weight="700" fill="#14532d">Run time → the container</text>
+  <g font-size="12.5" fill="#166534" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+    <text x="396" y="226">env · ports · unsafe_extra_mounts</text>
+    <text x="396" y="248">resources · start_cmd · context</text>
+  </g>
+  <g font-size="12" fill="#166534">
+    <text x="396" y="278">→ Compose override file</text>
+    <text x="396" y="300">→ applied at docker compose run</text>
+  </g>
+  <text x="396" y="338" font-size="11.5" font-style="italic" fill="#166534">no image rebuild when these change</text>
+</svg>
