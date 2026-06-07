@@ -142,6 +142,16 @@ it moot — connie no longer mirrors Claude's memory model in the preview.
 system prompt; the project's `CLAUDE.md`/`CLAUDE.local.md` and any rules
 directories load on Claude's side, outside connie's concern.
 
+### Shell completions (bash + zsh)
+
+Ship `completions/connie.{bash,zsh}` completing subcommands, per-subcommand
+flags, and `[dir]` arguments, installed by the Makefile to the standard
+bash-completion / zsh fpath locations. Deferred from the CLI-polish work
+because it is the largest net-new surface and adds a standing coupling: the
+completion scripts must track every change to the subcommand and flag set,
+so it wants either a generation step or a drift check (assert every
+dispatched subcommand appears in the completion) to stay honest.
+
 ---
 
 ## Quality / Internals
@@ -167,9 +177,16 @@ lightweight CI check — assert that the names cited in DESIGN/README/AGENTS
 still exist in `src/connie`, or snapshot `connie help` — would catch drift
 mechanically instead of by review.
 
----
+### Modularize the source behind single-file distribution
 
-## Documentation
+`src/connie` is a single ~1900-line script — idiomatic for a copy-one-file
+CLI and navigable via its function-index ToC, but near the size where one
+file gets unwieldy. If it keeps growing, split the source into
+`src/connie.d/*.sh` modules and add a Makefile build step that concatenates
+them into the single `connie` installed to `bin`. That keeps one-file
+distribution and the `CONNIE_LIB_DIR` story intact while letting the source
+be modular. Only worth doing once the single file genuinely hurts — today
+the ToC carries it.
 
 ### Screencast / Quickstart GIF
 
