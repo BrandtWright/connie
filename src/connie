@@ -29,7 +29,8 @@
 #                                  cmd_doctor
 #   Doctor helpers ─────────────  _doctor_section _doctor_pass _doctor_warn
 #                                  _doctor_fail _doctor_check
-#   Main ───────────────────────  _main
+#   Main ───────────────────────  _reject_unsupported_flags _require_flag_for
+#                                  _main
 #
 # ── End function index ───────────────────────────────────────────────────────
 set -eu
@@ -1781,6 +1782,34 @@ cmd_doctor() {
 # function definitions without triggering the CLI. The entry-point line at
 # the bottom of the file calls _main unless CONNIE_NO_DISPATCH=1 is set.
 
+# Die unless subcommand $1 is in the space-padded allowed set $3, for flag $2.
+# Keeps each scoping check in _reject_unsupported_flags a single readable line.
+_require_flag_for() {
+    case "$3" in
+        *" $1 "*) return 0 ;;
+    esac
+    _die "'$TOOL ${1:-(no subcommand)}' does not accept $2." \
+        "Run '$TOOL help' to see which flags each command takes."
+}
+
+# Enforce per-subcommand flag scoping. _main parses every flag into a global
+# regardless of subcommand (flags and the subcommand may appear in any order,
+# so scoping can't be decided mid-parse); this post-parse pass rejects a flag
+# the chosen subcommand does not take — e.g. `connie list --package x` errors
+# instead of silently ignoring it. Allowed sets mirror the "Options (...)"
+# groups in _usage. $1 = the parsed subcommand (may be empty).
+_reject_unsupported_flags() {
+    _ruf_sub="$1"
+    [ -z "$_ARG_PACKAGES" ] || _require_flag_for "$_ruf_sub" --package " run build config "
+    [ -z "$_ARG_ENV" ] || _require_flag_for "$_ruf_sub" --env " run build config "
+    [ -z "$_ARG_CMD" ] || _require_flag_for "$_ruf_sub" --cmd " run build config "
+    [ "$_ARG_USER" = 0 ] || _require_flag_for "$_ruf_sub" --user " edit-config edit-context "
+    [ "$_ARG_YES" = 0 ] || _require_flag_for "$_ruf_sub" --yes " remove "
+    [ "$_ARG_KEEP_STATE" = 0 ] || _require_flag_for "$_ruf_sub" --keep-state " remove "
+    [ "$_ARG_KEEP_IMAGE" = 0 ] || _require_flag_for "$_ruf_sub" --keep-image " remove "
+    [ "$_ARG_DRY_RUN" = 0 ] || _require_flag_for "$_ruf_sub" --dry-run " remove "
+}
+
 _main() {
     _ARG_PACKAGES=""
     _ARG_ENV=""
@@ -1877,6 +1906,8 @@ _main() {
                 ;;
         esac
     done
+
+    _reject_unsupported_flags "$_SUBCOMMAND"
 
     case "${_SUBCOMMAND:-help}" in
         init) cmd_init "${_TARGET_DIR:-}" ;;

@@ -74,6 +74,11 @@ Versioning follows [Semantic Versioning][semver].
   the merge until you uncomment something. This also drops the redundant active
   empty `packages` / `build_commands` / `env` / `ports` keys the template
   carried (no-ops under the additive merge).
+- **Flags that don't apply to a subcommand are now rejected.** A flag was
+  parsed regardless of subcommand and silently ignored when the command had no
+  use for it (e.g. `connie list --package x` exited 0). connie now errors,
+  naming the flag and the command; the allowed flag sets mirror the
+  "Options (...)" groups in `connie help`.
 
 ## [0.5.0] — 2026-06-02
 
