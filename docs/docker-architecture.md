@@ -115,7 +115,7 @@ So the base is the floor and the override adds to it. Two facts follow:
 
 ---
 
-## Why this split is the right one
+## Why this split has been implemented
 
 - **No rebuild for run-time changes.** Editing ports, env, resources, mounts,
   or the command invalidates no image layer, so the next `connie run` skips
